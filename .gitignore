@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+dist/
+.env
+databank/
+automatedDba-prod-2/
+.claude/
+docs/
+.idea/
+
+backend/
+demo/
+ui/
+
+
+# AI-assisted dev tooling / knowledge base, not needed to run the app
+CLAUDE.md
+BRIEF.md
