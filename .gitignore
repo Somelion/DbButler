@@ -5,13 +5,9 @@ node_modules/
 dist/
 .env
 databank/
-automatedDba-prod-2/
 .claude/
 docs/
 .idea/
-
-backend/
-
 
 # AI-assisted dev tooling / knowledge base, not needed to run the app
 CLAUDE.md
