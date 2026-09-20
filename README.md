@@ -1,4 +1,4 @@
-# PostgreDba
+# DbButler
 
 An automated PostgreSQL DBA assistant — connects read-only to a PostgreSQL database, surfaces
 health findings and misconfiguration/anti-pattern warnings, and generates hardware-aware config
