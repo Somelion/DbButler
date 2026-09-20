@@ -6,7 +6,7 @@ tuning suggestions. Built for both experienced DBAs and non-expert home users.
 
 ## What it does
 
-PostgreDba runs as a self-hosted Docker stack alongside the database(s) you want to watch. It
+DbButler runs as a self-hosted Docker stack alongside the database(s) you want to watch. It
 never installs an agent on the target host — every check is a read-only SQL query, and the only
 writes it makes are explicit, per-item actions you trigger yourself (e.g. Analyze, Vacuum, reset
 stats, cancel/terminate a session). Config recommendations are always advisory and copy/paste —
