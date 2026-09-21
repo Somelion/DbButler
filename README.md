@@ -66,6 +66,16 @@ Any of the three host ports can be overridden (e.g. if one is already taken) by 
 `UI_PORT`, `BACKEND_PORT`, or `DEMO_PORT` before running `docker compose up`, or by editing them in
 `.env` — `pre-flight.sh` tells you which to use.
 
+### Running behind a reverse proxy / on a custom hostname
+
+The `pgdba-ui` container is nginx serving the built UI, and it reverse-proxies every `/api/*`
+request straight to `pgdba-backend` over the Docker network (see `ui/nginx.conf`) — the browser
+only ever talks to whatever single origin fronts `pgdba-ui`. That means it works unmodified behind
+a reverse proxy on any hostname: no `VITE_API_BASE`, no CORS setup, and no host-header allowlist to
+maintain. If you're hitting the backend's `BACKEND_PORT` directly from something other than this
+UI (a script, a different frontend), `CORS_ALLOWED_ORIGINS` in `example.env` still applies to that
+path.
+
 ### Optional: demo database
 
 To also start a disposable demo Postgres instance, seeded with a small dataset that has a few

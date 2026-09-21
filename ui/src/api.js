@@ -1,4 +1,9 @@
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+// In the Docker deployment, nginx serves this build and reverse-proxies
+// /api/* to the backend (see ui/nginx.conf), so a relative base keeps every
+// request same-origin — no CORS, no hardcoded backend host/port. Local
+// `npm run dev` (no nginx in front) still needs an absolute backend URL,
+// defaulted to the docker-compose default port.
+const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.PROD ? "" : "http://localhost:8000");
 const TOKEN_STORAGE_KEY = "pgdba.authToken";
 
 // sessionStorage, not localStorage — the token dies with the tab, which is
