@@ -16,6 +16,7 @@ from app.config_advisor import (
 )
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.routers.advisor_archive import get_archived_finding_ids
+from app.schema_filter import get_allowed_schemas, schema_filter_params, schema_filter_sql
 from app.schemas import ConfigAdvisorResponse, IndexFinding
 from app.target_conn import connect_to_target
 
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/api/targets", tags=["config-advisor"])
 # the rest of the transaction on the same cursor.
 PG_STAT_STATEMENTS_INFO_MIN_VERSION = 140000
 
+# {schema_filter} — see app/schema_filter.py::schema_filter_sql.
 PER_TABLE_AUTOVACUUM_DISABLED_QUERY = """
     SELECT n.nspname AS schema_name, c.relname AS table_name
     FROM pg_class c
@@ -37,14 +39,16 @@ PER_TABLE_AUTOVACUUM_DISABLED_QUERY = """
           SELECT 1 FROM unnest(c.reloptions) AS opt
           WHERE opt = 'autovacuum_enabled=false'
       )
+      {schema_filter}
 """
 
 
 @router.get("/{target_id}/config-advisor", response_model=ConfigAdvisorResponse)
 def get_config_advisor(target_id: uuid.UUID):
+    allowed_schemas = get_allowed_schemas(target_id)
     try:
         with connect_to_target(target_id) as conn, conn.cursor() as cur:
-            findings = compute_config_advisor_findings(cur)
+            findings = compute_config_advisor_findings(cur, allowed_schemas)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
 
@@ -53,15 +57,20 @@ def get_config_advisor(target_id: uuid.UUID):
     return ConfigAdvisorResponse(findings=[IndexFinding(**finding) for finding in findings])
 
 
-def compute_config_advisor_findings(cur) -> list[dict]:
+def compute_config_advisor_findings(cur, allowed_schemas: list[str] | None = None) -> list[dict]:
     """Runs all Configuration Advisor checks against an already-open target
     cursor and returns raw finding dicts, unfiltered by archive state. Shared
     by the on-demand endpoint above and the nightly deep scan
-    (scheduler.py::run_deep_scan_cycle) so the two never drift apart."""
+    (scheduler.py::run_deep_scan_cycle) so the two never drift apart.
+    allowed_schemas (app/schema_filter.py) only narrows the one per-table
+    check here (the rest are server-wide settings, not schema-scoped)."""
     cur.execute("SHOW autovacuum")
     autovacuum_enabled = cur.fetchone()[0] == "on"
 
-    cur.execute(PER_TABLE_AUTOVACUUM_DISABLED_QUERY)
+    cur.execute(
+        PER_TABLE_AUTOVACUUM_DISABLED_QUERY.format(schema_filter=schema_filter_sql("n.nspname", allowed_schemas)),
+        schema_filter_params(allowed_schemas),
+    )
     per_table_rows = cur.fetchall()
 
     cur.execute("SHOW fsync")

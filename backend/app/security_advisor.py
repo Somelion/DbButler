@@ -111,6 +111,8 @@ def find_public_grant_findings(rows: list[tuple]) -> list[dict]:
                     "If this was intentional (e.g. a genuinely public reference table), leave it — "
                     "otherwise REVOKE the privilege from PUBLIC and GRANT it to a specific role instead."
                 ),
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings
@@ -139,6 +141,8 @@ def find_rls_policy_without_enforcement_findings(rows: list[tuple]) -> list[dict
                 ),
                 "detail": f"schema={schema} table={table}",
                 "suggested_action": f"Run ALTER TABLE {full_name} ENABLE ROW LEVEL SECURITY, if that was the intent.",
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings
@@ -167,6 +171,8 @@ def find_rls_enabled_without_policy_findings(rows: list[tuple]) -> list[dict]:
                 ),
                 "detail": f"schema={schema} table={table}",
                 "suggested_action": "Add the intended CREATE POLICY statements, if rows should be visible to any role.",
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings
@@ -199,6 +205,10 @@ def find_security_definer_search_path_findings(rows: list[tuple]) -> list[dict]:
                     f"ALTER FUNCTION {full_name} SET search_path = '' (or an explicit, fully-qualified "
                     "path), or schema-qualify every reference inside the function body."
                 ),
+                # A function, not a table — schema_name still lets this
+                # finding be narrowed by Advisor's schema filter; table_name
+                # doesn't apply here so it's left unset.
+                "schema_name": schema,
             }
         )
     return findings

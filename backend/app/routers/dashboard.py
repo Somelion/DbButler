@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.backup_advisor import build_backup_status
 from app.collectors import CACHE_HIT_RATIO
-from app.pg_stat_statements import installed_but_too_old
+from app.pg_stat_statements import installed_but_too_old, unavailable_message
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.pgbouncer_conn import connect_to_pgbouncer, get_pgbouncer_credentials
 from app.pgbouncer_status import build_pooler_status
@@ -14,8 +14,9 @@ from app.replication_advisor import build_replication_status
 from app.routers.advisor_archive import get_archived_finding_ids
 from app.routers.backup_advisor import ARCHIVER_STATUS_QUERY, MAX_WAL_SIZE_QUERY, WAL_DIR_SIZE_QUERY
 from app.routers.replication_advisor import REPLICATION_STATUS_QUERY, fetch_replication_slots
-from app.routers.table_health import TABLE_HEALTH_QUERY
-from app.schemas import CategoryStatus, DashboardResponse, Finding
+from app.routers.table_health import fetch_table_health_rows
+from app.schema_filter import get_allowed_schemas
+from app.schemas import CategoryStatus, DashboardResponse, ExtensionStatusResponse, Finding
 from app.severity import (
     autovacuum_staleness_severity,
     cache_hit_severity,
@@ -112,20 +113,36 @@ def get_dashboard(target_id: uuid.UUID):
         raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
 
 
+@router.get("/{target_id}/extension-status", response_model=ExtensionStatusResponse)
+def get_extension_status(target_id: uuid.UUID):
+    """A cheap, standalone check the frontend polls on every screen (App.jsx)
+    to show a global "pg_stat_statements isn't installed" banner — the same
+    signal compute_health's own query-stats-disabled Finding already carries,
+    just reachable without loading the full Dashboard response."""
+    try:
+        with connect_to_target(target_id) as conn, conn.cursor() as cur:
+            enabled = pg_stat_statements_enabled(cur)
+            message = None if enabled else unavailable_message(cur)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
+
+    return ExtensionStatusResponse(pg_stat_statements_enabled=enabled, message=message)
+
+
 def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
     """Runs the full set of live health checks against an already-open target
     cursor. Shared by the dashboard endpoint and the Diagnose Now runbook so
-    the two never drift apart. target_id is only needed for the optional
-    Pooler category, which reads a separate PgBouncer connection
-    (app/pgbouncer_conn.py) rather than anything reachable via cur."""
+    the two never drift apart. target_id is needed for the optional Pooler
+    category (reads a separate PgBouncer connection, app/pgbouncer_conn.py,
+    rather than anything reachable via cur) and to look up this target's
+    schema allowlist (app/schema_filter.py) for the Bloat/Wraparound tiles."""
     cur.execute(ACTIVITY_SUMMARY_QUERY)
     activity_rows = cur.fetchall()
 
     cur.execute("SHOW max_connections")
     max_connections = int(cur.fetchone()[0])
 
-    cur.execute(TABLE_HEALTH_QUERY)
-    table_rows = cur.fetchall()
+    table_rows = fetch_table_health_rows(cur, get_allowed_schemas(target_id))
 
     cur.execute(CACHE_HIT_RATIO.query)
     cache_hit_row = cur.fetchone()

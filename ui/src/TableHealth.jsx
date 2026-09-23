@@ -11,6 +11,18 @@ const SEVERITY_RANK = { critical: 2, attention: 1, healthy: 0 };
 
 const hiddenSchemasKey = (targetId) => `pgdba.tableHealth.hiddenSchemas.${targetId}`;
 
+// A manual Vacuum/Analyze (maintenance.py) updates Postgres's last_vacuum/
+// last_analyze columns, never the last_autovacuum/last_autoanalyze ones —
+// so picking whichever of the two is non-null with a fixed priority (as
+// this used to do) can keep showing a stale autovacuum timestamp right
+// after a fresh manual run. Compare and take whichever actually happened
+// more recently instead.
+function mostRecent(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return new Date(a) > new Date(b) ? a : b;
+}
+
 function loadHiddenSchemas(targetId) {
   try {
     const raw = localStorage.getItem(hiddenSchemasKey(targetId));
@@ -24,6 +36,11 @@ function loadHiddenSchemas(targetId) {
 
 const COLUMNS = [
   { key: "table_name", label: "Table", help: "Table name — grouped by schema below." },
+  {
+    key: "live_tuples",
+    label: "Rows (live/dead)",
+    help: "Estimated live row count and dead (deleted or updated but not yet reclaimed by VACUUM) row count for this table, from pg_stat_user_tables.",
+  },
   {
     key: "dead_pct",
     label: "Dead %",
@@ -76,8 +93,8 @@ export default function TableHealth({ targetId }) {
       .then((data) => {
         const mapped = data.tables.map((t) => ({
           ...t,
-          last_vacuum_at: t.last_autovacuum ?? t.last_vacuum ?? null,
-          last_analyze_at: t.last_autoanalyze ?? t.last_analyze ?? null,
+          last_vacuum_at: mostRecent(t.last_vacuum, t.last_autovacuum),
+          last_analyze_at: mostRecent(t.last_analyze, t.last_autoanalyze),
         }));
         setTables(mapped);
         // Only initializes once per target (skipped once non-null) — done
@@ -363,28 +380,35 @@ function severityColor(severity) {
   return "var(--text)";
 }
 
+const ACTION_SUCCESS_TIMEOUT_MS = 6000;
+
 function TableRow({ table, targetId, onChanged, firstSeenByFindingId }) {
-  const [busy, setBusy] = useState(false);
+  const [busyVerb, setBusyVerb] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [detail, setDetail] = useState(null);
   const [findingsError, setFindingsError] = useState(null);
   const [findingsLoading, setFindingsLoading] = useState(false);
+  const busy = busyVerb !== null;
   const severity = worstSeverity(table);
   const rowBg = severity === "critical" ? "var(--critical-bg)" : severity === "attention" ? "var(--attention-bg)" : "transparent";
   const fullName = `${table.schema_name}.${table.table_name}`;
 
   const runAction = async (label, verb, fn) => {
     if (!window.confirm(`${label} ${fullName}?`)) return;
-    setBusy(true);
+    setBusyVerb(verb);
     setActionError(null);
+    setActionSuccess(null);
     try {
-      await fn();
+      const result = await fn();
       await onChanged();
+      setActionSuccess(result?.message || `${verb} succeeded.`);
+      setTimeout(() => setActionSuccess(null), ACTION_SUCCESS_TIMEOUT_MS);
     } catch (err) {
       setActionError(`${verb} failed: ${err.message}`);
     } finally {
-      setBusy(false);
+      setBusyVerb(null);
     }
   };
 
@@ -440,6 +464,9 @@ function TableRow({ table, targetId, onChanged, firstSeenByFindingId }) {
           </span>
           {table.table_name}
         </td>
+        <td style={{ padding: "8px 10px", color: "var(--text-secondary)", fontFamily: "IBM Plex Mono, monospace" }}>
+          {table.live_tuples.toLocaleString()} / {table.dead_tuples.toLocaleString()}
+        </td>
         <td style={{ padding: "8px 10px", fontWeight: 650, color: severityColor(table.dead_pct_severity) }}>
           {table.dead_pct.toFixed(1)}%
         </td>
@@ -463,7 +490,7 @@ function TableRow({ table, targetId, onChanged, firstSeenByFindingId }) {
                 runAction("Analyze", "Analyze", () => api.analyzeTable(targetId, table.schema_name, table.table_name))
               }
             >
-              Analyze
+              {busyVerb === "Analyze" ? "Analyzing…" : "Analyze"}
             </button>
             <button
               className="button-secondary"
@@ -476,7 +503,7 @@ function TableRow({ table, targetId, onChanged, firstSeenByFindingId }) {
                 )
               }
             >
-              Vacuum
+              {busyVerb === "Vacuum" ? "Vacuuming…" : "Vacuum"}
             </button>
             <button
               className="button-secondary"
@@ -489,7 +516,7 @@ function TableRow({ table, targetId, onChanged, firstSeenByFindingId }) {
                 )
               }
             >
-              Reset stats
+              {busyVerb === "Reset stats" ? "Resetting…" : "Reset stats"}
             </button>
           </div>
         </td>
@@ -498,6 +525,13 @@ function TableRow({ table, targetId, onChanged, firstSeenByFindingId }) {
         <tr>
           <td colSpan={COLUMNS.length} style={{ padding: "4px 10px", fontSize: 11, color: "var(--critical-text)" }}>
             {actionError}
+          </td>
+        </tr>
+      )}
+      {actionSuccess && (
+        <tr>
+          <td colSpan={COLUMNS.length} style={{ padding: "4px 10px", fontSize: 11, color: "var(--healthy-text)" }}>
+            {actionSuccess}
           </td>
         </tr>
       )}

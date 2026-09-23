@@ -298,6 +298,29 @@ export default function FindingCard({
         </div>
       )}
 
+      {finding.extensions && finding.extensions.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {finding.extensions.map((ext) => (
+            <span
+              key={ext.name}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "3px 9px",
+                borderRadius: 100,
+                background: "var(--row-bg)",
+                fontFamily: "IBM Plex Mono, monospace",
+                fontSize: 11.5,
+              }}
+            >
+              <span style={{ color: "var(--text)", fontWeight: 650 }}>{ext.name}</span>
+              <span style={{ color: "var(--text-muted)" }}>{ext.version}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {finding.id.startsWith("covering-index-") && targetId && onApplyAnalysis && (
         <IndexCoverageAnalysisPanel targetId={targetId} findingId={finding.id} onApplyAnalysis={onApplyAnalysis} />
       )}

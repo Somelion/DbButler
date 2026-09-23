@@ -79,6 +79,11 @@ def find_missing_fk_indexes(fk_rows: list[tuple], index_rows: list[tuple]) -> li
                 "detail": f"constraint={constraint_name} columns=({column_list})",
                 "suggested_action": "Add an index covering the foreign key columns.",
                 "recommended_ddl": f"CREATE INDEX CONCURRENTLY {index_name} ON {table_name} ({column_list});",
+                # table_name here is a ::regclass::text cast — schema-qualified
+                # only when the schema isn't on search_path, so this is a
+                # best-effort split rather than a reliable schema_name.
+                "schema_name": table_name.rsplit(".", 1)[0] if "." in table_name else None,
+                "table_name": table_name.rsplit(".", 1)[-1],
             }
         )
     return findings
@@ -104,6 +109,8 @@ def find_unused_indexes(unused_rows: list[tuple]) -> list[dict]:
                 "detail": f"idx_scan=0 index_bytes={index_bytes}",
                 "suggested_action": "Confirm this index isn't needed for an infrequent query, then drop it.",
                 "recommended_ddl": f"DROP INDEX CONCURRENTLY {schema}.{index_name};",
+                "schema_name": schema,
+                "table_name": table_name,
             }
         )
     return findings
@@ -146,6 +153,8 @@ def find_duplicate_indexes(index_rows: list[tuple]) -> list[dict]:
                 "recommended_ddl": "\n".join(
                     f"DROP INDEX CONCURRENTLY {schema}.{name};" for schema, name, _ in redundant
                 ),
+                "schema_name": keep_schema,
+                "table_name": table_name,
             }
         )
     return findings
@@ -190,6 +199,8 @@ def find_seq_scan_heavy_findings(rows: list[tuple]) -> list[dict]:
                     "for the columns actually filtered on, and run ANALYZE in case statistics are stale."
                 ),
                 "recommended_ddl": None,
+                "schema_name": schema,
+                "table_name": table_name,
             }
         )
     return findings
@@ -217,6 +228,8 @@ def find_invalid_indexes(rows: list[tuple]) -> list[dict]:
                 "detail": f"index_bytes={index_bytes}",
                 "suggested_action": "Drop it and, if it's still needed, recreate it with CREATE INDEX CONCURRENTLY.",
                 "recommended_ddl": f"DROP INDEX CONCURRENTLY {schema}.{index_name};",
+                "schema_name": schema,
+                "table_name": table_name,
             }
         )
     return findings
@@ -269,6 +282,8 @@ def find_redundant_indexes(index_rows: list[tuple]) -> list[dict]:
                     "detail": f"table={table_name} method={method} redundant={index_name} covers={covering}",
                     "suggested_action": f"Drop {index_name} and keep {covering}.",
                     "recommended_ddl": f"DROP INDEX CONCURRENTLY {schema}.{index_name};",
+                    "schema_name": schema,
+                    "table_name": table_name,
                 }
             )
     return findings
@@ -305,6 +320,8 @@ def find_seq_scan_no_index_findings(rows: list[tuple]) -> list[dict]:
                     "covering them."
                 ),
                 "recommended_ddl": None,
+                "schema_name": schema,
+                "table_name": table_name,
             }
         )
     return findings
@@ -365,6 +382,8 @@ def find_over_indexed_findings(
             "detail": f"index_count={index_count} write_ops={write_ops}",
             "suggested_action": "Cross-check against the Unused Indexes findings for this table before deciding what to drop.",
             "recommended_ddl": None,
+            "schema_name": schema,
+            "table_name": table_name,
         }
         table_indexes = indexes_by_table.get((schema, table_name))
         if table_indexes:
@@ -410,6 +429,8 @@ def find_low_cardinality_index_findings(rows: list[tuple]) -> list[dict]:
                     "just that value is usually far more effective than indexing the whole column."
                 ),
                 "recommended_ddl": None,
+                "schema_name": schema,
+                "table_name": table_name,
             }
         )
     return findings
@@ -579,6 +600,8 @@ def find_covering_index_candidates(
                     "confident": confident,
                     "columns": verdicts,
                 },
+                "schema_name": schema,
+                "table_name": bare_table,
             }
         )
     return findings

@@ -10,6 +10,11 @@ yet worth the extra pg_indexes round-trip for a first version."""
 
 import re
 
+# Not narrowed by a target's schema allowlist (app/schema_filter.py) —
+# skipped deliberately: this only builds a candidate identifier pool that
+# still gets filtered down to whatever literally appears in the query/plan
+# text below, so an out-of-allowlist name would need to already be part of
+# a query the user is actively analyzing to matter at all.
 IDENTIFIER_QUERY = """
     SELECT DISTINCT table_schema, table_name, column_name
     FROM information_schema.columns

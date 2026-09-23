@@ -19,6 +19,7 @@ from app.index_analysis import (
 )
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.routers.advisor_archive import get_archived_finding_ids
+from app.schema_filter import get_allowed_schemas, schema_filter_params, schema_filter_sql
 from app.schemas import ApplyIndexFindingRequest, IndexAdvisorResponse, IndexFinding, MaintenanceResult
 from app.target_conn import connect_to_target
 
@@ -52,6 +53,12 @@ FK_COLUMNS_QUERY = """
 # all schema-qualify their DROP INDEX suggestions with it — a bare index name
 # is ambiguous the moment two schemas ever have a same-named index, and these
 # suggestions are now actually executed via Apply, not just copy-pasted.
+# {schema_filter} is filled in at call time by schema_filter_sql() — either
+# an `AND n.nspname = ANY(%s)`/`AND s.schemaname = ANY(%s)` clause (when the
+# target has a schema allowlist configured, app/schema_filter.py) or an
+# empty string (no filter, the query runs exactly as before). Always placed
+# right after the query's own WHERE conditions and before any trailing
+# GROUP BY, never after one.
 ALL_INDEX_COLUMNS_QUERY = """
     SELECT
         n.nspname AS schema_name,
@@ -69,6 +76,7 @@ ALL_INDEX_COLUMNS_QUERY = """
     JOIN pg_attribute att ON att.attrelid = i.indrelid AND att.attnum = u.attnum
     WHERE tc.relkind = 'r'
       AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+      {schema_filter}
     GROUP BY n.nspname, i.indrelid, ic.relname, am.amname, i.indisunique
 """
 
@@ -84,6 +92,7 @@ UNUSED_INDEXES_QUERY = """
     WHERE s.idx_scan = 0
       AND NOT i.indisprimary
       AND NOT i.indisunique
+      {schema_filter}
 """
 
 # Only tables with at least one non-PK index — a table with no such index
@@ -101,6 +110,7 @@ SEQ_SCAN_HEAVY_QUERY = """
     WHERE EXISTS (
         SELECT 1 FROM pg_index i WHERE i.indrelid = s.relid AND NOT i.indisprimary
     )
+    {schema_filter}
 """
 
 INVALID_INDEXES_QUERY = """
@@ -115,6 +125,7 @@ INVALID_INDEXES_QUERY = """
     JOIN pg_namespace n ON n.oid = tc.relnamespace
     WHERE NOT i.indisvalid
       AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+      {schema_filter}
 """
 
 # The mirror image of SEQ_SCAN_HEAVY_QUERY above: tables with NO non-PK
@@ -130,6 +141,7 @@ SEQ_SCAN_NO_INDEX_QUERY = """
     WHERE NOT EXISTS (
         SELECT 1 FROM pg_index i WHERE i.indrelid = s.relid AND NOT i.indisprimary
     )
+    {schema_filter}
 """
 
 OVER_INDEXED_QUERY = """
@@ -140,6 +152,7 @@ OVER_INDEXED_QUERY = """
         s.n_tup_ins + s.n_tup_upd + s.n_tup_del AS write_ops
     FROM pg_stat_user_tables s
     JOIN pg_index i ON i.indrelid = s.relid
+    WHERE 1=1 {schema_filter}
     GROUP BY s.schemaname, s.relname, s.n_tup_ins, s.n_tup_upd, s.n_tup_del
 """
 
@@ -170,6 +183,7 @@ LOW_CARDINALITY_INDEX_QUERY = """
       AND NOT i.indisunique
       AND array_length(i.indkey, 1) = 1
       AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+      {schema_filter}
 """
 
 # Sizes for every index on a plain table, keyed by (schema, index_name) in
@@ -188,6 +202,7 @@ INDEX_BYTES_QUERY = """
     JOIN pg_namespace n ON n.oid = tc.relnamespace
     WHERE tc.relkind = 'r'
       AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+      {schema_filter}
 """
 
 # Same shape/intent as schema_lint.py's RECENT_QUERIES_QUERY (top 200 by
@@ -207,9 +222,10 @@ RECENT_QUERIES_QUERY = """
 
 @router.get("/{target_id}/index-advisor", response_model=IndexAdvisorResponse)
 def get_index_advisor(target_id: uuid.UUID):
+    allowed_schemas = get_allowed_schemas(target_id)
     try:
         with connect_to_target(target_id) as conn, conn.cursor() as cur:
-            findings = compute_index_advisor_findings(cur)
+            findings = compute_index_advisor_findings(cur, allowed_schemas)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
 
@@ -218,36 +234,49 @@ def get_index_advisor(target_id: uuid.UUID):
     return IndexAdvisorResponse(findings=[IndexFinding(**finding) for finding in findings])
 
 
-def compute_index_advisor_findings(cur) -> list[dict]:
+def compute_index_advisor_findings(cur, allowed_schemas: list[str] | None = None) -> list[dict]:
     """Runs all ten Index Advisor checks against an already-open target
     cursor and returns raw finding dicts, unfiltered by archive state. Shared
     by the on-demand endpoint above and the nightly deep scan
-    (scheduler.py::run_deep_scan_cycle) so the two never drift apart."""
+    (scheduler.py::run_deep_scan_cycle) so the two never drift apart.
+
+    allowed_schemas narrows every catalog query to a target's configured
+    schema allowlist (app/schema_filter.py) when the caller passes one — the
+    on-demand endpoint above does; the nightly deep scan and the Apply path's
+    own re-fetch (_resolve_index_apply_ddl) don't thread target_id through
+    here today, so they still see every schema, a known, narrower gap than
+    the live screen."""
+    schema_params = schema_filter_params(allowed_schemas)
+
     cur.execute(FK_COLUMNS_QUERY)
     fk_rows = [(row[0], row[1], list(row[2])) for row in cur.fetchall()]
 
-    cur.execute(ALL_INDEX_COLUMNS_QUERY)
+    cur.execute(ALL_INDEX_COLUMNS_QUERY.format(schema_filter=schema_filter_sql("n.nspname", allowed_schemas)), schema_params)
     index_rows = [(row[0], row[1], row[2], row[3], row[4], list(row[5])) for row in cur.fetchall()]
 
-    cur.execute(UNUSED_INDEXES_QUERY)
+    cur.execute(UNUSED_INDEXES_QUERY.format(schema_filter=schema_filter_sql("s.schemaname", allowed_schemas)), schema_params)
     unused_rows = cur.fetchall()
 
-    cur.execute(SEQ_SCAN_HEAVY_QUERY)
+    cur.execute(SEQ_SCAN_HEAVY_QUERY.format(schema_filter=schema_filter_sql("s.schemaname", allowed_schemas)), schema_params)
     seq_scan_rows = cur.fetchall()
 
-    cur.execute(INVALID_INDEXES_QUERY)
+    cur.execute(INVALID_INDEXES_QUERY.format(schema_filter=schema_filter_sql("n.nspname", allowed_schemas)), schema_params)
     invalid_index_rows = cur.fetchall()
 
-    cur.execute(SEQ_SCAN_NO_INDEX_QUERY)
+    cur.execute(
+        SEQ_SCAN_NO_INDEX_QUERY.format(schema_filter=schema_filter_sql("s.schemaname", allowed_schemas)), schema_params
+    )
     seq_scan_no_index_rows = cur.fetchall()
 
-    cur.execute(OVER_INDEXED_QUERY)
+    cur.execute(OVER_INDEXED_QUERY.format(schema_filter=schema_filter_sql("s.schemaname", allowed_schemas)), schema_params)
     over_indexed_rows = cur.fetchall()
 
-    cur.execute(LOW_CARDINALITY_INDEX_QUERY)
+    cur.execute(
+        LOW_CARDINALITY_INDEX_QUERY.format(schema_filter=schema_filter_sql("n.nspname", allowed_schemas)), schema_params
+    )
     low_cardinality_rows = cur.fetchall()
 
-    cur.execute(INDEX_BYTES_QUERY)
+    cur.execute(INDEX_BYTES_QUERY.format(schema_filter=schema_filter_sql("n.nspname", allowed_schemas)), schema_params)
     index_bytes = {(row[0], row[1]): row[2] for row in cur.fetchall()}
 
     recent_queries = []

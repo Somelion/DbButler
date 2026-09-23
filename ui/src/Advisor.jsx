@@ -38,6 +38,24 @@ function loadHiddenTabs() {
   }
 }
 
+// Per-target, like Table Health's own hidden-schemas filter (schemas really
+// do vary target to target, unlike the fixed tab/category taxonomy above) —
+// a further, personal client-side narrowing on top of whatever the
+// connection's own allowed_schemas allowlist (Connections screen) already
+// limited the server to computing in the first place.
+const hiddenSchemasKey = (targetId) => `pgdba.advisor.hiddenSchemas.${targetId}`;
+
+function loadHiddenSchemas(targetId) {
+  try {
+    const raw = localStorage.getItem(hiddenSchemasKey(targetId));
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
 const TABS = [
   { key: "index", label: "Index Advisor" },
   { key: "schema", label: "Schema Lint" },
@@ -132,6 +150,8 @@ const EXTENSION_GROUPS = [
   { prefix: "timescaledb-uncompressed-", label: "TimescaleDB Compression" },
   { prefix: "pgvector-unindexed-", label: "pgvector Indexing" },
   { prefix: "postgis-unindexed-", label: "PostGIS Indexing" },
+  { prefix: "installed-extensions-summary", label: "Installed Extensions" },
+  { prefix: "recommended-extension-", label: "Recommended Extensions" },
 ];
 
 const GROUPS_BY_TAB = {
@@ -194,6 +214,7 @@ export default function Advisor({ targetId, initialTab }) {
   const [firstSeenByFindingId] = useFirstSeenMap(targetId);
   const [hiddenCategories, setHiddenCategories] = useState(() => loadHiddenCategories(tab));
   const [hiddenTabs, setHiddenTabs] = useState(() => loadHiddenTabs());
+  const [hiddenSchemas, setHiddenSchemas] = useState(() => loadHiddenSchemas(targetId));
 
   useEffect(() => {
     setHiddenCategories(loadHiddenCategories(tab));
@@ -201,6 +222,7 @@ export default function Advisor({ targetId, initialTab }) {
 
   useEffect(() => {
     setError(null);
+    setHiddenSchemas(loadHiddenSchemas(targetId));
     Promise.all([
       api.getIndexAdvisor(targetId),
       api.getSchemaLint(targetId),
@@ -248,7 +270,18 @@ export default function Advisor({ targetId, initialTab }) {
   }, [hiddenTabs]);
 
   const activeFindings = findingsByTab[tab];
-  const allGroups = activeFindings ? groupFindings(activeFindings, GROUPS_BY_TAB[tab]) : [];
+  // Schema names present on the active tab's findings, regardless of current
+  // hide state — the dropdown always lists every schema seen, same as
+  // Categories does for group labels. Findings with no schema_name (a
+  // database-wide check, e.g. a setting or role) are never affected by this
+  // filter — they have no schema to match against.
+  const allSchemaNames = activeFindings
+    ? [...new Set(activeFindings.filter((f) => f.schema_name).map((f) => f.schema_name))].sort()
+    : [];
+  const schemaFilteredFindings = activeFindings
+    ? activeFindings.filter((f) => !f.schema_name || !hiddenSchemas.has(f.schema_name))
+    : null;
+  const allGroups = schemaFilteredFindings ? groupFindings(schemaFilteredFindings, GROUPS_BY_TAB[tab]) : [];
   const categoryLabels = allGroups.map((g) => g.label);
   const visibleGroups = allGroups.filter((g) => !hiddenCategories.has(g.label));
   const visibleFindingCount = visibleGroups.reduce((sum, g) => sum + g.findings.length, 0);
@@ -275,6 +308,18 @@ export default function Advisor({ targetId, initialTab }) {
     if (next.has(label)) next.delete(label);
     else next.add(label);
     persistHiddenTabs(next);
+  };
+
+  const persistHiddenSchemas = (next) => {
+    setHiddenSchemas(next);
+    localStorage.setItem(hiddenSchemasKey(targetId), JSON.stringify([...next]));
+  };
+
+  const toggleSchemaHidden = (schemaName) => {
+    const next = new Set(hiddenSchemas);
+    if (next.has(schemaName)) next.delete(schemaName);
+    else next.add(schemaName);
+    persistHiddenSchemas(next);
   };
 
   const handleArchive = (finding) => {
@@ -349,7 +394,7 @@ export default function Advisor({ targetId, initialTab }) {
             {activeFindings &&
               `${visibleFindingCount} finding${visibleFindingCount === 1 ? "" : "s"}${
                 hiddenCategories.size > 0 ? ` (${hiddenCategories.size} categor${hiddenCategories.size === 1 ? "y" : "ies"} hidden)` : ""
-              }`}
+              }${hiddenSchemas.size > 0 ? ` (${hiddenSchemas.size} schema${hiddenSchemas.size === 1 ? "" : "s"} hidden)` : ""}`}
           </span>
           <CategoryFilterDropdown
             label="Tabs"
@@ -369,6 +414,16 @@ export default function Advisor({ targetId, initialTab }) {
               onSelectNone={() => persistHiddenCategories(new Set(categoryLabels))}
             />
           )}
+          {visibleTabs.length > 0 && allSchemaNames.length > 0 && (
+            <CategoryFilterDropdown
+              label="Schemas"
+              items={allSchemaNames}
+              hiddenItems={hiddenSchemas}
+              onToggle={toggleSchemaHidden}
+              onSelectAll={() => persistHiddenSchemas(new Set())}
+              onSelectNone={() => persistHiddenSchemas(new Set(allSchemaNames))}
+            />
+          )}
         </div>
       </div>
 
@@ -384,11 +439,21 @@ export default function Advisor({ targetId, initialTab }) {
         <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{EMPTY_MESSAGE_BY_TAB[tab]}</span>
       )}
 
-      {visibleTabs.length > 0 && activeFindings && activeFindings.length > 0 && visibleGroups.length === 0 && (
+      {visibleTabs.length > 0 && activeFindings && activeFindings.length > 0 && schemaFilteredFindings.length === 0 && (
         <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          All categories are hidden — use the Categories button above to show some.
+          All schemas are hidden — use the Schemas button above to show some.
         </span>
       )}
+
+      {visibleTabs.length > 0 &&
+        activeFindings &&
+        activeFindings.length > 0 &&
+        schemaFilteredFindings.length > 0 &&
+        visibleGroups.length === 0 && (
+          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+            All categories are hidden — use the Categories button above to show some.
+          </span>
+        )}
 
       {visibleTabs.length > 0 && visibleGroups.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

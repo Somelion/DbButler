@@ -59,6 +59,7 @@ export default function App() {
   const [mode, setMode] = useState("simple");
   const [aiAnalysisUnseen, setAiAnalysisUnseen] = useState(0);
   const [toast, setToast] = useState(null);
+  const [extensionWarning, setExtensionWarning] = useState(null);
   const seenAnalysisStatuses = useRef(new Map());
 
   useEffect(() => {
@@ -123,6 +124,30 @@ export default function App() {
     poll();
     const interval = setInterval(poll, AI_ANALYSIS_POLL_MS);
     return () => clearInterval(interval);
+  }, [connected, target?.id]);
+
+  // A global, every-screen banner for "this target has no pg_stat_statements"
+  // — the Dashboard's own compute_health() already surfaces this as one
+  // Finding in its own findings feed, but that's invisible on every other
+  // screen. Re-checked on every target switch; not polled continuously since
+  // whether the extension is installed rarely changes mid-session.
+  useEffect(() => {
+    if (!connected) {
+      setExtensionWarning(null);
+      return undefined;
+    }
+    let cancelled = false;
+    api
+      .getExtensionStatus(target.id)
+      .then((status) => {
+        if (!cancelled) setExtensionWarning(status.pg_stat_statements_enabled ? null : status.message);
+      })
+      .catch(() => {
+        if (!cancelled) setExtensionWarning(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [connected, target?.id]);
 
   useEffect(() => {
@@ -288,6 +313,20 @@ export default function App() {
             }}
           >
             {loadError}
+          </div>
+        )}
+        {extensionWarning && (
+          <div
+            style={{
+              padding: "12px 16px",
+              background: "var(--attention-bg)",
+              border: "1px solid var(--attention-border)",
+              borderRadius: 12,
+              color: "var(--attention-text)",
+              fontSize: 13,
+            }}
+          >
+            {extensionWarning}
           </div>
         )}
         <ScreenHeader

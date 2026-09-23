@@ -114,6 +114,8 @@ def find_bad_data_type_findings(column_rows: list[tuple]) -> list[dict]:
                     "detail": f"column={column} type={data_type}",
                     "suggested_action": f"Change {column} to numeric(12,2) (or the precision your currency needs).",
                     "recommended_ddl": f"ALTER TABLE {full_name} ALTER COLUMN {column} TYPE numeric(12,2);",
+                    "schema_name": schema,
+                    "table_name": table,
                 }
             )
 
@@ -132,6 +134,8 @@ def find_bad_data_type_findings(column_rows: list[tuple]) -> list[dict]:
                     "detail": f"column={column} type=varchar(255)",
                     "suggested_action": "Use text, or a varchar(N) where N reflects a real constraint.",
                     "recommended_ddl": None,
+                    "schema_name": schema,
+                    "table_name": table,
                 }
             )
 
@@ -149,6 +153,8 @@ def find_bad_data_type_findings(column_rows: list[tuple]) -> list[dict]:
                     "detail": f"column={column} type=char({char_max_length})",
                     "suggested_action": "Use text, or varchar(n) if you genuinely need a length constraint.",
                     "recommended_ddl": f"ALTER TABLE {full_name} ALTER COLUMN {column} TYPE text;",
+                    "schema_name": schema,
+                    "table_name": table,
                 }
             )
 
@@ -171,6 +177,8 @@ def find_bad_data_type_findings(column_rows: list[tuple]) -> list[dict]:
                         "the sequence) — not a one-line fix, so no DDL is suggested here."
                     ),
                     "recommended_ddl": None,
+                    "schema_name": schema,
+                    "table_name": table,
                 }
             )
 
@@ -192,6 +200,8 @@ def find_bad_data_type_findings(column_rows: list[tuple]) -> list[dict]:
                         "a reference or URL in the database."
                     ),
                     "recommended_ddl": None,
+                    "schema_name": schema,
+                    "table_name": table,
                 }
             )
 
@@ -229,6 +239,8 @@ def find_partitioning_findings(table_rows: list[tuple]) -> list[dict]:
                     "that most queries and deletes already filter on."
                 ),
                 "recommended_ddl": None,
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings
@@ -267,6 +279,11 @@ def find_uuid_fragmentation_findings(rows: list[tuple]) -> list[dict]:
                     "or bigserial/identity if a plain sequence is acceptable."
                 ),
                 "recommended_ddl": None,
+                # table_name is a ::regclass::text cast — schema-qualified only
+                # when the schema isn't on search_path, so this is a
+                # best-effort split, same caveat as index_analysis.py's.
+                "schema_name": table_name.rsplit(".", 1)[0] if "." in table_name else None,
+                "table_name": table_name.rsplit(".", 1)[-1],
             }
         )
     return findings
@@ -510,6 +527,8 @@ def find_missing_primary_key_findings(rows: list[tuple]) -> list[dict]:
                     "already."
                 ),
                 "recommended_ddl": None,
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings
@@ -548,6 +567,8 @@ def find_sequence_exhaustion_findings(rows: list[tuple]) -> list[dict]:
                     "ALTER TABLE ... ALTER COLUMN ... TYPE bigint, then ALTER SEQUENCE ... AS bigint."
                 ),
                 "recommended_ddl": None,
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings
@@ -582,6 +603,8 @@ def find_naive_timestamp_findings(column_rows: list[tuple]) -> list[dict]:
                     'wall-clock value (e.g. "9:00 daily" business rules).'
                 ),
                 "recommended_ddl": None,
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings
@@ -619,6 +642,8 @@ def find_jsonb_overuse_findings(rows: list[tuple]) -> list[dict]:
                     "out into real columns."
                 ),
                 "recommended_ddl": None,
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings
@@ -650,6 +675,8 @@ def find_boolean_as_int_findings(column_rows: list[tuple]) -> list[dict]:
                     "COLUMN ... TYPE boolean USING column::boolean."
                 ),
                 "recommended_ddl": None,
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings
@@ -681,6 +708,8 @@ def find_fk_type_mismatch_findings(rows: list[tuple]) -> list[dict]:
                 "detail": f"constraint={constraint_name} column_type={column_type} ref_type={ref_type}",
                 "suggested_action": f"Align {column_name}'s type with {ref_table}.{ref_column}.",
                 "recommended_ddl": None,
+                "schema_name": table_name.rsplit(".", 1)[0] if "." in table_name else None,
+                "table_name": table_name.rsplit(".", 1)[-1],
             }
         )
     return findings
@@ -713,6 +742,8 @@ def find_unlogged_table_findings(rows: list[tuple]) -> list[dict]:
                     "state, scratch space) — otherwise ALTER TABLE ... SET LOGGED."
                 ),
                 "recommended_ddl": None,
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings
@@ -747,6 +778,8 @@ def find_unvalidated_constraint_findings(rows: list[tuple]) -> list[dict]:
                     "takes a brief lock to check existing rows, not a full rewrite."
                 ),
                 "recommended_ddl": f"ALTER TABLE {table_name} VALIDATE CONSTRAINT {constraint_name};",
+                "schema_name": table_name.rsplit(".", 1)[0] if "." in table_name else None,
+                "table_name": table_name.rsplit(".", 1)[-1],
             }
         )
     return findings

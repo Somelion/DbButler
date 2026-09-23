@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "./api";
 import PgBouncerSettings from "./PgBouncerSettings";
+import CollapsibleGroup from "./CollapsibleGroup";
 
 const EMPTY_FORM = {
   name: "",
@@ -10,7 +11,23 @@ const EMPTY_FORM = {
   username: "",
   password: "",
   sslmode: "prefer",
+  allowedSchemas: "",
 };
+
+// "" (or all-whitespace) means "no filter" — parses a comma-separated list
+// into a trimmed, non-empty array, or undefined so the field is simply
+// omitted from the payload rather than sent as an empty array.
+function parseAllowedSchemas(text) {
+  const names = text
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return names.length > 0 ? names : undefined;
+}
+
+function formatAllowedSchemas(list) {
+  return list && list.length > 0 ? list.join(", ") : "";
+}
 
 export default function ConnectionsScreen({ targets, activeTargetId, onCreated, onRemoved, onUpdated, onSelect }) {
   const [showForm, setShowForm] = useState(targets.length === 0);
@@ -84,7 +101,10 @@ function ConnectionForm({ onSaved, onCancel }) {
 
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value });
 
-  const asPayload = () => ({ ...form, port: parseInt(form.port, 10) || 5432 });
+  const asPayload = () => {
+    const { allowedSchemas, ...rest } = form;
+    return { ...rest, port: parseInt(form.port, 10) || 5432, allowed_schemas: parseAllowedSchemas(allowedSchemas) };
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -162,6 +182,18 @@ function ConnectionForm({ onSaved, onCancel }) {
           </Field>
         </div>
 
+        <Field label="Schemas to monitor (optional)">
+          <input
+            value={form.allowedSchemas}
+            onChange={set("allowedSchemas")}
+            placeholder="public, sales (leave blank to watch every schema)"
+          />
+          <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>
+            Comma-separated schema names. Narrows Table Health and every Advisor tab to just these
+            schemas — leave blank to see everything, the default.
+          </span>
+        </Field>
+
         <div
           style={{
             display: "flex",
@@ -234,6 +266,24 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
   const [nameDraft, setNameDraft] = useState(target.name);
   const [updatingPassword, setUpdatingPassword] = useState(false);
   const [passwordDraft, setPasswordDraft] = useState("");
+  const [editingSchemas, setEditingSchemas] = useState(false);
+  const [schemasDraft, setSchemasDraft] = useState(() => formatAllowedSchemas(target.allowed_schemas));
+
+  const handleSaveSchemas = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await api.updateTarget(target.id, {
+        allowed_schemas: parseAllowedSchemas(schemasDraft) || [],
+      });
+      onUpdated(updated);
+      setEditingSchemas(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleRetest = async () => {
     setBusy(true);
@@ -481,21 +531,51 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
             </button>
           </div>
         )}
+
+        {editingSchemas ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              autoFocus
+              value={schemasDraft}
+              onChange={(e) => setSchemasDraft(e.target.value)}
+              placeholder="public, sales (leave blank to watch every schema)"
+              style={{ flex: 1 }}
+            />
+            <button className="button-secondary" onClick={handleSaveSchemas} disabled={busy}>
+              {busy ? "Saving…" : "Save"}
+            </button>
+            <button
+              className="button-secondary"
+              onClick={() => {
+                setEditingSchemas(false);
+                setSchemasDraft(formatAllowedSchemas(target.allowed_schemas));
+              }}
+              disabled={busy}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+              {target.allowed_schemas && target.allowed_schemas.length > 0
+                ? `Watching: ${target.allowed_schemas.join(", ")}`
+                : "Watching all schemas"}
+            </span>
+            <span
+              onClick={() => setEditingSchemas(true)}
+              title="Choose which schemas Table Health and the Advisor tabs consider"
+              style={{ fontSize: 11, color: "var(--accent)", cursor: "pointer" }}
+            >
+              Edit
+            </span>
+          </div>
+        )}
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          padding: 22,
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-        }}
-      >
+      <CollapsibleGroup label="PgBouncer (optional)" defaultExpanded={false}>
         <PgBouncerSettings targetId={target.id} />
-      </div>
+      </CollapsibleGroup>
     </div>
   );
 }

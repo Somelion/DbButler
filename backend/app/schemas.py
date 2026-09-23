@@ -12,6 +12,11 @@ class TargetCreate(BaseModel):
     username: str
     password: str
     sslmode: str = "prefer"
+    # Optional schema allowlist — None/empty means "no filter, watch every
+    # schema" (the default, backward-compatible behavior). When set, every
+    # backend query that lists schemas/tables for this target only
+    # considers the ones named here (app/schema_filter.py).
+    allowed_schemas: list[str] | None = None
 
 
 class TargetOut(BaseModel):
@@ -28,17 +33,21 @@ class TargetOut(BaseModel):
     last_test_message: str | None
     is_active: bool
     created_at: datetime
+    allowed_schemas: list[str] | None = None
 
 
 class TargetUpdate(BaseModel):
     # All optional — a caller sends only the field(s) it wants to change
-    # (rename, pause-or-resume background monitoring, and/or replace the
-    # stored password). At least one must be set; the router 400s otherwise.
-    # password has no "clear" semantic (unlike other write-only secrets in
-    # this app) — a blank/omitted value always means "leave it alone".
+    # (rename, pause-or-resume background monitoring, replace the stored
+    # password, and/or change the schema allowlist). At least one must be
+    # set; the router 400s otherwise. password has no "clear" semantic
+    # (unlike other write-only secrets in this app) — a blank/omitted value
+    # always means "leave it alone". allowed_schemas: omit to leave
+    # untouched, an empty list to clear it back to "no filter".
     name: str | None = None
     is_active: bool | None = None
     password: str | None = None
+    allowed_schemas: list[str] | None = None
 
 
 class ConnectionTestRequest(BaseModel):
@@ -155,6 +164,15 @@ class DashboardResponse(BaseModel):
     findings: list[Finding]
 
 
+class ExtensionStatusResponse(BaseModel):
+    """Backs the global pg_stat_statements banner (App.jsx) — a cheap,
+    target-agnostic status the frontend can check on every screen, not just
+    the Dashboard's own findings feed."""
+
+    pg_stat_statements_enabled: bool
+    message: str | None = None
+
+
 class QueryStat(BaseModel):
     query: str
     calls: int
@@ -239,6 +257,15 @@ class CoveringAnalysis(BaseModel):
     columns: list[CoveringColumnVerdict]
 
 
+class ExtensionInfo(BaseModel):
+    # One row per pg_extension entry — Extension Advisor's "what's installed"
+    # summary finding (app/extension_advisor.py::find_installed_extensions_summary),
+    # rendered as pills by FindingCard.jsx so the actual names are visible
+    # without switching to Advanced mode.
+    name: str
+    version: str
+
+
 class IndexFinding(BaseModel):
     id: str
     category: str
@@ -251,6 +278,14 @@ class IndexFinding(BaseModel):
     occurrences: list[QueryOccurrence] | None = None
     index_columns: list[IndexColumnInfo] | None = None
     covering_analysis: CoveringAnalysis | None = None
+    extensions: list[ExtensionInfo] | None = None
+    # Set when a finding is genuinely about one specific schema/table — lets
+    # Advisor's schema filter (ui/src/Advisor.jsx) narrow findings the same
+    # way Table Health's own schema filter does. None on checks that are
+    # inherently database/cluster-wide (a setting, a role, a query-pattern
+    # check spanning multiple tables) — those are unaffected by the filter.
+    schema_name: str | None = None
+    table_name: str | None = None
 
 
 class IndexAdvisorResponse(BaseModel):

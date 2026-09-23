@@ -30,7 +30,9 @@ from app.table_health_advisor import (
     find_toast_heavy,
     find_wide_columns,
 )
+from app.schema_filter import get_allowed_schemas
 from app.target_conn import connect_to_target
+from app.timescaledb_health import aggregate_hypertable_rows, is_timescaledb_installed
 
 router = APIRouter(prefix="/api/targets", tags=["table-health"])
 
@@ -141,6 +143,33 @@ DEAD_TUPLE_HISTORY_QUERY = """
 _STORAGE_CODE_LABELS = {"p": "plain", "e": "external", "m": "main", "x": "extended"}
 
 
+def fetch_table_health_rows(cur, allowed_schemas: list[str] | None = None) -> list:
+    """Runs TABLE_HEALTH_QUERY and, when the target has TimescaleDB
+    installed, rolls per-chunk rows up onto their parent hypertable
+    (app/timescaledb_health.py) before anyone reads them as "the" table
+    health rows — otherwise a hypertable shows up as N cryptically-named
+    _timescaledb_internal chunk rows plus its own always-near-empty native
+    row, instead of one row with real numbers. Shared by this module's own
+    endpoints and dashboard.py::compute_health (which reuses this function
+    directly for its Bloat/Wraparound tiles), so every screen agrees.
+
+    allowed_schemas (app/schema_filter.py) is applied AFTER aggregation, not
+    as a SQL WHERE clause — a hypertable's chunks physically live in
+    _timescaledb_internal, not the hypertable's own schema, so filtering at
+    the SQL level would silently drop every chunk (and revert to the
+    near-empty native-row bug this module works around) for any target whose
+    allowlist doesn't happen to also name _timescaledb_internal. Filtering
+    the already-aggregated rows by their (now hypertable-identity) schema
+    name instead sidesteps that entirely."""
+    cur.execute(TABLE_HEALTH_QUERY)
+    rows = cur.fetchall()
+    if is_timescaledb_installed(cur):
+        rows = aggregate_hypertable_rows(rows, cur)
+    if allowed_schemas:
+        rows = [row for row in rows if row[0] in allowed_schemas]
+    return rows
+
+
 def _reloption_value(reloptions, key, default):
     reloptions = reloptions or []
     prefix = f"{key}="
@@ -240,7 +269,16 @@ def _analyze_table(cur, row, target_id: uuid.UUID) -> tuple[list[dict], dict]:
 
     target_id is only needed for find_dead_tuple_growth_forecast, which
     reads pgdba-store's own metric_points history (table_metrics_cycle) —
-    everything else here queries the target via cur, same as before."""
+    everything else here queries the target via cur, same as before.
+
+    For a TimescaleDB hypertable, `row`'s dead/live tuple counts are already
+    a chunk-aggregate (app/timescaledb_health.py), but `table_oid`/
+    `reltoastrelid` still point at the hypertable's own (real, but nearly
+    empty) relation — so this function's own heap/TOAST byte lookups
+    (_fetch_toast_bytes) and column/reloptions reads describe that one
+    relation, not a chunk-aggregate. Known, scoped limitation: the primary
+    Table Health list is chunk-aware; this expandable per-table detail panel
+    isn't yet."""
     (
         schema_name,
         table_name,
@@ -345,9 +383,12 @@ def compute_all_table_health_findings(cur, target_id: uuid.UUID) -> list[dict]:
     the nightly deep scan (scheduler.py::run_deep_scan_cycle) and its manual
     "Run Deep Scan Now" trigger. The live Table Health screen never calls
     this: it fetches per-table findings lazily, only for a table the user
-    actually expands, to keep the existing 15s poll cheap."""
-    cur.execute(TABLE_HEALTH_QUERY)
-    rows = cur.fetchall()
+    actually expands, to keep the existing 15s poll cheap. Already has
+    target_id in scope (table-health's one special case needing it, per its
+    own dead-tuple-growth-forecast use below), so its schema allowlist
+    (app/schema_filter.py) is applied here too, unlike the other seven deep
+    scan categories."""
+    rows = fetch_table_health_rows(cur, get_allowed_schemas(target_id))
     findings = []
     for row in rows:
         findings += compute_table_findings(cur, row, target_id)
@@ -356,10 +397,10 @@ def compute_all_table_health_findings(cur, target_id: uuid.UUID) -> list[dict]:
 
 @router.get("/{target_id}/table-health", response_model=TableHealthResponse)
 def get_table_health(target_id: uuid.UUID):
+    allowed_schemas = get_allowed_schemas(target_id)
     try:
         with connect_to_target(target_id) as conn, conn.cursor() as cur:
-            cur.execute(TABLE_HEALTH_QUERY)
-            rows = cur.fetchall()
+            rows = fetch_table_health_rows(cur, allowed_schemas)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
 

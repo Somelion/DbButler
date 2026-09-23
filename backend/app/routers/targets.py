@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/targets", tags=["targets"])
 
 _COLUMNS = (
     "id, name, host, port, dbname, username, sslmode, detected_pg_version, "
-    "last_test_ok, last_test_at, last_test_message, is_active, created_at"
+    "last_test_ok, last_test_at, last_test_message, is_active, created_at, allowed_schemas"
 )
 
 
@@ -31,6 +31,7 @@ def _row_to_target(row) -> TargetOut:
         last_test_message=row[10],
         is_active=row[11],
         created_at=row[12],
+        allowed_schemas=row[13],
     )
 
 
@@ -51,8 +52,8 @@ def create_target(payload: TargetCreate):
             f"""
             INSERT INTO targets
                 (name, host, port, dbname, username, encrypted_password, sslmode,
-                 detected_pg_version, last_test_ok, last_test_at, last_test_message)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, now(), %s)
+                 detected_pg_version, last_test_ok, last_test_at, last_test_message, allowed_schemas)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, now(), %s, %s)
             RETURNING {_COLUMNS}
             """,
             (
@@ -66,6 +67,7 @@ def create_target(payload: TargetCreate):
                 result.get("pg_version"),
                 result["ok"],
                 result.get("message"),
+                payload.allowed_schemas or None,
             ),
         )
         row = cur.fetchone()
@@ -86,9 +88,20 @@ def update_target(target_id: uuid.UUID, payload: TargetUpdate):
     last_test_ok reflects reality right away rather than waiting for a
     separate manual "Test again" click — this is also the fix for a target
     whose stored password can no longer be decrypted (see
-    target_conn.py::connect_to_target's InvalidToken handling)."""
-    if payload.name is None and payload.is_active is None and not payload.password:
-        raise HTTPException(status_code=400, detail="Nothing to update — send name, is_active, and/or password.")
+    target_conn.py::connect_to_target's InvalidToken handling).
+
+    allowed_schemas follows the same COALESCE convention: omitted/null
+    leaves the existing allowlist untouched, an empty list clears it back
+    to "no filter" (app/schema_filter.py)."""
+    if (
+        payload.name is None
+        and payload.is_active is None
+        and not payload.password
+        and payload.allowed_schemas is None
+    ):
+        raise HTTPException(
+            status_code=400, detail="Nothing to update — send name, is_active, password, and/or allowed_schemas."
+        )
 
     with store_conn() as conn, conn.cursor() as cur:
         if payload.password:
@@ -103,6 +116,7 @@ def update_target(target_id: uuid.UUID, payload: TargetUpdate):
                 UPDATE targets
                 SET name = COALESCE(%s, name),
                     is_active = COALESCE(%s, is_active),
+                    allowed_schemas = COALESCE(%s, allowed_schemas),
                     encrypted_password = %s,
                     detected_pg_version = %s,
                     last_test_ok = %s,
@@ -114,6 +128,7 @@ def update_target(target_id: uuid.UUID, payload: TargetUpdate):
                 (
                     payload.name,
                     payload.is_active,
+                    payload.allowed_schemas,
                     encrypt(payload.password),
                     result.get("pg_version"),
                     result["ok"],
@@ -125,11 +140,13 @@ def update_target(target_id: uuid.UUID, payload: TargetUpdate):
             cur.execute(
                 f"""
                 UPDATE targets
-                SET name = COALESCE(%s, name), is_active = COALESCE(%s, is_active)
+                SET name = COALESCE(%s, name),
+                    is_active = COALESCE(%s, is_active),
+                    allowed_schemas = COALESCE(%s, allowed_schemas)
                 WHERE id = %s
                 RETURNING {_COLUMNS}
                 """,
-                (payload.name, payload.is_active, target_id),
+                (payload.name, payload.is_active, payload.allowed_schemas, target_id),
             )
         row = cur.fetchone()
         if row is None:

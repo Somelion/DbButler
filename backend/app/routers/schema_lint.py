@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.routers.advisor_archive import get_archived_finding_ids
+from app.schema_filter import get_allowed_schemas, schema_filter_params, schema_filter_sql
 from app.schema_lint import (
     find_bad_data_type_findings,
     find_boolean_as_int_findings,
@@ -26,11 +27,16 @@ from app.target_conn import connect_to_target
 
 router = APIRouter(prefix="/api/targets", tags=["schema-lint"])
 
+# {schema_filter} is filled in at call time by schema_filter_sql() — either
+# an AND ... = ANY(%s) clause (target has a schema allowlist configured,
+# app/schema_filter.py) or an empty string (no filter). Always placed right
+# after the query's own WHERE conditions, before any trailing GROUP BY.
 COLUMN_TYPES_QUERY = """
     SELECT table_schema, table_name, column_name, data_type, character_maximum_length,
            column_default, is_identity
     FROM information_schema.columns
     WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+      {schema_filter}
 """
 
 # Excludes partitioned parent tables (pg_partitioned_table) and their
@@ -46,10 +52,14 @@ PARTITION_CANDIDATES_QUERY = """
     JOIN pg_class c ON c.oid = s.relid
     WHERE NOT EXISTS (SELECT 1 FROM pg_partitioned_table pt WHERE pt.partrelid = c.oid)
       AND NOT c.relispartition
+      {schema_filter}
 """
 
 # Single-column uuid primary keys only (array_length = 1) — composite
 # surrogate keys are rare enough here not to be worth the extra complexity.
+# No pg_namespace join (table_name comes from ::regclass::text, not a
+# schema-qualified pair) — not schema-filterable without one, so this check
+# doesn't respect a target's schema allowlist yet, a known, narrower gap.
 UUID_PK_QUERY = """
     SELECT
         con.conrelid::regclass::text AS table_name,
@@ -111,11 +121,13 @@ UNLOGGED_TABLES_QUERY = """
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relkind = 'r' AND c.relpersistence = 'u'
       AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+      {schema_filter}
 """
 
 # contype 'c' (CHECK) and 'f' (FOREIGN KEY) are the two constraint kinds
 # that support ADD CONSTRAINT ... NOT VALID; convalidated=false means the
-# follow-up VALIDATE CONSTRAINT step never ran.
+# follow-up VALIDATE CONSTRAINT step never ran. No pg_namespace join (same
+# reason as UUID_PK_QUERY above) — not schema-filterable without one.
 UNVALIDATED_CONSTRAINTS_QUERY = """
     SELECT con.conrelid::regclass::text, con.conname, con.contype
     FROM pg_constraint con
@@ -136,6 +148,7 @@ MISSING_PRIMARY_KEY_QUERY = """
           SELECT 1 FROM pg_constraint con
           WHERE con.conrelid = c.oid AND con.contype IN ('p', 'u')
       )
+      {schema_filter}
 """
 
 # pg_depend links a sequence to the column it backs: deptype 'a' for a plain
@@ -160,6 +173,7 @@ SEQUENCE_EXHAUSTION_QUERY = """
     JOIN pg_sequences ps ON ps.schemaname = seq_ns.nspname AND ps.sequencename = seq_class.relname
     WHERE dep.deptype IN ('a', 'i')
       AND ps.data_type IN ('integer', 'smallint')
+      {schema_filter}
 """
 
 JSONB_OVERUSE_QUERY = """
@@ -170,13 +184,15 @@ JSONB_OVERUSE_QUERY = """
         count(*) AS total_column_count
     FROM information_schema.columns
     WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+      {schema_filter}
     GROUP BY table_schema, table_name
 """
 
 # Pairs each FK column with the column it references by ordinal position
 # (conkey[i] <-> confkey[i]) via two LATERAL unnests joined on matching
 # ordinality — needed so a composite FK's columns line up correctly, not
-# just its first column.
+# just its first column. No pg_namespace join (same reason as UUID_PK_QUERY
+# above) — not schema-filterable without one.
 FK_TYPE_MISMATCH_QUERY = """
     SELECT
         con.conname AS constraint_name,
@@ -199,9 +215,10 @@ FK_TYPE_MISMATCH_QUERY = """
 
 @router.get("/{target_id}/schema-lint", response_model=SchemaLintResponse)
 def get_schema_lint(target_id: uuid.UUID):
+    allowed_schemas = get_allowed_schemas(target_id)
     try:
         with connect_to_target(target_id) as conn, conn.cursor() as cur:
-            findings = compute_schema_lint_findings(cur)
+            findings = compute_schema_lint_findings(cur, allowed_schemas)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
 
@@ -210,33 +227,49 @@ def get_schema_lint(target_id: uuid.UUID):
     return SchemaLintResponse(findings=[IndexFinding(**finding) for finding in findings])
 
 
-def compute_schema_lint_findings(cur) -> list[dict]:
+def compute_schema_lint_findings(cur, allowed_schemas: list[str] | None = None) -> list[dict]:
     """Runs all Schema Lint checks against an already-open target cursor and
     returns raw finding dicts, unfiltered by archive state. Shared by the
     on-demand endpoint above and the nightly deep scan
-    (scheduler.py::run_deep_scan_cycle) so the two never drift apart."""
-    cur.execute(COLUMN_TYPES_QUERY)
+    (scheduler.py::run_deep_scan_cycle) so the two never drift apart.
+
+    allowed_schemas narrows the checks that have a pg_namespace join
+    (app/schema_filter.py) when the caller passes one — the on-demand
+    endpoint above does; the nightly deep scan doesn't thread target_id
+    through here today, so it still sees every schema, a known, narrower
+    gap. UUID_PK_QUERY/FK_TYPE_MISMATCH_QUERY/UNVALIDATED_CONSTRAINTS_QUERY
+    have no schema join at all and aren't filtered regardless."""
+    schema_params = schema_filter_params(allowed_schemas)
+
+    cur.execute(COLUMN_TYPES_QUERY.format(schema_filter=schema_filter_sql("table_schema", allowed_schemas)), schema_params)
     column_rows = cur.fetchall()
 
-    cur.execute(PARTITION_CANDIDATES_QUERY)
+    cur.execute(
+        PARTITION_CANDIDATES_QUERY.format(schema_filter=schema_filter_sql("s.schemaname", allowed_schemas)),
+        schema_params,
+    )
     partition_rows = cur.fetchall()
 
     cur.execute(UUID_PK_QUERY)
     uuid_pk_rows = cur.fetchall()
 
-    cur.execute(MISSING_PRIMARY_KEY_QUERY)
+    cur.execute(
+        MISSING_PRIMARY_KEY_QUERY.format(schema_filter=schema_filter_sql("n.nspname", allowed_schemas)), schema_params
+    )
     missing_pk_rows = cur.fetchall()
 
-    cur.execute(SEQUENCE_EXHAUSTION_QUERY)
+    cur.execute(
+        SEQUENCE_EXHAUSTION_QUERY.format(schema_filter=schema_filter_sql("n.nspname", allowed_schemas)), schema_params
+    )
     sequence_rows = cur.fetchall()
 
-    cur.execute(JSONB_OVERUSE_QUERY)
+    cur.execute(JSONB_OVERUSE_QUERY.format(schema_filter=schema_filter_sql("table_schema", allowed_schemas)), schema_params)
     jsonb_rows = cur.fetchall()
 
     cur.execute(FK_TYPE_MISMATCH_QUERY)
     fk_type_rows = cur.fetchall()
 
-    cur.execute(UNLOGGED_TABLES_QUERY)
+    cur.execute(UNLOGGED_TABLES_QUERY.format(schema_filter=schema_filter_sql("n.nspname", allowed_schemas)), schema_params)
     unlogged_table_rows = cur.fetchall()
 
     cur.execute(UNVALIDATED_CONSTRAINTS_QUERY)

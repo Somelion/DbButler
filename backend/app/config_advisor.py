@@ -61,6 +61,8 @@ def find_autovacuum_disabled_findings(global_enabled: bool, per_table_rows: list
                     "it's off."
                 ),
                 "recommended_ddl": f"ALTER TABLE {full_name} SET (autovacuum_enabled = true);",
+                "schema_name": schema,
+                "table_name": table,
             }
         )
     return findings

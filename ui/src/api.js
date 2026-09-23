@@ -80,6 +80,7 @@ export const api = {
   runTableHealthDeepScan: (targetId) =>
     request(`/api/targets/${targetId}/table-health/deep-scan`, { method: "POST" }),
   getDashboard: (targetId) => request(`/api/targets/${targetId}/dashboard`),
+  getExtensionStatus: (targetId) => request(`/api/targets/${targetId}/extension-status`),
   getDashboardSettings: () => request("/api/dashboard-settings"),
   updateDashboardSettings: (payload) =>
     request("/api/dashboard-settings", { method: "PUT", body: JSON.stringify(payload) }),
