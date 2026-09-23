@@ -7,7 +7,7 @@ const COLUMNS = [
   { label: "Current", help: "The value currently active on your target database." },
   {
     label: "Recommended",
-    help: "PostgreDba's suggested value, sized from your saved Hardware Profile (RAM/CPU/storage/workload).",
+    help: "DbButler's suggested value, sized from your saved Hardware Profile (RAM/CPU/storage/workload).",
   },
   { label: "Why", help: "The reasoning behind the recommendation." },
   {

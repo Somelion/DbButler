@@ -87,6 +87,11 @@ export default function TableHealth({ targetId }) {
   const [collapsedSchemas, setCollapsedSchemas] = useState(null);
   const [hiddenSchemas, setHiddenSchemas] = useState(() => loadHiddenSchemas(targetId));
 
+  // Resolves to the freshly-fetched rows (not just void) so a caller that
+  // just ran Analyze/Vacuum/Reset stats on one table (TableRow.runAction
+  // below) can look up that table's own new numbers and show a real
+  // before/after comparison, instead of just "it ran" with no way to tell
+  // whether it actually changed anything.
   const refresh = () =>
     api
       .getTableHealth(targetId)
@@ -110,8 +115,12 @@ export default function TableHealth({ targetId }) {
           return schemaNames.length > 1 ? new Set(schemaNames) : new Set();
         });
         setError(null);
+        return mapped;
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => {
+        setError(err.message);
+        return undefined;
+      });
 
   const refreshDeepScanStatus = () =>
     api
@@ -397,13 +406,41 @@ function TableRow({ table, targetId, onChanged, firstSeenByFindingId }) {
 
   const runAction = async (label, verb, fn) => {
     if (!window.confirm(`${label} ${fullName}?`)) return;
+    const before = table;
     setBusyVerb(verb);
     setActionError(null);
     setActionSuccess(null);
     try {
       const result = await fn();
-      await onChanged();
-      setActionSuccess(result?.message || `${verb} succeeded.`);
+      const freshTables = await onChanged();
+      let message = result?.message || `${verb} succeeded.`;
+      // Vacuum's whole point is reclaiming dead tuples — show the actual
+      // before/after count rather than just "it ran," since a VACUUM that
+      // completes without error can still leave dead_tup unchanged when
+      // something else (a long-running/idle-in-transaction session
+      // elsewhere, an inactive replication slot) is holding back the
+      // cleanup horizon. That's a real Postgres condition, not a bug in
+      // this screen — but "it ran, nothing changed" is exactly what a user
+      // needs to see to go looking for that cause instead of assuming the
+      // click did nothing.
+      if (verb === "Vacuum" && freshTables) {
+        const after = freshTables.find(
+          (t) => t.schema_name === before.schema_name && t.table_name === before.table_name
+        );
+        if (after) {
+          message +=
+            after.dead_tuples === before.dead_tuples
+              ? ` Dead tuples unchanged (${before.dead_tuples.toLocaleString()}) — VACUUM completed without error, but something else may be holding the rows back from actually being reclaimed: check Activity for a long-running or idle-in-transaction session, or Advisor → Replication Advisor for an inactive replication slot.`
+              : ` Dead tuples: ${before.dead_tuples.toLocaleString()} → ${after.dead_tuples.toLocaleString()}.`;
+        }
+      } else if (verb === "Analyze") {
+        // Analyze has no visible row change to point at (it refreshes
+        // planner statistics, not row counts) — the plain "it ran" message
+        // is easy to read as "nothing happened" without something concrete
+        // to anchor it, so name what actually changed.
+        message += " Query planner statistics refreshed for this table.";
+      }
+      setActionSuccess(message);
       setTimeout(() => setActionSuccess(null), ACTION_SUCCESS_TIMEOUT_MS);
     } catch (err) {
       setActionError(`${verb} failed: ${err.message}`);
@@ -523,15 +560,39 @@ function TableRow({ table, targetId, onChanged, firstSeenByFindingId }) {
       </tr>
       {actionError && (
         <tr>
-          <td colSpan={COLUMNS.length} style={{ padding: "4px 10px", fontSize: 11, color: "var(--critical-text)" }}>
-            {actionError}
+          <td colSpan={COLUMNS.length} style={{ padding: "8px 10px" }}>
+            <div
+              style={{
+                padding: "8px 12px",
+                background: "var(--critical-bg)",
+                border: "1px solid var(--critical-border)",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--critical-text)",
+              }}
+            >
+              ✕ {actionError}
+            </div>
           </td>
         </tr>
       )}
       {actionSuccess && (
         <tr>
-          <td colSpan={COLUMNS.length} style={{ padding: "4px 10px", fontSize: 11, color: "var(--healthy-text)" }}>
-            {actionSuccess}
+          <td colSpan={COLUMNS.length} style={{ padding: "8px 10px" }}>
+            <div
+              style={{
+                padding: "8px 12px",
+                background: "var(--healthy-bg)",
+                border: "1px solid var(--healthy-border)",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--healthy-text)",
+              }}
+            >
+              ✓ {actionSuccess}
+            </div>
           </td>
         </tr>
       )}

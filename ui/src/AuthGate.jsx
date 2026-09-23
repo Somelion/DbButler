@@ -66,7 +66,7 @@ export default function AuthGate({ children }) {
         }}
       >
         <div>
-          <div style={{ fontSize: 15, fontWeight: 650, marginBottom: 4 }}>PostgreDba</div>
+          <div style={{ fontSize: 15, fontWeight: 650, marginBottom: 4 }}>DbButler</div>
           <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
             Enter the access token this instance was set up with — the{" "}
             <code>APP_AUTH_TOKEN</code> value in its <code>.env</code> file.

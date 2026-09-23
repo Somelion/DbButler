@@ -156,7 +156,7 @@ function ConnectionForm({ onSaved, onCancel }) {
             <input value={form.host} onChange={set("host")} placeholder="10.0.4.22" />
             <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>
               Database on this machine? Use <b>host.docker.internal</b>, not localhost/127.0.0.1 &mdash;
-              PostgreDba runs in its own container, so that would point at itself.
+              DbButler runs in its own container, so that would point at itself.
             </span>
           </Field>
           <Field label="Port">
@@ -205,7 +205,7 @@ function ConnectionForm({ onSaved, onCancel }) {
           }}
         >
           <span style={{ fontSize: 12, color: "oklch(35% 0.1 255)", lineHeight: 1.5 }}>
-            <b>pg_monitor</b> is enough to watch a database &mdash; PostgreDba never needs superuser. To also
+            <b>pg_monitor</b> is enough to watch a database &mdash; DbButler never needs superuser. To also
             use maintenance actions (Vacuum/Analyze/reset stats), the role additionally needs to own the
             tables, or (PostgreSQL 17+) membership in the built-in <b>pg_maintain</b> role.
           </span>

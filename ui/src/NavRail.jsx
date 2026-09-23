@@ -56,7 +56,7 @@ export default function NavRail({ active, onSelect, connected, badges = {} }) {
               letterSpacing: "-0.01em",
             }}
           >
-            PostgreDba
+            DbButler
           </span>
         </div>
 
