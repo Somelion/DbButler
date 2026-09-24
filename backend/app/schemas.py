@@ -126,6 +126,10 @@ class TableHealthRow(BaseModel):
     xid_age: int
     wraparound_severity: str
     total_bytes: int
+    # Sourced from the table-metrics background cycle (metric_points),
+    # never computed live in the bulk list query (see table_health.py) —
+    # None means no sample has landed for this table yet.
+    total_bytes_as_of: datetime | None = None
     cache_hit_pct: float | None
     cache_hit_pct_severity: str
 

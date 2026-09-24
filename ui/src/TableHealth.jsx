@@ -66,7 +66,11 @@ const COLUMNS = [
     label: "Cache hit %",
     help: "Percent of this table's reads served from memory rather than disk (target: above 95%). A single hot table can run low even when the database-wide average on the Dashboard looks healthy.",
   },
-  { key: "total_bytes", label: "Size", help: "Total on-disk size, including all of this table's indexes." },
+  {
+    key: "total_bytes",
+    label: "Size",
+    help: "Total on-disk size, including all of this table's indexes. Refreshed on the background table-metrics cycle (every 5 minutes by default), not computed live on every load — kept off the hot path since it's expensive to compute for every table on a large database.",
+  },
   { key: "", label: "" },
 ];
 
@@ -515,7 +519,16 @@ function TableRow({ table, targetId, onChanged, firstSeenByFindingId }) {
         <td style={{ padding: "8px 10px", fontWeight: 650, color: severityColor(table.cache_hit_pct_severity) }}>
           {table.cache_hit_pct != null ? `${table.cache_hit_pct.toFixed(1)}%` : "—"}
         </td>
-        <td style={{ padding: "8px 10px", color: "var(--text-secondary)" }}>{formatBytes(table.total_bytes)}</td>
+        <td style={{ padding: "8px 10px", color: "var(--text-secondary)" }}>
+          {table.total_bytes_as_of ? (
+            <>
+              {formatBytes(table.total_bytes)}
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>as of {formatRelativeTime(table.total_bytes_as_of)}</div>
+            </>
+          ) : (
+            "pending"
+          )}
+        </td>
         <td style={{ padding: "8px 10px" }}>
           <div style={{ display: "flex", gap: 4 }}>
             <button

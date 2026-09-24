@@ -55,7 +55,14 @@ def is_timescaledb_installed(cur) -> bool:
     return cur.fetchone() is not None
 
 
-def _fetch_chunk_map(cur) -> dict[tuple[str, str], tuple[str, str]]:
+def fetch_chunk_map(cur) -> dict[tuple[str, str], tuple[str, str]]:
+    """Also used directly by table_health.py's background size cache
+    (_fetch_table_size_cache) to roll up per-chunk metric_points samples onto
+    their hypertable — run_table_metrics_cycle (scheduler.py) isn't
+    TimescaleDB-aware, so it stores one table_size_bytes sample per chunk
+    (plus one for the hypertable's own near-empty native relation), the same
+    "wrong information" this module's row aggregation fixes for the live
+    query."""
     cur.execute(CHUNK_MAP_QUERY)
     return {
         (chunk_schema, chunk_name): (hypertable_schema, hypertable_name)
@@ -77,7 +84,7 @@ def aggregate_hypertable_rows(rows: list[tuple], cur) -> list[tuple]:
     Ordinary, non-hypertable tables pass through unchanged. Returns a new
     list of rows in the exact same 15-column shape TABLE_HEALTH_QUERY
     produces, safe to hand to _build_table_health_row/_analyze_table as-is."""
-    chunk_map = _fetch_chunk_map(cur)
+    chunk_map = fetch_chunk_map(cur)
     if not chunk_map:
         return rows
     hypertable_identifiers = set(chunk_map.values())

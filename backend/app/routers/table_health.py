@@ -32,7 +32,7 @@ from app.table_health_advisor import (
 )
 from app.schema_filter import get_allowed_schemas
 from app.target_conn import connect_to_target
-from app.timescaledb_health import aggregate_hypertable_rows, is_timescaledb_installed
+from app.timescaledb_health import aggregate_hypertable_rows, fetch_chunk_map, is_timescaledb_installed
 
 router = APIRouter(prefix="/api/targets", tags=["table-health"])
 
@@ -53,7 +53,7 @@ _TABLE_HEALTH_COLUMNS = """
         s.last_analyze,
         s.last_autoanalyze,
         age(c.relfrozenxid) AS xid_age,
-        pg_total_relation_size(c.oid) AS total_bytes,
+        {total_bytes_expr} AS total_bytes,
         100.0 * io.heap_blks_hit / nullif(io.heap_blks_hit + io.heap_blks_read, 0) AS cache_hit_pct,
         c.oid AS table_oid,
         c.reltoastrelid,
@@ -61,9 +61,16 @@ _TABLE_HEALTH_COLUMNS = """
         s.n_tup_hot_upd
 """
 
+# pg_total_relation_size() stats every segment file of a table's heap, TOAST
+# and indexes on disk — cheap for one table (TABLE_HEALTH_SINGLE_QUERY below)
+# but, run for every user table on every request, its cost scales with table/
+# index count and storage latency. The bulk query below leaves total_bytes
+# NULL here instead and get_table_health merges in the background-collected
+# table_size_bytes snapshot (_fetch_table_size_cache) — everything else in
+# this query stays pure in-memory catalog/stats reads with no disk I/O.
 TABLE_HEALTH_QUERY = f"""
     SELECT
-{_TABLE_HEALTH_COLUMNS}
+{_TABLE_HEALTH_COLUMNS.format(total_bytes_expr="NULL::bigint")}
     FROM pg_stat_user_tables s
     JOIN pg_class c ON c.oid = s.relid
     LEFT JOIN pg_statio_user_tables io ON io.relid = s.relid
@@ -72,11 +79,26 @@ TABLE_HEALTH_QUERY = f"""
 
 TABLE_HEALTH_SINGLE_QUERY = f"""
     SELECT
-{_TABLE_HEALTH_COLUMNS}
+{_TABLE_HEALTH_COLUMNS.format(total_bytes_expr="pg_total_relation_size(c.oid)")}
     FROM pg_stat_user_tables s
     JOIN pg_class c ON c.oid = s.relid
     LEFT JOIN pg_statio_user_tables io ON io.relid = s.relid
     WHERE s.schemaname = %s AND s.relname = %s
+"""
+
+# Latest background-collected size per table (run_table_metrics_cycle,
+# scheduler.py, default every 5 min), read from pgdba-store rather than the
+# target. The tight collected_at bound keeps this cheap regardless of the
+# 30-day retention window or table count — it only ever scans one collection
+# cycle's worth of rows for this target.
+TABLE_SIZE_CACHE_LOOKBACK_MINUTES = 10
+TABLE_SIZE_CACHE_QUERY = """
+    SELECT DISTINCT ON (labels->>'schema', labels->>'table')
+        labels->>'schema', labels->>'table', value, collected_at
+    FROM metric_points
+    WHERE target_id = %s AND metric_name = 'table_size_bytes'
+      AND collected_at >= now() - (%s * interval '1 minute')
+    ORDER BY labels->>'schema', labels->>'table', collected_at DESC
 """
 
 # One row per column, combining pg_attribute (always present) with pg_stats
@@ -218,7 +240,59 @@ def _fetch_dead_pct_history(target_id: uuid.UUID, schema_name: str, table_name: 
         return []
 
 
-def _build_table_health_row(row) -> TableHealthRow:
+def _rollup_size_cache_for_hypertables(
+    size_cache: dict[tuple[str, str], tuple[int, object]],
+    chunk_map: dict[tuple[str, str], tuple[str, str]],
+) -> dict[tuple[str, str], tuple[int, object]]:
+    """run_table_metrics_cycle (scheduler.py) isn't TimescaleDB-aware, so
+    size_cache has one raw sample per chunk (plus one for the hypertable's
+    own near-empty native relation) rather than one meaningful sample per
+    hypertable — mirrors aggregate_hypertable_rows's summation, but over
+    cached (bytes, collected_at) pairs instead of live query rows.
+    total_bytes_as_of is reported as the OLDEST contributing sample so the
+    "as of" hint never claims fresher data than the least-recently-collected
+    chunk actually backing it."""
+    if not chunk_map:
+        return size_cache
+    hypertable_identifiers = set(chunk_map.values())
+    grouped: dict[tuple[str, str], list[tuple[int, object]]] = {}
+    rolled: dict[tuple[str, str], tuple[int, object]] = {}
+    for key, sample in size_cache.items():
+        hypertable_key = chunk_map.get(key)
+        if hypertable_key is not None:
+            grouped.setdefault(hypertable_key, []).append(sample)
+        elif key in hypertable_identifiers:
+            grouped.setdefault(key, []).append(sample)
+        else:
+            rolled[key] = sample
+    for key, samples in grouped.items():
+        as_of_values = [as_of for _, as_of in samples if as_of is not None]
+        rolled[key] = (sum(bytes_ for bytes_, _ in samples), min(as_of_values) if as_of_values else None)
+    return rolled
+
+
+def _fetch_table_size_cache(
+    target_id: uuid.UUID, chunk_map: dict[tuple[str, str], tuple[str, str]] | None = None
+) -> dict[tuple[str, str], tuple[int, object]]:
+    """Latest background-collected size per (schema, table) — see
+    TABLE_SIZE_CACHE_QUERY above. Only used by the bulk list endpoint
+    (get_table_health); a store hiccup here just leaves Size unavailable for
+    this request rather than failing the whole list, same degradation as
+    _fetch_dead_pct_history."""
+    try:
+        with store_conn() as conn, conn.cursor() as cur:
+            cur.execute(TABLE_SIZE_CACHE_QUERY, (target_id, TABLE_SIZE_CACHE_LOOKBACK_MINUTES))
+            size_cache = {
+                (schema, table): (int(value), collected_at) for schema, table, value, collected_at in cur.fetchall()
+            }
+    except psycopg.Error:
+        return {}
+    if chunk_map:
+        size_cache = _rollup_size_cache_for_hypertables(size_cache, chunk_map)
+    return size_cache
+
+
+def _build_table_health_row(row, size_cache: dict | None = None) -> TableHealthRow:
     (
         schema_name,
         table_name,
@@ -240,6 +314,10 @@ def _build_table_health_row(row) -> TableHealthRow:
     dead_tuples = dead_tuples or 0
     total = live_tuples + dead_tuples
     dead_pct = (100.0 * dead_tuples / total) if total > 0 else 0.0
+    total_bytes_as_of = None
+    if size_cache is not None:
+        cached = size_cache.get((schema_name, table_name))
+        total_bytes, total_bytes_as_of = cached if cached else (0, None)
     return TableHealthRow(
         schema_name=schema_name,
         table_name=table_name,
@@ -254,6 +332,7 @@ def _build_table_health_row(row) -> TableHealthRow:
         xid_age=xid_age,
         wraparound_severity=wraparound_severity(xid_age),
         total_bytes=total_bytes,
+        total_bytes_as_of=total_bytes_as_of,
         cache_hit_pct=cache_hit_pct,
         cache_hit_pct_severity=cache_hit_severity(cache_hit_pct),
     )
@@ -401,10 +480,17 @@ def get_table_health(target_id: uuid.UUID):
     try:
         with connect_to_target(target_id) as conn, conn.cursor() as cur:
             rows = fetch_table_health_rows(cur, allowed_schemas)
+            # Needed to roll the (TimescaleDB-unaware) background size cache
+            # up from per-chunk samples onto their hypertable, same as `rows`
+            # itself was just rolled up above — read here, while the target
+            # connection is still open, rather than from _fetch_table_size_cache
+            # (which only talks to pgdba-store, not the target).
+            chunk_map = fetch_chunk_map(cur) if is_timescaledb_installed(cur) else {}
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
 
-    return TableHealthResponse(tables=[_build_table_health_row(row) for row in rows])
+    size_cache = _fetch_table_size_cache(target_id, chunk_map)
+    return TableHealthResponse(tables=[_build_table_health_row(row, size_cache) for row in rows])
 
 
 @router.get(
