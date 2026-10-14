@@ -126,7 +126,9 @@ def aggregate_hypertable_rows(rows: list[tuple], cur) -> list[tuple]:
                 xid_age = row_xid_age if xid_age is None else max(xid_age, row_xid_age)
             weight = (r[_LIVE] or 0) + (r[_DEAD] or 0)
             if r[_CACHE_HIT_PCT] is not None and weight > 0:
-                hit_pct_num += r[_CACHE_HIT_PCT] * weight
+                # cache_hit_pct is numeric in SQL (100.0 * int / int), which
+                # psycopg returns as Decimal — it can't be added to a float.
+                hit_pct_num += float(r[_CACHE_HIT_PCT]) * weight
                 hit_pct_den += weight
         cache_hit_pct = (hit_pct_num / hit_pct_den) if hit_pct_den > 0 else None
 
