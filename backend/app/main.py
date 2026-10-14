@@ -1,5 +1,7 @@
 import logging
+import os
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
 
 import psycopg
 from fastapi import Depends, FastAPI
@@ -42,7 +44,33 @@ from app.routers.wait_events import router as wait_events_router
 from app.scheduler import start_scheduler
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+logging.basicConfig(level=logging.INFO, format=_LOG_FORMAT)
+
+
+def _enable_file_logging() -> None:
+    """Mirrors the backend's log (app + uvicorn access/error) into
+    {log_dir}/backend.log. Failure to open the file never stops the app."""
+    try:
+        os.makedirs(settings.log_dir, exist_ok=True)
+        handler = RotatingFileHandler(
+            os.path.join(settings.log_dir, "backend.log"),
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
+    except OSError:
+        logging.getLogger(__name__).exception("LOG_TO_FILE is on but the log file could not be opened")
+        return
+    handler.setFormatter(logging.Formatter(_LOG_FORMAT))
+    # uvicorn.access doesn't propagate to root (uvicorn.error does), so it
+    # needs the handler directly.
+    for name in ("", "uvicorn.access"):
+        logging.getLogger(name).addHandler(handler)
+
+
+if settings.log_to_file:
+    _enable_file_logging()
 
 
 @asynccontextmanager

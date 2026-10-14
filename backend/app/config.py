@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # Comma-separated list of origins the UI is allowed to call the API from.
     cors_allowed_origins: str = "http://localhost:5173"
 
+    # When true, the backend also writes its log to {log_dir}/backend.log
+    # (rotating). Controlled by LOG_TO_FILE in .env.
+    log_to_file: bool = False
+    log_dir: str = "/logs"
+
 
 settings = Settings()
 

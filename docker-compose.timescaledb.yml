@@ -1,0 +1,50 @@
+# TimescaleDB test target for DbButler. Layered on top of the main compose
+# file — it only adds one extra service:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.timescaledb.yml up
+#
+# In the Connect screen use host `pgdba-timescale-target`, port `5432`,
+# user/password/database `tsdemo` (override with TSDB_POSTGRES_* in .env).
+# The host-side port (TSDB_PORT, default 5434) is only for psql & co.
+#
+# The seed script (demo/timescaledb-seed.sql) runs only on the FIRST start of
+# an empty volume. To re-seed:
+#   docker compose -f docker-compose.yml -f docker-compose.timescaledb.yml down -v
+
+services:
+  pgdba-timescale-target:
+    image: timescale/timescaledb:latest-pg16
+    # timescaledb must be preloaded; pg_stat_statements too, for Query
+    # Intelligence. LOG_TO_FILE=true writes ./logs/timescale-target.log
+    # (see example.env) instead of stderr.
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=timescaledb,pg_stat_statements
+      - -c
+      - logging_collector=${LOG_TO_FILE:-false}
+      - -c
+      - log_directory=/logs
+      - -c
+      - log_filename=timescale-target.log
+      - -c
+      - log_truncate_on_rotation=off
+    environment:
+      POSTGRES_USER: ${TSDB_POSTGRES_USER:-tsdemo}
+      POSTGRES_PASSWORD: ${TSDB_POSTGRES_PASSWORD:-tsdemo}
+      POSTGRES_DB: ${TSDB_POSTGRES_DB:-tsdemo}
+      TIMESCALEDB_TELEMETRY: "off"
+    ports:
+      - "${TSDB_PORT:-5434}:5432"
+    volumes:
+      - pgdba_timescale_data:/var/lib/postgresql/data
+      - ./demo/timescaledb-seed.sql:/docker-entrypoint-initdb.d/10-seed.sql:ro
+      - ${LOG_HOST_DIR:-./logs}:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TSDB_POSTGRES_USER:-tsdemo} -d ${TSDB_POSTGRES_DB:-tsdemo}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdba_timescale_data:

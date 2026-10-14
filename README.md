@@ -94,6 +94,27 @@ default to `demo`/`demo`.
 No `.env` file or other setup is required for the demo — sensible local-dev defaults are baked
 into `docker-compose.yml`. `example.env` documents every override available if you want one.
 
+### Optional: TimescaleDB test target
+
+To test TimescaleDB support, layer the extra compose file on top. It starts a TimescaleDB container
+and seeds it on first start with random sensor/event hypertables (compressed chunks, a continuous
+aggregate, an over-chunked hypertable) plus a few deliberate schema issues:
+
+```
+docker compose -f docker-compose.yml -f docker-compose.timescaledb.yml up
+```
+
+In the Connect screen use host `pgdba-timescale-target`, port `5432`, user/password/database
+`tsdemo` (host port `5434` is only for external tools). To re-seed from scratch, run the same
+command with `down -v`.
+
+### Optional: logging to files
+
+Set `LOG_TO_FILE=true` in `.env` to make each container also write its own log file into `./logs`
+(change with `LOG_HOST_DIR`): `backend.log`, `ui-access.log`, `ui-error.log`, `store.log`,
+`demo-target.log`, `timescale-target.log`. Postgres containers log only to the file while this is
+on. See `example.env`.
+
 ## Documentation
 
 Design docs, the functional spec, and the knowledge base the analysis/rule logic is built from are
