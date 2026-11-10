@@ -164,14 +164,18 @@ def replication_lag_severity(lag_seconds: float | None) -> str:
 INACTIVE_SLOT_MIN_RETAINED_BYTES = 100 * 1024 * 1024
 
 
-def replication_slot_severity(active: bool, wal_status: str | None, retained_bytes: int) -> str:
+def replication_slot_severity(active: bool, wal_status: str | None, retained_bytes: int | None) -> str:
+    """retained_bytes is None when the slot's restart_lsn is NULL — a slot
+    that never reserved WAL, or one whose WAL was already removed
+    (wal_status 'lost'), which is exactly when it matters most, so None
+    must never crash the comparison below."""
     if active:
         return "healthy"
     if wal_status == "lost":
         return "critical"
     if wal_status == "unreserved":
         return "attention"
-    if retained_bytes >= INACTIVE_SLOT_MIN_RETAINED_BYTES:
+    if retained_bytes is not None and retained_bytes >= INACTIVE_SLOT_MIN_RETAINED_BYTES:
         return "attention"
     return "healthy"
 

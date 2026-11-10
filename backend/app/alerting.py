@@ -22,10 +22,12 @@ import logging
 import re
 
 import requests
+from cryptography.fernet import InvalidToken
 
 from app.crypto import decrypt
 from app.db.store import store_conn
 from app.severity import SEVERITY_RANK
+from app.url_safety import redact_secret
 
 logger = logging.getLogger(__name__)
 
@@ -132,8 +134,23 @@ def _post_webhook(webhook_url: str, payload: dict, target_id) -> None:
     except requests.RequestException as exc:
         # A delivery failure must never take down the collector cycle that
         # triggered it — log and move on, same reasoning as every other
-        # collector's try/except in scheduler.py.
-        logger.warning("alert webhook delivery failed for target %s: %s", target_id, exc)
+        # collector's try/except in scheduler.py. The webhook URL is the
+        # secret (anyone holding it can post to the channel), and requests
+        # puts it in its error text, so it's redacted before logging.
+        logger.warning(
+            "alert webhook delivery failed for target %s: %s", target_id, redact_secret(str(exc), webhook_url)
+        )
+
+
+def _decrypt_webhook_url(encrypted_webhook_url) -> str | None:
+    """None when the stored URL can no longer be decrypted (SECRET_KEY
+    changed since it was saved) — the same situation target passwords hit
+    (app/target_conn.py); alerting just stays quiet until it's re-entered."""
+    try:
+        return decrypt(encrypted_webhook_url)
+    except InvalidToken:
+        logger.warning("stored alert webhook URL can't be decrypted (SECRET_KEY changed?) — re-enter it in Settings")
+        return None
 
 
 def maybe_send_alert(target_id, target_label: str, newly_open_findings: list[dict]) -> None:
@@ -159,7 +176,9 @@ def maybe_send_alert(target_id, target_label: str, newly_open_findings: list[dic
     if not qualifying:
         return
 
-    webhook_url = decrypt(encrypted_webhook_url)
+    webhook_url = _decrypt_webhook_url(encrypted_webhook_url)
+    if webhook_url is None:
+        return
     payload = _format_payload(detect_webhook_kind(webhook_url), target_id, target_label, qualifying)
     _post_webhook(webhook_url, payload, target_id)
 
@@ -175,7 +194,13 @@ def send_test_webhook() -> dict:
         return {"ok": False, "message": "No webhook URL is configured yet."}
 
     _enabled, encrypted_webhook_url, _min_severity = row
-    webhook_url = decrypt(encrypted_webhook_url)
+    webhook_url = _decrypt_webhook_url(encrypted_webhook_url)
+    if webhook_url is None:
+        return {
+            "ok": False,
+            "message": "The saved webhook URL can no longer be decrypted (the server's encryption key "
+            "changed). Enter the URL again and save.",
+        }
     kind = detect_webhook_kind(webhook_url)
     message = "PostgreDba test alert — if you can see this, your webhook is configured correctly."
     if kind == "slack":
@@ -197,5 +222,5 @@ def send_test_webhook() -> dict:
         response = requests.post(webhook_url, json=payload, timeout=WEBHOOK_TIMEOUT_SECONDS)
         response.raise_for_status()
     except requests.RequestException as exc:
-        return {"ok": False, "message": str(exc)}
+        return {"ok": False, "message": redact_secret(str(exc), webhook_url)}
     return {"ok": True, "message": None}

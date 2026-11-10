@@ -12,6 +12,7 @@ from typing import NamedTuple
 
 from app.forecasting import days_to_reach, fit_linear_trend
 from app.severity import DEAD_PCT_ATTENTION
+from app.sql_ident import quote_ident, quote_qualified
 
 CATEGORY = "table health"
 
@@ -320,9 +321,9 @@ def find_low_statistics_target_candidates(schema_name, table_name, n_live_tup, c
                 "detail": f"attstattarget={attstattarget} (default) n_distinct={n_distinct} n_live_tup={n_live_tup}",
                 "suggested_action": f"Raise its statistics target, e.g. to {SUGGESTED_STATISTICS_TARGET}, then re-analyze.",
                 "recommended_ddl": (
-                    f"ALTER TABLE {schema_name}.{table_name} ALTER COLUMN {attname} "
+                    f"ALTER TABLE {quote_qualified(schema_name, table_name)} ALTER COLUMN {quote_ident(attname)} "
                     f"SET STATISTICS {SUGGESTED_STATISTICS_TARGET};\n"
-                    f"ANALYZE {schema_name}.{table_name};"
+                    f"ANALYZE {quote_qualified(schema_name, table_name)};"
                 ),
             }
         )
@@ -361,7 +362,7 @@ def find_autovacuum_scale_factor_candidate(
             "detail": f"n_live_tup={n_live_tup} autovacuum_vacuum_scale_factor={effective_vacuum_scale_factor} (server default, no table override)",
             "suggested_action": f"Lower this table's autovacuum scale factors, e.g. to {SUGGESTED_AUTOVACUUM_VACUUM_SCALE_FACTOR}.",
             "recommended_ddl": (
-                f"ALTER TABLE {schema_name}.{table_name} SET (autovacuum_vacuum_scale_factor = "
+                f"ALTER TABLE {quote_qualified(schema_name, table_name)} SET (autovacuum_vacuum_scale_factor = "
                 f"{SUGGESTED_AUTOVACUUM_VACUUM_SCALE_FACTOR}, autovacuum_analyze_scale_factor = "
                 f"{SUGGESTED_AUTOVACUUM_ANALYZE_SCALE_FACTOR});"
             ),
@@ -401,6 +402,8 @@ def find_low_hot_update_ratio_candidate(schema_name, table_name, n_tup_upd, n_tu
                 "new row versions to land in-place. Only affects pages written after the change — a one-time "
                 "VACUUM FULL (exclusive lock) rewrites existing ones immediately if you want it right away."
             ),
-            "recommended_ddl": f"ALTER TABLE {schema_name}.{table_name} SET (fillfactor = {SUGGESTED_FILLFACTOR});",
+            "recommended_ddl": (
+                f"ALTER TABLE {quote_qualified(schema_name, table_name)} SET (fillfactor = {SUGGESTED_FILLFACTOR});"
+            ),
         }
     ]

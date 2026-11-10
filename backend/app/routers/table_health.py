@@ -1,3 +1,4 @@
+import re
 import uuid
 
 import psycopg
@@ -31,10 +32,15 @@ from app.table_health_advisor import (
     find_wide_columns,
 )
 from app.schema_filter import get_allowed_schemas
-from app.target_conn import connect_to_target
+from app.sql_ident import split_sql_statements
+from app.target_conn import MAINTENANCE_STATEMENT_TIMEOUT_MS, connect_to_target
 from app.timescaledb_health import aggregate_hypertable_rows, fetch_chunk_map, is_timescaledb_installed
 
 router = APIRouter(prefix="/api/targets", tags=["table-health"])
+
+# Every DDL table_health_advisor.py generates is one of these — Apply
+# refuses anything else rather than trusting the finding text blindly.
+ALLOWED_APPLY_STATEMENT = re.compile(r"^\s*(ALTER\s+TABLE|ANALYZE)\s", re.IGNORECASE)
 
 # pg_statio_user_tables is 1:1 with pg_stat_user_tables (same relid) — a
 # LEFT JOIN just in case a table has stats but somehow no I/O row yet, so a
@@ -579,9 +585,15 @@ def apply_table_health_finding(target_id: uuid.UUID, payload: ApplyTableHealthFi
     if not finding.get("recommended_ddl"):
         raise HTTPException(status_code=400, detail="This finding has no DDL to apply.")
 
-    statements = [line.strip() for line in finding["recommended_ddl"].splitlines() if line.strip()]
+    # Split on semicolons outside quotes, not by line — a quoted identifier
+    # may itself contain a newline (see app/sql_ident.py).
+    statements = split_sql_statements(finding["recommended_ddl"])
+    if not statements or not all(ALLOWED_APPLY_STATEMENT.match(statement) for statement in statements):
+        raise HTTPException(status_code=400, detail="This finding's DDL can't be applied from here.")
     try:
-        with connect_to_target(target_id, autocommit=True) as conn, conn.cursor() as cur:
+        with connect_to_target(
+            target_id, autocommit=True, statement_timeout_ms=MAINTENANCE_STATEMENT_TIMEOUT_MS
+        ) as conn, conn.cursor() as cur:
             for statement in statements:
                 cur.execute(statement)
     except psycopg.Error as exc:

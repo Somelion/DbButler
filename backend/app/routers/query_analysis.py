@@ -8,8 +8,8 @@ from psycopg.types.json import Jsonb
 from app.ai_providers import AiProviderError, call_ai
 from app.crypto import decrypt
 from app.db.store import store_conn
-from app.query_anonymizer import anonymize_text, build_identifier_map, deanonymize_text
-from app.query_guard import ensure_read_only
+from app.query_anonymizer import anonymize_query_and_plan
+from app.query_guard import ensure_read_only, run_explain_analyze
 from app.schemas import (
     AnonymizePreviewRequest,
     AnonymizePreviewResponse,
@@ -17,7 +17,7 @@ from app.schemas import (
     QueryAnalysisOut,
     QueryAnalysisRequest,
 )
-from app.target_conn import connect_to_target
+from app.target_conn import EXPLAIN_ANALYZE_STATEMENT_TIMEOUT_MS, connect_to_target
 
 logger = logging.getLogger(__name__)
 
@@ -82,11 +82,11 @@ def anonymize_preview(target_id: uuid.UUID, payload: AnonymizePreviewRequest):
     what a real analysis does."""
     try:
         with connect_to_target(target_id) as conn, conn.cursor() as cur:
-            mapping = build_identifier_map(cur, payload.query)
+            anonymized = anonymize_query_and_plan(cur, payload.query, "")
     except PsycopgError as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
 
-    return AnonymizePreviewResponse(anonymized_query=anonymize_text(payload.query, mapping))
+    return AnonymizePreviewResponse(anonymized_query=anonymized.query)
 
 
 @router.post("/{target_id}/query-analyses", response_model=QueryAnalysisOut, status_code=201)
@@ -175,19 +175,19 @@ def _run_analysis(analysis_id: uuid.UUID) -> None:
         return
 
     try:
-        with connect_to_target(target_id) as target_conn, target_conn.cursor() as cur:
-            cur.execute(f"EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) {query}")
-            plan_text = "\n".join(r[0] for r in cur.fetchall())
+        with connect_to_target(target_id, statement_timeout_ms=EXPLAIN_ANALYZE_STATEMENT_TIMEOUT_MS) as target_conn:
+            plan_text = run_explain_analyze(target_conn, query)
 
-            mapping: dict[str, str] = {}
+            anonymized = None
             if anonymize:
-                mapping = build_identifier_map(cur, query, plan_text)
+                with target_conn.cursor() as cur:
+                    anonymized = anonymize_query_and_plan(cur, query, plan_text)
     except Exception as exc:  # noqa: BLE001 — target unreachable, permissions, bad query, etc. all land here
         _record_error(analysis_id, f"Could not run EXPLAIN against the target: {exc}")
         return
 
-    query_for_ai = anonymize_text(query, mapping) if anonymize else query
-    plan_for_ai = anonymize_text(plan_text, mapping) if anonymize else plan_text
+    query_for_ai = anonymized.query if anonymized else query
+    plan_for_ai = anonymized.plan if anonymized else plan_text
     prompt = PROMPT_TEMPLATE.format(query=query_for_ai, plan=plan_for_ai)
 
     try:
@@ -208,7 +208,7 @@ def _run_analysis(analysis_id: uuid.UUID) -> None:
         _record_error(analysis_id, f"Unexpected error: {exc}")
         return
 
-    final_response = deanonymize_text(raw_response, mapping) if anonymize else raw_response
+    final_response = anonymized.restore(raw_response) if anonymized else raw_response
 
     with store_conn() as conn, conn.cursor() as cur:
         cur.execute(
@@ -220,7 +220,7 @@ def _run_analysis(analysis_id: uuid.UUID) -> None:
             """,
             (
                 query_for_ai if anonymize else None,
-                Jsonb(mapping) if anonymize else None,
+                Jsonb(anonymized.stored_map()) if anonymized else None,
                 plan_text,
                 prompt,
                 provider,

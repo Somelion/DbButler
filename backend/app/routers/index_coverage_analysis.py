@@ -10,7 +10,7 @@ from app.crypto import decrypt
 from app.db.store import store_conn
 from app.index_analysis import build_covering_index_ddl, queries_referencing_table
 from app.query_anonymizer import anonymize_text, build_identifier_map, deanonymize_text
-from app.routers.index_advisor import ALL_INDEX_COLUMNS_QUERY, RECENT_QUERIES_QUERY
+from app.routers.index_advisor import RECENT_QUERIES_QUERY, fetch_index_rows
 from app.schemas import (
     IndexCoverageAnalysesResponse,
     IndexCoverageAnalysisOut,
@@ -84,15 +84,16 @@ def _row_to_out(row) -> IndexCoverageAnalysisOut:
 
 
 def _find_index(index_rows: list[tuple], finding_id: str) -> tuple[str, str, str] | None:
-    """Matches a covering-index-* finding id back to its (schema, bare table,
-    index name) by re-deriving every candidate id the same way
+    """Matches a covering-index-* finding id back to its (schema, table
+    relname, index name) by re-deriving every candidate id the same way
     find_covering_index_candidates does, rather than parsing the id string —
     schema/table/index names can themselves contain hyphens, which would
-    make splitting the id ambiguous."""
-    for schema, table_name, index_name, _method, _is_unique, _columns in index_rows:
+    make splitting the id ambiguous. The table comes back as its bare,
+    unquoted pg_class name, which is what build_covering_index_ddl quotes."""
+    for schema, table_name, index_name, _method, _is_unique, _columns, info in index_rows:
         bare_table = table_name.rsplit(".", 1)[-1]
         if f"covering-index-{schema}-{bare_table}-{index_name}" == finding_id:
-            return schema, bare_table, index_name
+            return schema, info["table_relname"], index_name
     return None
 
 
@@ -104,8 +105,7 @@ def create_index_coverage_analysis(
 ):
     try:
         with connect_to_target(target_id) as conn, conn.cursor() as cur:
-            cur.execute(ALL_INDEX_COLUMNS_QUERY)
-            index_rows = [(row[0], row[1], row[2], row[3], row[4], list(row[5])) for row in cur.fetchall()]
+            index_rows = fetch_index_rows(cur)
     except PsycopgError as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
 
@@ -193,14 +193,13 @@ def _run_covering_analysis(analysis_id: uuid.UUID) -> None:
 
     try:
         with connect_to_target(target_id) as target_conn, target_conn.cursor() as cur:
-            cur.execute(ALL_INDEX_COLUMNS_QUERY)
-            index_rows = [(row[0], row[1], row[2], row[3], row[4], list(row[5])) for row in cur.fetchall()]
+            index_rows = fetch_index_rows(cur)
 
             columns = next(
                 (
                     cols
-                    for s, t, i, _m, _u, cols in index_rows
-                    if s == schema and t.rsplit(".", 1)[-1] == table_name and i == index_name
+                    for s, _t, i, _m, _u, cols, info in index_rows
+                    if s == schema and info["table_relname"] == table_name and i == index_name
                 ),
                 None,
             )
@@ -216,7 +215,7 @@ def _run_covering_analysis(analysis_id: uuid.UUID) -> None:
             # too, not just whatever happens to appear in matched_queries —
             # otherwise the "Index: ... ON ..." line below would leak the
             # real names even with anonymization on.
-            mapping = build_identifier_map(cur, table_name, *columns, *matched_queries)
+            mapping = build_identifier_map(cur, table_name, index_name, *columns, *matched_queries)
     except Exception as exc:  # noqa: BLE001 — target unreachable, permissions, etc. all land here
         _record_error(analysis_id, f"Could not read this index's current definition from the target: {exc}")
         return
@@ -224,7 +223,7 @@ def _run_covering_analysis(analysis_id: uuid.UUID) -> None:
     trailing_columns = columns[1:]
     queries_for_ai = "\n".join(anonymize_text(q, mapping) for q in matched_queries) or "(none found)"
     prompt = PROMPT_TEMPLATE.format(
-        index_name=index_name,
+        index_name=anonymize_text(index_name, mapping),
         table=anonymize_text(table_name, mapping),
         columns=", ".join(anonymize_text(c, mapping) for c in columns),
         leading_column=anonymize_text(columns[0], mapping),

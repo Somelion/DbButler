@@ -5,14 +5,18 @@ from fastapi import APIRouter, HTTPException
 from psycopg import sql
 
 from app.schemas import MaintenanceResult, TableMaintenanceRequest, VacuumRequest
-from app.target_conn import connect_to_target
+from app.target_conn import MAINTENANCE_STATEMENT_TIMEOUT_MS, connect_to_target
 
 router = APIRouter(prefix="/api/targets", tags=["maintenance"])
 
 # These run real commands against the target — VACUUM/ANALYZE/stat-reset,
 # never DROP/ALTER/TRUNCATE. Table/schema names arrive as identifiers, which
 # can't be bound as query parameters, so every statement is built with
-# psycopg.sql.Identifier rather than string interpolation.
+# psycopg.sql.Identifier rather than string interpolation. VACUUM/ANALYZE
+# get the long maintenance statement timeout but keep the default lock
+# timeout: if something already holds a conflicting lock on the table, the
+# user gets a quick "lock timeout" error instead of a request that silently
+# queues (and makes everything after it queue too).
 #
 # A pg_monitor-only role (what the Connection screen recommends) can read
 # everything but can't VACUUM/ANALYZE a table it doesn't own, or reset
@@ -24,7 +28,9 @@ router = APIRouter(prefix="/api/targets", tags=["maintenance"])
 def analyze_table(target_id: uuid.UUID, payload: TableMaintenanceRequest):
     stmt = sql.SQL("ANALYZE {}").format(sql.Identifier(payload.schema_name, payload.table_name))
     try:
-        with connect_to_target(target_id, autocommit=True) as conn, conn.cursor() as cur:
+        with connect_to_target(
+            target_id, autocommit=True, statement_timeout_ms=MAINTENANCE_STATEMENT_TIMEOUT_MS
+        ) as conn, conn.cursor() as cur:
             cur.execute(stmt)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -36,7 +42,9 @@ def vacuum_table(target_id: uuid.UUID, payload: VacuumRequest):
     keyword = "VACUUM ANALYZE {}" if payload.analyze else "VACUUM {}"
     stmt = sql.SQL(keyword).format(sql.Identifier(payload.schema_name, payload.table_name))
     try:
-        with connect_to_target(target_id, autocommit=True) as conn, conn.cursor() as cur:
+        with connect_to_target(
+            target_id, autocommit=True, statement_timeout_ms=MAINTENANCE_STATEMENT_TIMEOUT_MS
+        ) as conn, conn.cursor() as cur:
             cur.execute(stmt)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

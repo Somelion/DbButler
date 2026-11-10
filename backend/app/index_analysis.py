@@ -6,6 +6,8 @@ readable and the SQL execution lives in one place.
 
 import re
 
+from app.sql_ident import quote_ident, quote_qualified
+
 # Thresholds for find_seq_scan_heavy_findings. Deliberately much smaller than
 # schema_lint.py's partitioning thresholds (5GB / 10M rows) — this check is
 # about a planner/index mismatch, not raw table size, so it should fire on
@@ -41,23 +43,47 @@ LOW_CARDINALITY_DISTINCT_THRESHOLD = 10
 LOW_CARDINALITY_RATIO_THRESHOLD = -0.05
 LOW_CARDINALITY_ROW_THRESHOLD = 10_000
 
+# find_unused_indexes only suggests dropping an idle index once usage stats
+# cover at least a week — enough for weekly batch jobs to have shown up.
+UNUSED_INDEX_MIN_STATS_AGE_DAYS = 7
+
 
 def _slug(identifier: str) -> str:
     return re.sub(r"[^a-zA-Z0-9]+", "_", identifier).strip("_")
 
 
+def _drop_index_ddl(schema: str, index_name: str) -> str:
+    return f"DROP INDEX CONCURRENTLY {quote_qualified(schema, index_name)};"
+
+
+def _is_partition_managed(info: dict) -> bool:
+    """A partitioned parent index can't be dropped CONCURRENTLY, and a
+    partition's attached copy can't be dropped on its own at all — neither
+    ever gets an Apply-able DROP INDEX CONCURRENTLY suggestion."""
+    return info["is_partitioned_index"] or info["is_partition_child"]
+
+
 def find_missing_fk_indexes(fk_rows: list[tuple], index_rows: list[tuple]) -> list[dict]:
-    """fk_rows: (table_name, constraint_name, columns). index_rows: (schema,
-    table_name, index_name, method, is_unique, columns). An FK is "covered"
-    when some index's columns start with the FK's columns, in the same
-    order — a plain equality check on ordered lists, since a leftmost-prefix
-    match is what lets an index serve the FK's lookups."""
+    """fk_rows: (table_name, constraint_name, columns, info) — see
+    routers/index_advisor.py::fetch_fk_rows. index_rows: (schema,
+    table_name, index_name, method, is_unique, key_columns, info) — see
+    fetch_index_rows. An FK is "covered" when some non-partial index's key
+    columns start with the FK's columns, in the same order — a plain
+    equality check on ordered lists, since a leftmost-prefix match is what
+    lets an index serve the FK's lookups. A partial index doesn't count: it
+    only covers the rows its predicate matches.
+
+    A foreign key on a partitioned table still gets a finding, but no
+    Apply-able DDL — PostgreSQL can't build an index CONCURRENTLY on a
+    partitioned table, and a plain CREATE INDEX there blocks writes to every
+    partition for the whole build."""
     indexes_by_table: dict[str, list[list[str]]] = {}
-    for _schema, table_name, _index_name, _method, _is_unique, columns in index_rows:
-        indexes_by_table.setdefault(table_name, []).append(columns)
+    for _schema, table_name, _index_name, _method, _is_unique, columns, info in index_rows:
+        if not info["is_partial"]:
+            indexes_by_table.setdefault(table_name, []).append(columns)
 
     findings = []
-    for table_name, constraint_name, columns in fk_rows:
+    for table_name, constraint_name, columns, fk_info in fk_rows:
         covered = any(
             existing[: len(columns)] == columns for existing in indexes_by_table.get(table_name, [])
         )
@@ -65,7 +91,23 @@ def find_missing_fk_indexes(fk_rows: list[tuple], index_rows: list[tuple]) -> li
             continue
 
         column_list = ", ".join(columns)
-        index_name = f"idx_{_slug(table_name)}_{'_'.join(columns)}"
+        is_partitioned = fk_info["relkind"] == "p"
+        if is_partitioned:
+            recommended_ddl = None
+            suggested_action = (
+                "This is a partitioned table, so the index can't be built CONCURRENTLY in one step. "
+                "Create it ON ONLY the parent, build a matching index CONCURRENTLY on each partition, "
+                "then ALTER INDEX ... ATTACH PARTITION each one — or run a plain CREATE INDEX on the "
+                "parent during a quiet window (it blocks writes to every partition while it builds)."
+            )
+        else:
+            index_name = f"idx_{_slug(fk_info['table_relname'])}_{_slug('_'.join(columns))}"[:63].lower()
+            quoted_columns = ", ".join(quote_ident(column) for column in columns)
+            recommended_ddl = (
+                f"CREATE INDEX CONCURRENTLY {quote_ident(index_name)} "
+                f"ON {quote_qualified(fk_info['schema'], fk_info['table_relname'])} ({quoted_columns});"
+            )
+            suggested_action = "Add an index covering the foreign key columns."
         findings.append(
             {
                 "id": f"missing-fk-index-{table_name}-{constraint_name}",
@@ -76,39 +118,81 @@ def find_missing_fk_indexes(fk_rows: list[tuple], index_rows: list[tuple]) -> li
                     f"PostgreSQL doesn't automatically index foreign key columns. Without one, "
                     f"deleting a row from the referenced table forces a full scan of {table_name}."
                 ),
-                "detail": f"constraint={constraint_name} columns=({column_list})",
-                "suggested_action": "Add an index covering the foreign key columns.",
-                "recommended_ddl": f"CREATE INDEX CONCURRENTLY {index_name} ON {table_name} ({column_list});",
-                # table_name here is a ::regclass::text cast — schema-qualified
-                # only when the schema isn't on search_path, so this is a
-                # best-effort split rather than a reliable schema_name.
-                "schema_name": table_name.rsplit(".", 1)[0] if "." in table_name else None,
-                "table_name": table_name.rsplit(".", 1)[-1],
+                "detail": f"constraint={constraint_name} columns=({column_list})"
+                + (" partitioned_table=true" if is_partitioned else ""),
+                "suggested_action": suggested_action,
+                "recommended_ddl": recommended_ddl,
+                "schema_name": fk_info["schema"],
+                "table_name": fk_info["table_relname"],
             }
         )
     return findings
 
 
-def find_unused_indexes(unused_rows: list[tuple]) -> list[dict]:
+def find_unused_indexes(
+    unused_rows: list[tuple],
+    stats_age_days: float | None = None,
+    fk_covering: dict[tuple[str, str], str] | None = None,
+) -> list[dict]:
     """unused_rows: (schema, table_name, index_name, idx_scan, index_bytes).
-    Already filtered by the caller's query to idx_scan = 0, excluding
-    primary-key and unique-constraint indexes (dropping those needs dropping
-    the constraint, not just the index)."""
+    Already filtered by the caller's query to idx_scan = 0, excluding every
+    index that can't be dropped on its own (PK/unique/exclusion/replica-
+    identity/constraint-backed, or a partition's attached copy).
+
+    idx_scan = 0 only means "no scans since the counters were last reset",
+    so the finding says how long that is (stats_age_days), and below
+    UNUSED_INDEX_MIN_STATS_AGE_DAYS it's informational only, with no DROP
+    suggestion — a reset an hour ago proves nothing. fk_covering maps
+    (schema, index_name) to the foreign key an index serves (see
+    routers/index_advisor.py::fk_covering_indexes); those are informational
+    too, never a DROP suggestion, since they're only scanned when a
+    referenced row is deleted or its key changes. The counters are also
+    per-server: scans on a read replica never show up here."""
+    fk_covering = fk_covering or {}
+    stats_known = stats_age_days is not None
+    stats_mature = stats_known and stats_age_days >= UNUSED_INDEX_MIN_STATS_AGE_DAYS
+    stats_window = f"in the {stats_age_days:.0f} days since usage stats were last reset" if stats_known else "since usage stats were last reset"
+
     findings = []
     for schema, table_name, index_name, _idx_scan, index_bytes in unused_rows:
+        backing_fk = fk_covering.get((schema, index_name))
+        summary = (
+            f"This index has had 0 scans {stats_window}. It still costs write overhead on every "
+            "insert/update/delete to this table. Scans on read replicas aren't counted here — "
+            "if replicas serve queries, check this index there too."
+        )
+        if backing_fk:
+            severity = "unknown"
+            recommended_ddl = None
+            summary += (
+                f" It covers foreign key {backing_fk}, so it's only scanned when a referenced row is "
+                "deleted or its key changes — dropping it would make those operations scan the whole table."
+            )
+            suggested_action = "Keep this index unless you're sure the referenced rows are never deleted or re-keyed."
+        elif not stats_mature:
+            severity = "unknown"
+            recommended_ddl = None
+            summary += (
+                f" That's less than {UNUSED_INDEX_MIN_STATS_AGE_DAYS} days of history — too early to call "
+                "it unused, since weekly or monthly jobs may not have run yet."
+            )
+            suggested_action = "Check back once usage stats cover at least a full business cycle."
+        else:
+            severity = "attention"
+            recommended_ddl = _drop_index_ddl(schema, index_name)
+            suggested_action = "Confirm this index isn't needed for an infrequent query, then drop it."
         findings.append(
             {
                 "id": f"unused-index-{schema}-{index_name}",
                 "category": "index advisor",
-                "severity": "attention",
-                "title": f"Index {index_name} on {table_name} has never been used",
-                "summary": (
-                    "This index has 0 scans since the last stats reset. It still costs write "
-                    "overhead on every insert/update/delete to this table."
-                ),
-                "detail": f"idx_scan=0 index_bytes={index_bytes}",
-                "suggested_action": "Confirm this index isn't needed for an infrequent query, then drop it.",
-                "recommended_ddl": f"DROP INDEX CONCURRENTLY {schema}.{index_name};",
+                "severity": severity,
+                "title": f"Index {index_name} on {table_name} has no recorded scans",
+                "summary": summary,
+                "detail": f"idx_scan=0 index_bytes={index_bytes}"
+                + (f" stats_age_days={stats_age_days:.1f}" if stats_known else "")
+                + (f" covers_fk={backing_fk}" if backing_fk else ""),
+                "suggested_action": suggested_action,
+                "recommended_ddl": recommended_ddl,
                 "schema_name": schema,
                 "table_name": table_name,
             }
@@ -118,41 +202,73 @@ def find_unused_indexes(unused_rows: list[tuple]) -> list[dict]:
 
 def find_duplicate_indexes(index_rows: list[tuple]) -> list[dict]:
     """index_rows: (schema, table_name, index_name, method, is_unique,
-    columns). Groups indexes on the same table with the identical access
-    method and the exact same ordered column list — genuine duplicates, not
-    just overlapping indexes."""
-    groups: dict[tuple, list[tuple[str, str, bool]]] = {}
-    for schema, table_name, index_name, method, is_unique, columns in index_rows:
-        key = (table_name, method, tuple(columns))
-        groups.setdefault(key, []).append((schema, index_name, is_unique))
+    key_columns, info). Groups indexes on the same table whose whole
+    definition is identical — same access method, key and INCLUDE columns,
+    operator classes, sort options, collations, expressions and partial
+    predicate (info["definition_signature"]) — genuine duplicates, not just
+    indexes over the same column names. A partition's attached copy of an
+    index is left out; its parent's duplicate is what gets reported.
+
+    The index kept is a protected one (PK/constraint-backed/replica
+    identity) when there is one, then a unique one, then whichever sorts
+    first. Only unprotected copies get a DROP suggestion, and never a
+    partitioned parent index (DROP INDEX CONCURRENTLY can't run on one)."""
+    groups: dict[tuple, list[tuple]] = {}
+    for schema, table_name, index_name, method, is_unique, columns, info in index_rows:
+        if info["is_partition_child"]:
+            continue
+        key = (table_name, method, info["definition_signature"])
+        groups.setdefault(key, []).append((schema, index_name, is_unique, columns, info))
 
     findings = []
-    for (table_name, method, columns), members in groups.items():
+    seen_ids: set[str] = set()
+    for (table_name, method, _signature), members in groups.items():
         if len(members) < 2:
             continue
-        # Keep a unique/PK-backing index over a plain one when there's a choice;
-        # otherwise keep whichever sorts first, just to pick consistently.
-        members_sorted = sorted(members, key=lambda member: (not member[2], member[1]))
-        keep_schema, keep_name, _ = members_sorted[0]
+        members_sorted = sorted(
+            members, key=lambda member: (not member[4]["is_protected"], not member[2], member[1])
+        )
+        keep_schema, keep_name, _keep_unique, columns, _keep_info = members_sorted[0]
         redundant = members_sorted[1:]
-        redundant_names = ", ".join(f"{schema}.{name}" for schema, name, _ in redundant)
+        droppable = [
+            (schema, name)
+            for schema, name, _unique, _columns, info in redundant
+            if not info["is_protected"] and not _is_partition_managed(info)
+        ]
+        redundant_names = ", ".join(f"{schema}.{name}" for schema, name, _u, _c, _i in redundant)
         column_list = ", ".join(columns)
+
+        finding_id = f"duplicate-index-{table_name}-{method}-{'-'.join(columns)}"
+        suffix = 2
+        while finding_id in seen_ids:
+            finding_id = f"duplicate-index-{table_name}-{method}-{'-'.join(columns)}-{suffix}"
+            suffix += 1
+        seen_ids.add(finding_id)
+
+        if droppable:
+            suggested_action = f"Keep {keep_schema}.{keep_name} and drop the others."
+            recommended_ddl = "\n".join(_drop_index_ddl(schema, name) for schema, name in droppable)
+        else:
+            suggested_action = (
+                f"Keep {keep_schema}.{keep_name}. The other copies back a constraint or belong to a "
+                "partitioned table, so they can't be dropped with a plain DROP INDEX CONCURRENTLY — "
+                "review them manually."
+            )
+            recommended_ddl = None
         findings.append(
             {
-                "id": f"duplicate-index-{table_name}-{method}-{'-'.join(columns)}",
+                "id": finding_id,
                 "category": "index advisor",
                 "severity": "attention",
-                "title": f"{len(members)} indexes on {table_name} cover the exact same columns",
+                "title": f"{len(members)} indexes on {table_name} have the exact same definition",
                 "summary": (
                     f"{redundant_names} duplicate {keep_schema}.{keep_name} ({column_list}) — each "
                     "one costs write overhead for no extra benefit."
                 ),
                 "detail": f"table={table_name} method={method} columns=({column_list}) "
-                f"indexes={[f'{schema}.{name}' for schema, name, _ in members]}",
-                "suggested_action": f"Keep {keep_schema}.{keep_name} and drop the others.",
-                "recommended_ddl": "\n".join(
-                    f"DROP INDEX CONCURRENTLY {schema}.{name};" for schema, name, _ in redundant
-                ),
+                f"indexes={[f'{schema}.{name}' for schema, name, _u, _c, _i in members]}",
+                "suggested_action": suggested_action,
+                "recommended_ddl": recommended_ddl,
                 "schema_name": keep_schema,
                 "table_name": table_name,
             }
@@ -227,7 +343,7 @@ def find_invalid_indexes(rows: list[tuple]) -> list[dict]:
                 ),
                 "detail": f"index_bytes={index_bytes}",
                 "suggested_action": "Drop it and, if it's still needed, recreate it with CREATE INDEX CONCURRENTLY.",
-                "recommended_ddl": f"DROP INDEX CONCURRENTLY {schema}.{index_name};",
+                "recommended_ddl": _drop_index_ddl(schema, index_name),
                 "schema_name": schema,
                 "table_name": table_name,
             }
@@ -237,31 +353,44 @@ def find_invalid_indexes(rows: list[tuple]) -> list[dict]:
 
 def find_redundant_indexes(index_rows: list[tuple]) -> list[dict]:
     """index_rows: (schema, table_name, index_name, method, is_unique,
-    columns) — the same rows find_duplicate_indexes and find_missing_fk_indexes
-    use. A non-unique index is redundant once another index on the same
-    table and access method starts with the exact same ordered columns (a
-    leftmost prefix) — any query the shorter index could serve, the wider
-    one serves just as well. Distinct from find_duplicate_indexes, which
-    only catches an *identical* column list; this catches the more common
-    case of one index's columns being a strict prefix of another's."""
-    by_table_method: dict[tuple, list[tuple]] = {}
-    for schema, table_name, index_name, method, is_unique, columns in index_rows:
-        by_table_method.setdefault((table_name, method), []).append((schema, index_name, is_unique, tuple(columns)))
+    key_columns, info) — the same rows find_duplicate_indexes and
+    find_missing_fk_indexes use. A plain B-tree index is redundant once
+    another full (non-partial) B-tree index on the same table starts with
+    the exact same ordered key columns *and* the same operator class, sort
+    option and collation at each of those positions (a leftmost prefix) —
+    any query the shorter index could serve, the wider one serves just as
+    well. Distinct from find_duplicate_indexes, which only catches an
+    *identical* definition; this catches the more common case of one
+    index's keys being a strict prefix of another's.
+
+    The prefix rule only holds for B-tree, and only between plain column
+    indexes, so a partial index, an expression index or one with INCLUDE
+    columns is never called redundant, and a partial or expression index is
+    never treated as the wider one either. Indexes on partitioned tables are
+    skipped (no CONCURRENTLY drop exists for them)."""
+    by_table: dict[str, list[tuple]] = {}
+    for schema, table_name, index_name, method, is_unique, columns, info in index_rows:
+        if method != "btree" or info["is_partial"] or info["has_expressions"] or _is_partition_managed(info):
+            continue
+        by_table.setdefault(table_name, []).append(
+            (schema, index_name, is_unique, tuple(columns), tuple(info["key_signatures"]), info)
+        )
 
     findings = []
-    for (table_name, method), members in by_table_method.items():
-        for schema, index_name, is_unique, columns in members:
+    for table_name, members in by_table.items():
+        for schema, index_name, is_unique, columns, signatures, info in members:
             # Dropping a unique/PK-backing index loses its constraint, not
             # just an access path, so it stays regardless of a wider index.
-            if is_unique:
+            if is_unique or info["is_protected"] or info["include_columns"]:
                 continue
             covering = next(
                 (
                     other_name
-                    for _other_schema, other_name, _other_unique, other_columns in members
+                    for _other_schema, other_name, _other_unique, other_columns, other_signatures, _other_info in members
                     if other_name != index_name
                     and len(other_columns) > len(columns)
                     and other_columns[: len(columns)] == columns
+                    and other_signatures[: len(signatures)] == signatures
                 ),
                 None,
             )
@@ -279,9 +408,9 @@ def find_redundant_indexes(index_rows: list[tuple]) -> list[dict]:
                         "table — any query the shorter index could serve, the wider one serves just "
                         "as well."
                     ),
-                    "detail": f"table={table_name} method={method} redundant={index_name} covers={covering}",
+                    "detail": f"table={table_name} method=btree redundant={index_name} covers={covering}",
                     "suggested_action": f"Drop {index_name} and keep {covering}.",
-                    "recommended_ddl": f"DROP INDEX CONCURRENTLY {schema}.{index_name};",
+                    "recommended_ddl": _drop_index_ddl(schema, index_name),
                     "schema_name": schema,
                     "table_name": table_name,
                 }
@@ -329,12 +458,12 @@ def find_seq_scan_no_index_findings(rows: list[tuple]) -> list[dict]:
 
 def _indexes_by_table(index_rows: list[tuple], index_bytes: dict[tuple[str, str], int]) -> dict[tuple[str, str], list[dict]]:
     """index_rows: (schema, table_name, index_name, method, is_unique,
-    columns) — table_name may come from a regclass cast (schema-qualified
+    key_columns, info) — table_name may come from a regclass cast (schema-qualified
     when the schema isn't on search_path) or a bare relname depending on the
     query, so the grouping key strips any schema prefix defensively to stay
     consistent regardless of which one produced it."""
     by_table: dict[tuple[str, str], list[dict]] = {}
-    for schema, table_name, index_name, method, is_unique, columns in index_rows:
+    for schema, table_name, index_name, method, is_unique, columns, _info in index_rows:
         bare_table = table_name.rsplit(".", 1)[-1]
         by_table.setdefault((schema, bare_table), []).append(
             {
@@ -473,22 +602,22 @@ def _column_verdict(column: str, matched_queries: list[str]) -> str:
 
 
 def build_covering_index_ddl(
-    schema: str, table_name: str, index_name: str, key_columns: list[str], include_columns: list[str]
+    schema: str, table_relname: str, index_name: str, key_columns: list[str], include_columns: list[str]
 ) -> str:
     """Shared by find_covering_index_candidates' synchronous heuristic path
     below and the AI-analysis background task
     (routers/index_coverage_analysis.py) so the DDL is generated identically
     either way — the AI is only ever asked to judge which columns to move,
     never to write DDL itself. CREATE runs before DROP so there's never a
-    window with no covering index on the table at all."""
-    bare_table = table_name.rsplit(".", 1)[-1]
+    window with no covering index on the table at all. table_relname is the
+    table's bare, unquoted pg_class name; every identifier is quoted here."""
     new_index_name = f"{index_name}_covering"[:63]
-    key_list = ", ".join(key_columns)
-    include_list = ", ".join(include_columns)
+    key_list = ", ".join(quote_ident(column) for column in key_columns)
+    include_list = ", ".join(quote_ident(column) for column in include_columns)
     return (
-        f"CREATE INDEX CONCURRENTLY {new_index_name} ON {schema}.{bare_table} ({key_list}) "
-        f"INCLUDE ({include_list});\n"
-        f"DROP INDEX CONCURRENTLY {schema}.{index_name};"
+        f"CREATE INDEX CONCURRENTLY {quote_ident(new_index_name)} ON {quote_qualified(schema, table_relname)} "
+        f"({key_list}) INCLUDE ({include_list});\n"
+        f"{_drop_index_ddl(schema, index_name)}"
     )
 
 
@@ -546,10 +675,25 @@ def find_covering_index_candidates(
     DDL pair; otherwise the finding still surfaces (there's still something
     worth a look) but without recommended_ddl, pointing at AI Analyze
     instead. A wide index where every trailing column *does* show
-    filter/sort evidence isn't flagged at all — it looks justified."""
+    filter/sort evidence isn't flagged at all — it looks justified.
+
+    Only plain B-tree column indexes qualify: INCLUDE is B-tree/GiST/SP-GiST
+    only, an expression or partial index can't be rebuilt from its column
+    names alone, one that already has INCLUDE columns has already been
+    restructured, and a partitioned or protected index can't be swapped with
+    a CONCURRENTLY create/drop pair."""
     findings = []
-    for schema, table_name, index_name, method, is_unique, columns in index_rows:
+    for schema, table_name, index_name, method, is_unique, columns, info in index_rows:
         if is_unique or len(columns) < WIDE_INDEX_COLUMN_THRESHOLD:
+            continue
+        if (
+            method != "btree"
+            or info["is_partial"]
+            or info["has_expressions"]
+            or info["include_columns"]
+            or info["is_protected"]
+            or _is_partition_managed(info)
+        ):
             continue
 
         bare_table = table_name.rsplit(".", 1)[-1]
@@ -568,7 +712,9 @@ def find_covering_index_candidates(
         if confident:
             include_columns = [v["column"] for v in verdicts if v["verdict"] in ("include_candidate", "unused_in_sample")]
             key_columns = [columns[0]] + [v["column"] for v in verdicts if v["verdict"] == "key"]
-            recommended_ddl = build_covering_index_ddl(schema, table_name, index_name, key_columns, include_columns)
+            recommended_ddl = build_covering_index_ddl(
+                schema, info["table_relname"], index_name, key_columns, include_columns
+            )
 
         full_name = f"{schema}.{bare_table}"
         column_list = ", ".join(columns)

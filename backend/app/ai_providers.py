@@ -8,6 +8,8 @@ specific one, and the local-model path needs a generic HTTP client anyway.
 
 import requests
 
+from app.url_safety import redact_secret
+
 AI_REQUEST_TIMEOUT_SECONDS = 120
 
 GEMINI_ENDPOINT_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -26,9 +28,12 @@ def _call_gemini(api_key: str, model_name: str, prompt: str) -> str:
 
     url = GEMINI_ENDPOINT_TEMPLATE.format(model=model_name)
     try:
+        # The key travels in a header, not the ?key= query parameter —
+        # requests includes the full URL in its exception messages, which
+        # end up stored in query_analyses.error and shown in the UI.
         response = requests.post(
             url,
-            params={"key": api_key},
+            headers={"x-goog-api-key": api_key},
             json={"contents": [{"role": "user", "parts": [{"text": prompt}]}]},
             timeout=AI_REQUEST_TIMEOUT_SECONDS,
         )
@@ -47,7 +52,7 @@ def _call_gemini(api_key: str, model_name: str, prompt: str) -> str:
         data = response.json()
         return data["candidates"][0]["content"]["parts"][0]["text"]
     except requests.RequestException as exc:
-        raise AiProviderError(f"Gemini request failed: {exc}") from exc
+        raise AiProviderError(f"Gemini request failed: {redact_secret(str(exc), api_key)}") from exc
     except (KeyError, IndexError) as exc:
         raise AiProviderError(f"Unexpected Gemini response shape: {exc}") from exc
 
@@ -68,7 +73,7 @@ def _call_local(endpoint_url: str, api_key: str | None, model_name: str, prompt:
         data = response.json()
         return data["choices"][0]["message"]["content"]
     except requests.RequestException as exc:
-        raise AiProviderError(f"Local model request failed: {exc}") from exc
+        raise AiProviderError(f"Local model request failed: {redact_secret(str(exc), api_key)}") from exc
     except (KeyError, IndexError) as exc:
         raise AiProviderError(f"Unexpected local model response shape: {exc}") from exc
 

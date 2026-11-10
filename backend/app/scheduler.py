@@ -26,6 +26,7 @@ from app.routers.security_advisor import compute_security_advisor_findings
 from app.routers.table_health import compute_all_table_health_findings
 from app.routers.wait_events import WAIT_EVENT_SNAPSHOT_QUERY
 from app.schemas import IndexFinding
+from app.target_conn import open_target_connection
 
 logger = logging.getLogger(__name__)
 
@@ -157,16 +158,11 @@ def _active_targets(conn):
 
 
 def _connect_target(target_row) -> psycopg.Connection:
+    """Same session limits (statement/lock/idle timeouts) and
+    application_name as every request-path connection — see
+    app/target_conn.py::open_target_connection."""
     _target_id, host, port, dbname, username, enc_password, sslmode = target_row
-    return psycopg.connect(
-        host=host,
-        port=port,
-        dbname=dbname,
-        user=username,
-        password=decrypt(enc_password),
-        sslmode=sslmode,
-        connect_timeout=5,
-    )
+    return open_target_connection(host, port, dbname, username, decrypt(enc_password), sslmode)
 
 
 def _target_label(target_row) -> str:

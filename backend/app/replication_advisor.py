@@ -78,7 +78,13 @@ def find_inactive_slot_findings(rows) -> list[dict]:
         severity = replication_slot_severity(active, wal_status, retained_bytes)
         if severity == "healthy":
             continue
-        retained_mb = retained_bytes / (1024 * 1024)
+        # NULL restart_lsn (see severity.replication_slot_severity) — the
+        # amount retained can't be computed, not "zero".
+        retained_text = (
+            f"{retained_bytes / (1024 * 1024):,.0f} MB of WAL"
+            if retained_bytes is not None
+            else "an unknown amount of WAL (its restart_lsn is no longer set)"
+        )
 
         if wal_status == "lost":
             suggested_action = (
@@ -100,7 +106,7 @@ def find_inactive_slot_findings(rows) -> list[dict]:
                 "title": f"Replication slot {slot_name} is inactive and retaining WAL",
                 "summary": (
                     f"This {slot_type} slot has no connected consumer but is still retaining "
-                    f"{retained_mb:,.0f} MB of WAL (wal_status: {wal_status}) — WAL keeps accumulating "
+                    f"{retained_text} (wal_status: {wal_status}) — WAL keeps accumulating "
                     "on disk until either the slot is dropped or its consumer reconnects."
                 ),
                 "detail": (

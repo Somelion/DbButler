@@ -28,7 +28,7 @@ from app.severity import (
     wraparound_severity,
     worse,
 )
-from app.target_conn import connect_to_target
+from app.target_conn import APPLICATION_NAME, connect_to_target
 
 router = APIRouter(prefix="/api/targets", tags=["dashboard"])
 
@@ -42,7 +42,8 @@ ACTIVITY_SUMMARY_QUERY = """
         pid,
         state,
         EXTRACT(EPOCH FROM (now() - state_change))::bigint AS state_duration_seconds,
-        pg_blocking_pids(pid) AS blocked_by_pids
+        pg_blocking_pids(pid) AS blocked_by_pids,
+        application_name
     FROM pg_stat_activity
     WHERE datname = current_database() AND pid <> pg_backend_pid()
 """
@@ -183,12 +184,16 @@ def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
                 )
             )
 
-    # Connections / idle-in-transaction / pool exhaustion
-    idle_tx = [row for row in activity_rows if row[1] == "idle in transaction"]
+    # Connections / idle-in-transaction / pool exhaustion. DbButler's own
+    # sessions (application_name, see app/target_conn.py) still count against
+    # max_connections, but a long VACUUM or EXPLAIN ANALYZE the user started
+    # from this app isn't the "long-running query" this check is warning about.
+    user_rows = [row for row in activity_rows if row[4] != APPLICATION_NAME]
+    idle_tx = [row for row in user_rows if row[1] == "idle in transaction"]
     worst_idle = max(idle_tx, key=lambda row: row[2] or 0, default=None)
     conn_severity = idle_in_tx_severity(worst_idle[2] if worst_idle else None)
 
-    active = [row for row in activity_rows if row[1] == "active"]
+    active = [row for row in user_rows if row[1] == "active"]
     worst_active = max(active, key=lambda row: row[2] or 0, default=None)
     conn_severity = worse(conn_severity, long_running_query_severity(worst_active[2] if worst_active else None))
 
@@ -425,7 +430,11 @@ def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
         live = row[2] or 0
         if live <= 0:
             continue
-        last_vacuum_ts = row[5] or row[4]  # prefer autovacuum, fall back to manual vacuum
+        # Whichever vacuum ran most recently, manual (row[4]) or auto
+        # (row[5]) — preferring autovacuum would keep reporting a months-old
+        # date right after a manual VACUUM (PROBLEMS.md #7).
+        vacuum_times = [ts for ts in (row[4], row[5]) if ts is not None]
+        last_vacuum_ts = max(vacuum_times) if vacuum_times else None
         days_since = (now - last_vacuum_ts).total_seconds() / 86400 if last_vacuum_ts else None
         rank = float("inf") if days_since is None else days_since
         if worst_stale is None or rank > worst_stale[3]:

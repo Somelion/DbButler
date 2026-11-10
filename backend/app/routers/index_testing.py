@@ -7,7 +7,7 @@ from psycopg import sql
 
 from app.db.store import store_conn
 from app.schemas import IndexTestingResponse, MaintenanceResult, TrackedIndexOut
-from app.target_conn import connect_to_target
+from app.target_conn import MAINTENANCE_STATEMENT_TIMEOUT_MS, connect_to_target
 
 router = APIRouter(prefix="/api/targets", tags=["index-testing"])
 
@@ -106,7 +106,11 @@ def drop_tracked_index(target_id: uuid.UUID, tracked_id: uuid.UUID):
 
     stmt = sql.SQL("DROP INDEX CONCURRENTLY {}").format(sql.Identifier(schema_name, index_name))
     try:
-        with connect_to_target(target_id, autocommit=True) as conn, conn.cursor() as cur:
+        # No lock timeout: DROP INDEX CONCURRENTLY waits out older
+        # transactions by design (see index_advisor.py's apply endpoint).
+        with connect_to_target(
+            target_id, autocommit=True, statement_timeout_ms=MAINTENANCE_STATEMENT_TIMEOUT_MS, lock_timeout_ms=0
+        ) as conn, conn.cursor() as cur:
             cur.execute(stmt)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

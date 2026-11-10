@@ -1,6 +1,6 @@
 import re
 
-import psycopg
+from app.target_conn import open_target_connection
 
 # The backend runs inside its own container — pointing it at "localhost" hits
 # that container, not the host machine. A very common first-connection trip-up.
@@ -26,15 +26,7 @@ def test_connection(host: str, port: int, dbname: str, username: str, password: 
     (bad credentials, unreachable host, timeout).
     """
     try:
-        with psycopg.connect(
-            host=host,
-            port=port,
-            dbname=dbname,
-            user=username,
-            password=password,
-            sslmode=sslmode,
-            connect_timeout=5,
-        ) as conn:
+        with open_target_connection(host, port, dbname, username, password, sslmode) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT version(), "

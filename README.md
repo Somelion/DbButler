@@ -44,7 +44,8 @@ Docker and Docker Compose. Nothing else needs to be installed locally to run the
 
 **Required first step**: generate two secrets and put them in `.env` — the backend refuses to
 start without both (a real `APP_SECRET_KEY`, since it encrypts every stored credential; a real
-`APP_AUTH_TOKEN`, since the UI won't get past its token prompt without it).
+`APP_AUTH_TOKEN`, since the UI won't get past its token prompt without it). It also refuses an
+`APP_AUTH_TOKEN` that's a well-known value or shorter than 32 characters.
 
 ```
 cp example.env .env
@@ -65,6 +66,29 @@ docker compose up
 Any of the three host ports can be overridden (e.g. if one is already taken) by exporting
 `UI_PORT`, `BACKEND_PORT`, or `DEMO_PORT` before running `docker compose up`, or by editing them in
 `.env` — `pre-flight.sh` tells you which to use.
+
+### Connecting with a least-privilege role
+
+Connect DbButler to each database with a dedicated monitoring role, not a superuser or the
+application's owner role. Every check only needs read access to statistics and catalogs:
+
+```sql
+CREATE ROLE dbbutler LOGIN PASSWORD '<a long random password>';
+GRANT pg_monitor TO dbbutler;          -- pg_stat_*, pg_ls_waldir(), pg_stat_statements, settings
+GRANT CONNECT ON DATABASE <db> TO dbbutler;
+```
+
+DbButler adds its own guard rails on top — EXPLAIN ANALYZE runs in a read-only, always-rolled-back
+transaction; every session carries a statement timeout, a lock timeout and
+`application_name = dbbutler` — but the role is what actually limits what the app *can* do. The
+explicit write actions (Vacuum/Analyze, Apply, cancel/terminate, reset stats) need more: table
+ownership or, on PostgreSQL 17+, `pg_maintain`, plus `pg_signal_backend` for cancel/terminate.
+Grant those only if you want to use those buttons.
+
+If the target is reached through PgBouncer, the pooler may reject the `options` startup parameter
+these timeouts travel in; DbButler then retries without it, so it still connects, but those
+server-side timeouts don't apply on that target. Connecting DbButler straight to PostgreSQL (not
+through the pooler) keeps them.
 
 ### Running behind a reverse proxy / on a custom hostname
 

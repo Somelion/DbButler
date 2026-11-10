@@ -2,6 +2,13 @@ from pydantic_settings import BaseSettings
 
 INSECURE_DEFAULT_SECRET_KEY = "dev-only-insecure-key-change-me"
 
+# example.env used to ship this exact value as APP_AUTH_TOKEN, so anyone who
+# copied it unchanged had an API "protected" by a publicly known token.
+KNOWN_INSECURE_AUTH_TOKENS = {INSECURE_DEFAULT_SECRET_KEY, "changeme", "change-me", "secret", "token"}
+# `openssl rand -hex 32` (what README/example.env suggest) gives 64 chars;
+# anything under 32 is short enough to be guessable or hand-typed.
+MIN_AUTH_TOKEN_LENGTH = 32
+
 
 class Settings(BaseSettings):
     """Backend configuration, sourced from environment variables set in docker-compose.yml."""
@@ -43,4 +50,17 @@ if settings.secret_key == INSECURE_DEFAULT_SECRET_KEY and not settings.allow_ins
         "    openssl rand -hex 32\n"
         "For a genuinely disposable local instance only, set APP_ALLOW_INSECURE_SECRET_KEY=true "
         "in .env to bypass this check."
+    )
+
+# An empty token is left to app/auth.py, which fails closed (503 on every
+# request) — but a token that's set to a known or trivially short value
+# would silently "work", so it's refused at startup instead.
+if settings.auth_token and (
+    settings.auth_token in KNOWN_INSECURE_AUTH_TOKENS or len(settings.auth_token) < MIN_AUTH_TOKEN_LENGTH
+):
+    raise RuntimeError(
+        f"AUTH_TOKEN is a well-known default or shorter than {MIN_AUTH_TOKEN_LENGTH} characters. It's the "
+        "only thing protecting the API, so it must be a long random value. Set APP_AUTH_TOKEN in .env, "
+        "e.g.:\n"
+        "    openssl rand -hex 32"
     )

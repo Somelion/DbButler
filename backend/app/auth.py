@@ -24,6 +24,8 @@ def require_auth(authorization: str | None = Header(default=None)) -> None:
             detail="Server auth token is not configured. Set AUTH_TOKEN and restart the backend.",
         )
 
-    expected = f"Bearer {settings.auth_token}"
-    if not authorization or not secrets.compare_digest(authorization, expected):
+    # Compared as bytes: compare_digest raises TypeError (a 500) on a str
+    # holding non-ASCII characters, which any client can send in a header.
+    expected = f"Bearer {settings.auth_token}".encode()
+    if not authorization or not secrets.compare_digest(authorization.encode("utf-8", "surrogateescape"), expected):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing auth token.")

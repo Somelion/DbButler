@@ -1,10 +1,11 @@
 from cryptography.fernet import InvalidToken
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.alerting import detect_webhook_kind, send_test_webhook
 from app.crypto import decrypt, encrypt
 from app.db.store import store_conn
 from app.schemas import AlertSettingsOut, AlertSettingsUpdate, AlertTestResult
+from app.url_safety import validate_http_url
 
 router = APIRouter(prefix="/api/alerts", tags=["alert-settings"])
 
@@ -40,6 +41,12 @@ def get_alert_settings():
 
 @router.put("/settings", response_model=AlertSettingsOut)
 def update_alert_settings(payload: AlertSettingsUpdate):
+    if payload.webhook_url:
+        try:
+            payload.webhook_url = validate_http_url(payload.webhook_url, "The webhook URL")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     with store_conn() as conn, conn.cursor() as cur:
         if payload.webhook_url is None:
             # Leave whatever webhook URL is already stored untouched.

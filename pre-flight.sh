@@ -56,13 +56,22 @@ if [ -f .env ]; then
     echo "  (no recognized override keys found in it — see example.env for the list)"
   fi
 else
-  echo "No .env file — that's fine, docker-compose.yml has safe local-dev defaults built in."
-  echo "Only create one if you want to override credentials or ports: cp example.env .env"
+  echo "No .env file. You need one: APP_SECRET_KEY and APP_AUTH_TOKEN have no usable defaults."
+  echo "  cp example.env .env   (then fill in both, see below)"
 fi
 
 echo ""
 echo "== Auth token =="
-if [ -f .env ] && grep -qE '^APP_AUTH_TOKEN=.+' .env 2>/dev/null; then
+auth_token_value=""
+if [ -f .env ]; then
+  auth_token_value=$(grep -E '^APP_AUTH_TOKEN=' .env 2>/dev/null | tail -n1 | cut -d= -f2-)
+fi
+if [ "$auth_token_value" = "$INSECURE_DEFAULT_SECRET_KEY" ] || { [ -n "$auth_token_value" ] && [ "${#auth_token_value}" -lt 32 ]; }; then
+  echo "REQUIRED, not valid: APP_AUTH_TOKEN is a well-known default or shorter than 32 characters."
+  echo "  The backend refuses to start with it. Generate a real one and put it in .env:"
+  echo "    openssl rand -hex 32"
+  echo "  then set: APP_AUTH_TOKEN=<the generated value>"
+elif [ -n "$auth_token_value" ]; then
   echo "APP_AUTH_TOKEN is set — the API will require it on every request."
 else
   echo "REQUIRED, not set: APP_AUTH_TOKEN."

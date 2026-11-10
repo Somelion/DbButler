@@ -11,7 +11,7 @@ from app.schemas import (
     WaitEventSnapshotRow,
     WaitEventTrendResponse,
 )
-from app.target_conn import connect_to_target
+from app.target_conn import APPLICATION_NAME, connect_to_target
 
 router = APIRouter(prefix="/api/targets", tags=["wait-events"])
 
@@ -23,10 +23,13 @@ router = APIRouter(prefix="/api/targets", tags=["wait-events"])
 # covers idle-in-transaction specifically. This is a live snapshot, not a
 # time-weighted Active Session History sample — see scheduler.py's
 # _collect_wait_events for the periodic version that feeds the trend below.
-WAIT_EVENT_SNAPSHOT_QUERY = """
+# DbButler's own sessions (its other collectors running at the same moment)
+# are left out, so the app doesn't show up in its own workload picture.
+WAIT_EVENT_SNAPSHOT_QUERY = f"""
     SELECT COALESCE(wait_event_type, 'CPU') AS category, count(*)
     FROM pg_stat_activity
     WHERE datname = current_database() AND pid <> pg_backend_pid() AND state = 'active'
+      AND application_name IS DISTINCT FROM '{APPLICATION_NAME}'
     GROUP BY 1
     ORDER BY 2 DESC
 """
