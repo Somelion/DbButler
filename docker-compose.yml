@@ -27,7 +27,9 @@ services:
       retries: 10
 
   pgdba-backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
       STORE_DATABASE_URL: postgresql://${STORE_POSTGRES_USER:-pgdba}:${STORE_POSTGRES_PASSWORD:-pgdba}@pgdba-store:5432/${STORE_POSTGRES_DB:-pgdba_store}
       SECRET_KEY: ${APP_SECRET_KEY:-dev-only-insecure-key-change-me}

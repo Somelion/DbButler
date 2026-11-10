@@ -30,7 +30,6 @@ export default function AuthGate({ children }) {
     const stored = getAuthToken();
     if (stored) verify(stored);
     else setStatus("needed");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = (e) => {

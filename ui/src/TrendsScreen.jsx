@@ -116,7 +116,6 @@ export default function TrendsScreen({ targetId }) {
         });
       })
       .catch((err) => setSummaryError(err.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetId, tableMetric]);
 
   // Full history — only for whichever tables are actually selected, so the

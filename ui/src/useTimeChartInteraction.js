@@ -27,7 +27,7 @@ export function useTimeChartInteraction({ fullMin, fullMax, width, padLeft, padR
       if (rect.width === 0) return padLeft;
       return clampX(((clientX - rect.left) / rect.width) * width);
     },
-    [width, clampX]
+    [width, padLeft, clampX]
   );
 
   const localToTime = useCallback(

@@ -16,17 +16,6 @@ export default function HardwareProfile({ targetId, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    api
-      .getHardwareProfile(targetId)
-      .then((existing) => {
-        setProfile(existing);
-        if (!existing) startEdit(existing);
-      })
-      .catch((err) => setError(err.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetId]);
-
   const startEdit = (base) => {
     api
       .detectHardware(targetId)
@@ -42,6 +31,17 @@ export default function HardwareProfile({ targetId, onSaved }) {
       })
       .catch((err) => setError(err.message));
   };
+
+  useEffect(() => {
+    api
+      .getHardwareProfile(targetId)
+      .then((existing) => {
+        setProfile(existing);
+        if (!existing) startEdit(existing);
+      })
+      .catch((err) => setError(err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetId]);
 
   const handleSave = async () => {
     setSaving(true);

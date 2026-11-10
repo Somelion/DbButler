@@ -52,7 +52,7 @@ INTERNAL_SCHEMA_PATTERN = "^(pg_toast|_timescaledb|timescaledb_)"
 # to every partition). relkind is returned so a missing index on a
 # partitioned parent can be reported without a CONCURRENTLY suggestion,
 # which PostgreSQL doesn't support on a partitioned table.
-FK_COLUMNS_QUERY = """
+FK_COLUMNS_QUERY = f"""
     SELECT
         con.conrelid::regclass::text AS table_name,
         con.conname AS constraint_name,
@@ -67,10 +67,10 @@ FK_COLUMNS_QUERY = """
     JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = u.attnum
     WHERE con.contype = 'f'
       AND con.conparentid = 0
-      AND n.nspname !~ '{internal_schemas}'
+      AND n.nspname !~ '{INTERNAL_SCHEMA_PATTERN}'
       {{schema_filter}}
     GROUP BY con.oid, con.conrelid, con.conname, n.nspname, tc.relname, tc.relkind
-""".format(internal_schemas=INTERNAL_SCHEMA_PATTERN)
+"""
 
 # One row per index on a plain or partitioned table. key_columns holds only
 # the index's key part (INCLUDE columns are separate — they can't serve a
@@ -100,7 +100,7 @@ FK_COLUMNS_QUERY = """
 # empty string (no filter, the query runs exactly as before). Always placed
 # right after the query's own WHERE conditions and before any trailing
 # GROUP BY, never after one.
-ALL_INDEX_COLUMNS_QUERY = """
+ALL_INDEX_COLUMNS_QUERY = f"""
     SELECT
         n.nspname AS schema_name,
         i.indrelid::regclass::text AS table_name,
@@ -147,9 +147,9 @@ ALL_INDEX_COLUMNS_QUERY = """
     ) cols
     WHERE tc.relkind IN ('r', 'p')
       AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-      AND n.nspname !~ '{internal_schemas}'
+      AND n.nspname !~ '{INTERNAL_SCHEMA_PATTERN}'
       {{schema_filter}}
-""".format(internal_schemas=INTERNAL_SCHEMA_PATTERN)
+"""
 
 # Excludes every index that can't be dropped on its own (see is_protected
 # above), plus a partition's attached copy of a partitioned index, which
@@ -157,7 +157,7 @@ ALL_INDEX_COLUMNS_QUERY = """
 # candidate backs a foreign key is decided in Python
 # (compute_index_advisor_findings), from the same index/FK rows the
 # missing-FK-index check already uses.
-UNUSED_INDEXES_QUERY = """
+UNUSED_INDEXES_QUERY = f"""
     SELECT
         s.schemaname,
         s.relname AS table_name,
@@ -173,9 +173,9 @@ UNUSED_INDEXES_QUERY = """
       AND NOT i.indisreplident
       AND NOT EXISTS (SELECT 1 FROM pg_constraint con WHERE con.conindid = i.indexrelid AND con.contype IN ('p', 'u', 'x'))
       AND NOT EXISTS (SELECT 1 FROM pg_inherits inh WHERE inh.inhrelid = i.indexrelid)
-      AND s.schemaname !~ '{internal_schemas}'
+      AND s.schemaname !~ '{INTERNAL_SCHEMA_PATTERN}'
       {{schema_filter}}
-""".format(internal_schemas=INTERNAL_SCHEMA_PATTERN)
+"""
 
 # How long this database's index usage counters have been accumulating —
 # idx_scan = 0 means "unused since the last stats reset," not "never used,"
@@ -206,7 +206,7 @@ SEQ_SCAN_HEAVY_QUERY = """
     {schema_filter}
 """
 
-INVALID_INDEXES_QUERY = """
+INVALID_INDEXES_QUERY = f"""
     SELECT
         n.nspname AS schema_name,
         tc.relname AS table_name,
@@ -220,9 +220,9 @@ INVALID_INDEXES_QUERY = """
       AND ic.relkind = 'i'
       AND NOT EXISTS (SELECT 1 FROM pg_inherits inh WHERE inh.inhrelid = i.indexrelid)
       AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-      AND n.nspname !~ '{internal_schemas}'
+      AND n.nspname !~ '{INTERNAL_SCHEMA_PATTERN}'
       {{schema_filter}}
-""".format(internal_schemas=INTERNAL_SCHEMA_PATTERN)
+"""
 
 # The mirror image of SEQ_SCAN_HEAVY_QUERY above: tables with NO non-PK
 # index at all, rather than one that exists but goes unused.

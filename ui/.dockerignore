@@ -1,0 +1,7 @@
+# A local `npm install` leaves platform-specific binaries (esbuild, rollup)
+# in node_modules — copying them over the image's own `npm ci` result would
+# break the Linux build.
+node_modules
+dist
+.env
+.env.*

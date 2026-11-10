@@ -35,7 +35,7 @@ def fit_linear_trend(history, min_points=DEFAULT_MIN_POINTS, min_span_hours=DEFA
     if denom == 0:
         return None
 
-    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / denom
+    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True)) / denom
     return slope, span_days
 
 

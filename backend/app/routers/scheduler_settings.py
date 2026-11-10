@@ -1,8 +1,7 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query
-
 from apscheduler.triggers.cron import CronTrigger
+from fastapi import APIRouter, HTTPException, Query
 
 from app import scheduler
 from app.db.store import store_conn

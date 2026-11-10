@@ -25,8 +25,8 @@ from app.severity import (
     dead_pct_severity,
     idle_in_tx_severity,
     long_running_query_severity,
-    wraparound_severity,
     worse,
+    wraparound_severity,
 )
 from app.target_conn import APPLICATION_NAME, connect_to_target
 
@@ -80,7 +80,7 @@ def _fetch_pooler_status(target_id: uuid.UUID, dbname: str) -> tuple[CategorySta
         with connect_to_pgbouncer(target_id) as conn, conn.cursor() as cur:
             cur.execute("SHOW POOLS")
             columns = [desc[0] for desc in cur.description]
-            pool_rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+            pool_rows = [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
     except psycopg.Error as exc:
         return (
             CategoryStatus(key="pooler", label="Pooler", severity="unknown", value="—", detail="PgBouncer unreachable"),

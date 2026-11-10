@@ -1,0 +1,11 @@
+# Test/lint tooling on top of the runtime lock. requirements-dev.txt is
+# generated from this file:
+#   uv pip compile requirements-dev.in --universal --generate-hashes --python-version 3.12 -o requirements-dev.txt
+-c requirements.txt
+pytest
+# FastAPI's TestClient (tests/test_api.py) — Starlette 1.x runs it on httpx2.
+httpx2
+ruff
+pip-audit
+# Generates the hash-locked requirements*.txt from the .in files.
+uv

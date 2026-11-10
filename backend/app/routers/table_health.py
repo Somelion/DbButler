@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.db.store import store_conn
 from app.routers.advisor_archive import get_archived_finding_ids
+from app.schema_filter import get_allowed_schemas
 from app.schemas import (
     ApplyTableHealthFindingRequest,
     IndexFinding,
@@ -19,6 +20,7 @@ from app.schemas import (
     TableStorageDetail,
 )
 from app.severity import cache_hit_severity, dead_pct_severity, wraparound_severity
+from app.sql_ident import split_sql_statements
 from app.table_health_advisor import (
     ColumnDetail,
     find_autovacuum_scale_factor_candidate,
@@ -31,8 +33,6 @@ from app.table_health_advisor import (
     find_toast_heavy,
     find_wide_columns,
 )
-from app.schema_filter import get_allowed_schemas
-from app.sql_ident import split_sql_statements
 from app.target_conn import MAINTENANCE_STATEMENT_TIMEOUT_MS, connect_to_target
 from app.timescaledb_health import aggregate_hypertable_rows, fetch_chunk_map, is_timescaledb_installed
 

@@ -1,0 +1,18 @@
+# Build context for backend/Dockerfile is the repo root — keep it small, and
+# never send secrets or local tooling into the image build.
+.git
+.env
+.env.*
+.idea
+.claude
+databank
+docs
+logs
+demo
+ui
+**/__pycache__
+**/*.pyc
+backend/.venv
+backend/tests
+backend/.pytest_cache
+backend/.ruff_cache

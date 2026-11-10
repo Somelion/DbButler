@@ -26,13 +26,9 @@ def test_connection(host: str, port: int, dbname: str, username: str, password: 
     (bad credentials, unreachable host, timeout).
     """
     try:
-        with open_target_connection(host, port, dbname, username, password, sslmode) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT version(), "
-                    "extract(epoch from (now() - pg_postmaster_start_time()))::bigint"
-                )
-                version_string, uptime_seconds = cur.fetchone()
+        with open_target_connection(host, port, dbname, username, password, sslmode) as conn, conn.cursor() as cur:
+            cur.execute("SELECT version(), extract(epoch from (now() - pg_postmaster_start_time()))::bigint")
+            version_string, uptime_seconds = cur.fetchone()
     except Exception as exc:
         message = str(exc)
         if host.strip().lower() in LOOPBACK_HOSTS:

@@ -1,0 +1,15 @@
+# Direct runtime dependencies. requirements.txt is generated from this file —
+# never edit it by hand:
+#   uv pip compile requirements.in --universal --generate-hashes --python-version 3.12 -o requirements.txt
+# --universal keeps platform-specific transitive deps (e.g. uvicorn's uvloop on
+# Linux) in the lock even when it's generated on Windows/macOS.
+fastapi
+uvicorn[standard]
+psycopg[binary]
+pydantic
+pydantic-settings
+psutil
+# APScheduler 4 is a rewrite with a different API; stay on 3.x.
+apscheduler<4
+cryptography
+requests

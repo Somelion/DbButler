@@ -1,0 +1,36 @@
+# Tooling config only — the backend isn't packaged; runtime dependencies are
+# locked in requirements.txt (generated from requirements.in).
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes: undefined/unused names, imports
+    "I",   # import sorting
+    "B",   # bugbear: likely bugs
+    "UP",  # pyupgrade: modern syntax for the target version
+    "SIM", # simplifications
+]
+ignore = [
+    # Long SQL strings and docstrings are wrapped by hand; revisit together
+    # with adopting `ruff format` for the whole codebase.
+    "E501",
+    # FastAPI's own idiom for request parameters: `x: list[str] = Query(...)`.
+    "B008",
+    # datetime.timezone.utc is used consistently across the codebase; the
+    # datetime.UTC alias is equivalent.
+    "UP017",
+    # A whitespace-separated word list (app/sql_ident.py's keyword set) reads
+    # better than a hundred-plus quoted strings.
+    "SIM905",
+]

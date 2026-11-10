@@ -30,7 +30,6 @@ export default function QueryAnalysisModal({ targetId, query, onClose, onCreated
       .then((data) => setPreview(data.anonymized_query))
       .catch((err) => setError(err.message))
       .finally(() => setPreviewing(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetId, finalQuery, allParamsFilled, placeholders.length]);
 
   const handleRunAnalysis = () => {

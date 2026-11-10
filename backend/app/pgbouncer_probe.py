@@ -25,11 +25,10 @@ def test_pgbouncer_connection(host: str, port: int, username: str, password: str
             sslmode=sslmode,
             connect_timeout=5,
             autocommit=True,
-        ) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SHOW VERSION")
-                row = cur.fetchone()
-                version_string = row[0] if row else "unknown"
+        ) as conn, conn.cursor() as cur:
+            cur.execute("SHOW VERSION")
+            row = cur.fetchone()
+            version_string = row[0] if row else "unknown"
     except Exception as exc:
         message = str(exc)
         if host.strip().lower() in LOOPBACK_HOSTS:

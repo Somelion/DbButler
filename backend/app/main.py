@@ -35,14 +35,14 @@ from app.routers.query_analysis import router as query_analysis_router
 from app.routers.query_history import router as query_history_router
 from app.routers.query_stats import router as query_stats_router
 from app.routers.replication_advisor import router as replication_advisor_router
-from app.routers.schema_lint import router as schema_lint_router
 from app.routers.scheduler_settings import router as scheduler_settings_router
+from app.routers.schema_lint import router as schema_lint_router
 from app.routers.security_advisor import router as security_advisor_router
 from app.routers.table_health import router as table_health_router
 from app.routers.targets import router as targets_router
 from app.routers.wait_events import router as wait_events_router
 from app.scheduler import start_scheduler
-
+from app.version import APP_VERSION
 
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 logging.basicConfig(level=logging.INFO, format=_LOG_FORMAT)
@@ -81,7 +81,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 
-app = FastAPI(title="PostgreDba API", lifespan=lifespan)
+app = FastAPI(title="DbButler API", version=APP_VERSION, lifespan=lifespan)
 
 # Every /api/* route requires the shared AUTH_TOKEN (app/auth.py) — /health
 # and /health/store stay open since they carry no data and the Docker
@@ -134,14 +134,23 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/version")
+@app.get("/api/version")
+def version():
+    """The running release (repo-root .version). Unauthenticated, like
+    /health — it's what a user or a support request needs first, and it
+    carries no data about any monitored database. Also served under /api/
+    because that's the only prefix the UI's nginx proxies to the backend."""
+    return {"version": APP_VERSION}
+
+
 @app.get("/health/store")
 def health_store():
     """Confirms the backend can reach its own history/metrics database
     (pgdba-store). Unauthenticated, same reasoning as /health."""
-    with psycopg.connect(settings.store_database_url, connect_timeout=3) as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1")
-            cur.fetchone()
+    with psycopg.connect(settings.store_database_url, connect_timeout=3) as conn, conn.cursor() as cur:
+        cur.execute("SELECT 1")
+        cur.fetchone()
     return {"status": "ok"}
 
 

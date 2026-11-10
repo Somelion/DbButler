@@ -139,6 +139,43 @@ Set `LOG_TO_FILE=true` in `.env` to make each container also write its own log f
 `demo-target.log`, `timescale-target.log`. Postgres containers log only to the file while this is
 on. See `example.env`.
 
+The running version (from `.version`) is served at `/version` (and `/api/version` through the UI).
+
+## Development
+
+CI (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request: ruff,
+pytest and pip-audit for the backend; ESLint, a production build and npm audit for the UI; and a
+build of both Docker images (checking the backend image runs as a non-root user).
+
+To run the same checks locally:
+
+```
+# backend (Python 3.12)
+cd backend
+python -m venv .venv
+.venv/Scripts/python -m pip install --require-hashes -r requirements.txt -r requirements-dev.txt   # bin/ on macOS/Linux
+.venv/Scripts/ruff check .
+.venv/Scripts/python -m pytest
+
+# ui (Node 20.19+, 22.13+ or 24)
+cd ui
+npm ci
+npm run lint
+npm run build
+```
+
+The tests need no database: they cover the pure analysis/guard logic and the HTTP layer through
+FastAPI's TestClient without starting the app's lifespan.
+
+Dependencies are locked: `backend/requirements.txt` / `requirements-dev.txt` are generated with
+hashes from `requirements.in` / `requirements-dev.in` (the command is at the top of each `.in`
+file — `--universal` keeps Linux-only transitive deps in the lock even when it's generated on
+Windows or macOS), and the UI uses `package-lock.json` with `npm ci`. To upgrade, re-run the
+compile command with `--upgrade` (or `npm update` in `ui/`), then run the checks above.
+
+ESLint's accessibility (`jsx-a11y`) and `react-hooks/set-state-in-effect` findings are warnings
+for now, not errors — see the comment in `ui/eslint.config.js`.
+
 ## Documentation
 
 Design docs, the functional spec, and the knowledge base the analysis/rule logic is built from are
