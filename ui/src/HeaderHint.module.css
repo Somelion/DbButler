@@ -1,0 +1,8 @@
+.hint {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--space-5);
+  color: var(--text-muted);
+  cursor: help;
+  vertical-align: middle;
+}

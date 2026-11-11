@@ -1,60 +1,33 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import { ChevronRight } from "lucide-react";
+import styles from "./CollapsibleGroup.module.css";
 
+// A bordered group with a disclosure header (Advisor's finding groups, Table
+// Health's per-table findings, Connections' optional PgBouncer section).
+// The header is a real button wired to the region it shows/hides; `count`
+// is optional and rendered as a pill on the right when given.
 export default function CollapsibleGroup({ label, count, defaultExpanded = false, children }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const regionId = useId();
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-        overflow: "hidden",
-      }}
-    >
-      <div
+    <div className={styles.group}>
+      <button
+        type="button"
+        className={styles.header}
+        aria-expanded={expanded}
+        aria-controls={expanded ? regionId : undefined}
         onClick={() => setExpanded((prev) => !prev)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "10px 14px",
-          background: "var(--row-bg)",
-          cursor: "pointer",
-          userSelect: "none",
-        }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              fontSize: 10,
-              color: "var(--text-muted)",
-              display: "inline-block",
-              transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
-              transition: "transform 0.12s ease",
-            }}
-          >
-            ▶
-          </span>
-          <span style={{ fontFamily: "Manrope, sans-serif", fontWeight: 650, fontSize: 13.5, color: "var(--text)" }}>
-            {label}
-          </span>
-        </div>
-        <span
-          style={{
-            fontSize: 11.5,
-            fontWeight: 700,
-            color: "var(--text-muted)",
-            background: "var(--card)",
-            padding: "2px 9px",
-            borderRadius: 100,
-          }}
-        >
-          {count}
+        <span className={styles.title}>
+          <ChevronRight size={14} className={styles.chevron} aria-hidden="true" />
+          <span className={styles.label}>{label}</span>
         </span>
-      </div>
+        {count != null && <span className={styles.count}>{count}</span>}
+      </button>
       {expanded && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "12px 14px" }}>{children}</div>
+        <div id={regionId} className={styles.body}>
+          {children}
+        </div>
       )}
     </div>
   );

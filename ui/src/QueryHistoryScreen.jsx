@@ -1,20 +1,30 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { History } from "lucide-react";
 import { api } from "./api";
+import { targetKey } from "./queryClient";
 import TrendChart from "./TrendChart";
 import MultiTrendChart, { MULTI_TREND_PALETTE } from "./MultiTrendChart";
 import QueryPicker from "./QueryPicker";
+import { Alert, Card, EmptyState, SegmentedControl, Skeleton } from "./components";
+import styles from "./QueryHistoryScreen.module.css";
 
 const RANGE_OPTIONS = [
-  { hours: 24, label: "24 hours" },
-  { hours: 24 * 7, label: "7 days" },
-  { hours: 24 * 30, label: "30 days" },
+  { value: 24, label: "24 hours" },
+  { value: 24 * 7, label: "7 days" },
+  { value: 24 * 30, label: "30 days" },
 ];
+const DEFAULT_HOURS = 24;
 
 const COMPARE_METRIC_OPTIONS = [
   { value: "mean_exec_ms", label: "Avg Latency" },
   { value: "calls", label: "Calls" },
   { value: "rows_per_call", label: "Rows / Call" },
 ];
+const DEFAULT_METRIC = "mean_exec_ms";
+
+const MAX_SELECTED = MULTI_TREND_PALETTE.length;
 
 // How many standard deviations above a query's own mean latency (across the
 // history currently shown) counts as "ran hot" — shaded as the top of the
@@ -28,70 +38,99 @@ function meanAndStddev(values) {
   return { mean, stddev: Math.sqrt(variance) };
 }
 
+// queryids are pg_stat_statements bigints. The API sends them as JSON
+// numbers, so a URL token is parsed back with Number() — the same rounding
+// JSON.parse applied — and only all-digit tokens are accepted.
+function parseQueryId(token) {
+  return /^-?\d+$/.test(token) ? Number(token) : null;
+}
+
+function parseQueryIdList(param) {
+  const ids = [];
+  for (const token of (param ?? "").split(",")) {
+    const id = parseQueryId(token.trim());
+    if (id != null && !ids.includes(id)) ids.push(id);
+  }
+  return ids.slice(0, MAX_SELECTED);
+}
+
+// View state lives in the URL so a comparison can be shared or reloaded:
+//   ?hours=168        time range (24 / 168 / 720; 24 is the default)
+//   ?q=<id>,<id>      queries overlaid in Compare, in selection order
+//   ?focus=<id>       the query in Deep-Dive
+//   ?metric=calls     Compare metric (mean_exec_ms is the default)
+// Unknown values fall back to the default. The screen is remounted per
+// target and switching target drops the query string, so a selection never
+// carries over to a database where those queryids mean nothing; ids that
+// aren't in this target's tracked list are dropped once it has loaded.
 export default function QueryHistoryScreen({ targetId }) {
-  const [hours, setHours] = useState(24);
-  const [summary, setSummary] = useState(null);
-  const [summaryError, setSummaryError] = useState(null);
-  const [selectedQueryIds, setSelectedQueryIds] = useState(new Set());
-  const [focusedQueryId, setFocusedQueryId] = useState(null);
-  const [compareMetric, setCompareMetric] = useState("mean_exec_ms");
-  const [history, setHistory] = useState(null);
-  const [historyError, setHistoryError] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // queryids are target-specific pg_stat_statements ids — carrying a
-  // selection/focus over from a different target would silently request
-  // ids that don't exist here, so clear both (and the stale summary/
-  // history payloads) on every target switch.
-  useEffect(() => {
-    setSelectedQueryIds(new Set());
-    setFocusedQueryId(null);
-    setSummary(null);
-    setHistory(null);
-  }, [targetId]);
+  const hoursParam = Number(searchParams.get("hours"));
+  const hours = RANGE_OPTIONS.some((o) => o.value === hoursParam) ? hoursParam : DEFAULT_HOURS;
+  const metricParam = searchParams.get("metric");
+  const compareMetric = COMPARE_METRIC_OPTIONS.some((o) => o.value === metricParam) ? metricParam : DEFAULT_METRIC;
 
-  useEffect(() => {
-    api
-      .getQueryHistorySummary(targetId)
-      .then((d) => {
-        setSummary(d);
-        setSummaryError(null);
-      })
-      .catch((err) => setSummaryError(err.message));
-  }, [targetId]);
+  const summaryQuery = useQuery({
+    queryKey: targetKey(targetId, "query-history-summary"),
+    queryFn: ({ signal }) => api.getQueryHistorySummary(targetId, { signal }),
+  });
+  const summary = summaryQuery.data;
+
+  const summaryById = useMemo(() => {
+    const map = new Map();
+    if (summary) for (const q of summary.queries) map.set(q.queryid, q);
+    return map;
+  }, [summary]);
+  const isKnown = (id) => !summary || summaryById.has(id);
+
+  const qParam = searchParams.get("q");
+  const selectedIds = useMemo(
+    () => parseQueryIdList(qParam).filter((id) => !summary || summaryById.has(id)),
+    [qParam, summary, summaryById]
+  );
+  const selectedQueryIds = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const focusParam = parseQueryId(searchParams.get("focus") ?? "");
+  const focusedQueryId = focusParam != null && isKnown(focusParam) ? focusParam : null;
+
+  const updateParams = (changes) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [key, value] of Object.entries(changes)) {
+          if (value == null || value === "") next.delete(key);
+          else next.set(key, String(value));
+        }
+        return next;
+      },
+      { replace: true }
+    );
 
   const requestedIds = useMemo(() => {
-    const ids = new Set(selectedQueryIds);
+    const ids = new Set(selectedIds);
     if (focusedQueryId != null) ids.add(focusedQueryId);
-    return [...ids];
-  }, [selectedQueryIds, focusedQueryId]);
+    return [...ids].sort((a, b) => a - b);
+  }, [selectedIds, focusedQueryId]);
 
-  useEffect(() => {
-    if (requestedIds.length === 0) {
-      setHistory(null);
-      return;
-    }
-    api
-      .getQueryHistory(targetId, hours, requestedIds)
-      .then((d) => {
-        setHistory(d);
-        setHistoryError(null);
-      })
-      .catch((err) => setHistoryError(err.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetId, hours, requestedIds.join(",")]);
+  const historyQuery = useQuery({
+    queryKey: targetKey(targetId, "query-history", hours, requestedIds.join(",")),
+    queryFn: ({ signal }) => api.getQueryHistory(targetId, hours, requestedIds, { signal }),
+    enabled: requestedIds.length > 0,
+    // Keep the charts on the previous range/selection while the next loads.
+    placeholderData: keepPreviousData,
+  });
+  const history = requestedIds.length > 0 ? historyQuery.data : null;
+  const historyLoading = requestedIds.length > 0 && historyQuery.isPending;
 
   const toggleQuery = (queryid) => {
-    setSelectedQueryIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(queryid)) {
-        next.delete(queryid);
-      } else if (next.size < MULTI_TREND_PALETTE.length) {
-        next.add(queryid);
-      }
-      return next;
-    });
+    let next;
+    if (selectedQueryIds.has(queryid)) next = selectedIds.filter((id) => id !== queryid);
+    else if (selectedIds.length < MAX_SELECTED) next = [...selectedIds, queryid];
+    else return;
+    updateParams({ q: next.map(String).join(",") });
   };
-  const clearSelection = () => setSelectedQueryIds(new Set());
+  const clearSelection = () => updateParams({ q: null });
+  const toggleFocus = (queryid) => updateParams({ focus: focusedQueryId === queryid ? null : queryid });
 
   const seriesByQueryId = useMemo(() => {
     const map = new Map();
@@ -99,12 +138,12 @@ export default function QueryHistoryScreen({ targetId }) {
     return map;
   }, [history]);
 
-  // Preserve selection order (a Set iterates in insertion order) so a
-  // query's overlay color stays stable as long as it stays selected —
-  // same technique TrendsScreen's Table Trends section uses. Intervals
-  // recorded before rows were stored per interval have rows_per_call null —
-  // left out rather than drawn as zero.
-  const compareSeries = [...selectedQueryIds]
+  // Preserve selection order (the ?q= list is kept in the order queries
+  // were picked) so a query's overlay color stays stable as long as it
+  // stays selected — same technique TrendsScreen's Table Trends section
+  // uses. Intervals recorded before rows were stored per interval have
+  // rows_per_call null — left out rather than drawn as zero.
+  const compareSeries = selectedIds
     .map((id) => seriesByQueryId.get(id))
     .filter(Boolean)
     .map((q) => ({
@@ -113,6 +152,7 @@ export default function QueryHistoryScreen({ targetId }) {
     }));
 
   const focusedSeries = focusedQueryId != null ? seriesByQueryId.get(focusedQueryId) : null;
+  const focusedText = focusedSeries?.query ?? summaryById.get(focusedQueryId)?.query ?? "Loading…";
   const focusedCallsPoints = focusedSeries ? focusedSeries.points.map((p) => ({ ts: p.ts, value: p.calls })) : [];
   const focusedLatencyPoints = focusedSeries
     ? focusedSeries.points.map((p) => ({ ts: p.ts, value: p.mean_exec_ms }))
@@ -121,49 +161,28 @@ export default function QueryHistoryScreen({ targetId }) {
   const anomalyThreshold = latencyMean + ANOMALY_STDDEV_MULTIPLIER * latencyStddev;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 18,
-          padding: "18px 20px",
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-        }}
+    <div className={styles.screen}>
+      <Card
+        title="Tracked queries"
+        actions={
+          <SegmentedControl
+            label="Time range"
+            options={RANGE_OPTIONS}
+            value={hours}
+            onChange={(value) => updateParams({ hours: value === DEFAULT_HOURS ? null : value })}
+          />
+        }
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Query History</span>
-          <div style={{ display: "flex", gap: 6 }}>
-            {RANGE_OPTIONS.map((opt) => (
-              <span
-                key={opt.hours}
-                onClick={() => setHours(opt.hours)}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: 12,
-                  fontWeight: hours === opt.hours ? 650 : 600,
-                  color: hours === opt.hours ? "white" : "var(--text-secondary)",
-                  background: hours === opt.hours ? "var(--accent)" : "var(--row-bg)",
-                  borderRadius: 100,
-                  cursor: "pointer",
-                }}
-              >
-                {opt.label}
-              </span>
-            ))}
-          </div>
-        </div>
+        {summaryQuery.error && <Alert tone="critical">{summaryQuery.error.message}</Alert>}
+        {historyQuery.error && <Alert tone="critical">{historyQuery.error.message}</Alert>}
 
-        {summaryError && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{summaryError}</span>}
-        {historyError && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{historyError}</span>}
+        {summaryQuery.isPending && <Skeleton lines={5} label="Loading tracked queries…" />}
 
         {summary && summary.queries.length === 0 && (
-          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-            No query history yet — this fills in once the query history collector has run a few
-            cycles (every 5 minutes) against queries with recent activity in pg_stat_statements.
-          </span>
+          <EmptyState icon={History} title="No query history yet">
+            This fills in once the query history collector has run a few cycles (every 5 minutes) against
+            queries with recent activity in pg_stat_statements.
+          </EmptyState>
         )}
 
         {summary && summary.queries.length > 0 && (
@@ -172,94 +191,59 @@ export default function QueryHistoryScreen({ targetId }) {
             selected={selectedQueryIds}
             onToggle={toggleQuery}
             onClear={clearSelection}
-            maxSelected={MULTI_TREND_PALETTE.length}
+            maxSelected={MAX_SELECTED}
             focusedQueryId={focusedQueryId}
-            onFocus={(id) => setFocusedQueryId((prev) => (prev === id ? null : id))}
+            onFocus={toggleFocus}
           />
         )}
-      </div>
+      </Card>
 
-      {selectedQueryIds.size > 0 && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            padding: "18px 20px",
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-            borderRadius: 14,
-          }}
+      {selectedIds.length > 0 && (
+        <Card
+          title="Compare queries"
+          actions={
+            <SegmentedControl
+              label="Compare metric"
+              options={COMPARE_METRIC_OPTIONS}
+              value={compareMetric}
+              onChange={(value) => updateParams({ metric: value === DEFAULT_METRIC ? null : value })}
+            />
+          }
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Compare Queries</span>
-            <div style={{ display: "flex", alignItems: "center", padding: 3, background: "var(--row-bg)", borderRadius: 9 }}>
-              {COMPARE_METRIC_OPTIONS.map((opt) => (
-                <span
-                  key={opt.value}
-                  onClick={() => setCompareMetric(opt.value)}
-                  style={{
-                    padding: "6px 14px",
-                    fontSize: 12,
-                    fontWeight: compareMetric === opt.value ? 650 : 600,
-                    color: compareMetric === opt.value ? "white" : "var(--text-secondary)",
-                    background: compareMetric === opt.value ? "var(--accent)" : "transparent",
-                    borderRadius: 7,
-                    cursor: "pointer",
-                  }}
-                >
-                  {opt.label}
-                </span>
-              ))}
-            </div>
-          </div>
-          <MultiTrendChart unit={compareMetric === "mean_exec_ms" ? "ms" : ""} series={compareSeries} />
-        </div>
+          {historyLoading ? (
+            <Skeleton height={180} label="Loading query history…" />
+          ) : (
+            <MultiTrendChart unit={compareMetric === "mean_exec_ms" ? "ms" : ""} series={compareSeries} />
+          )}
+        </Card>
       )}
 
       {focusedQueryId != null && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-            padding: "18px 20px",
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-            borderRadius: 14,
-          }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Query Deep-Dive</span>
-          <span
-            title={focusedSeries?.query}
-            style={{
-              fontFamily: "IBM Plex Mono, monospace",
-              fontSize: 12,
-              color: "var(--text-muted)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {focusedSeries?.query ?? "Loading…"}
-          </span>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
-            <TrendChart label="Calls per interval" unit="" points={focusedCallsPoints} />
-            <TrendChart
-              label="Average latency per interval"
-              unit="ms"
-              points={focusedLatencyPoints}
-              thresholdMin={0}
-              thresholdMax={anomalyThreshold}
-            />
-          </div>
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+        <Card title="Query deep-dive">
+          <p title={focusedText} className={styles.focusedQuery}>
+            {focusedText}
+          </p>
+          {historyLoading ? (
+            <Skeleton height={180} label="Loading query history…" />
+          ) : (
+            <div className={styles.charts}>
+              <TrendChart label="Calls per interval" unit="" points={focusedCallsPoints} />
+              <TrendChart
+                label="Average latency per interval"
+                unit="ms"
+                points={focusedLatencyPoints}
+                thresholdMin={0}
+                thresholdMax={anomalyThreshold}
+              />
+            </div>
+          )}
+          <p className={styles.footnote}>
             The shaded band on the latency chart is this query's own normal range (average ±{" "}
-            {ANOMALY_STDDEV_MULTIPLIER}× standard deviation, computed from the history shown) — a
-            point above it means that 5-minute collection interval ran unusually slow on average,
-            not necessarily any single execution within it.
-          </span>
-        </div>
+            {ANOMALY_STDDEV_MULTIPLIER}× standard deviation, computed from the history shown) — a point above it
+            means that 5-minute collection interval ran unusually slow on average, not necessarily any single
+            execution within it.
+          </p>
+        </Card>
       )}
     </div>
   );

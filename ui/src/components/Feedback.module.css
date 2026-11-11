@@ -1,0 +1,124 @@
+/* Alert, EmptyState, Skeleton, Stat */
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-10);
+  padding: var(--space-12) var(--space-16);
+  font-size: var(--font-size-md);
+  line-height: var(--leading-normal);
+  color: var(--tone-text);
+  background: var(--tone-bg);
+  border: 1px solid var(--tone-border);
+  border-radius: var(--radius-lg);
+}
+
+.alertCompact {
+  padding: var(--space-8) var(--space-12);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-md);
+}
+
+.alertIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.alertBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  flex: 1;
+}
+
+.alertTitle {
+  font-weight: var(--weight-semibold);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-28) var(--space-16);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.emptyIcon {
+  color: var(--text-muted);
+}
+
+.emptyTitle {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--text);
+}
+
+.emptyBody {
+  font-size: var(--font-size-sm);
+  max-width: 52ch;
+}
+
+.skeletonGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.skeleton {
+  display: block;
+  height: 12px;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(
+    90deg,
+    var(--surface-sunken) 0%,
+    var(--row-bg) 50%,
+    var(--surface-sunken) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.statLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+}
+
+.statValue {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--font-size-xl);
+  color: var(--tone-text, var(--text));
+  font-variant-numeric: tabular-nums;
+}
+
+.statHint {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}

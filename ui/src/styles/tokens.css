@@ -1,0 +1,321 @@
+/* Design tokens — the only place raw colour/size values live. Components
+   reference these through var(--…) from their CSS Modules (or, for a truly
+   data-driven value, an inline custom property). Light is the default;
+   dark applies either from the OS preference (unless the user pinned
+   "light" in the theme toggle) or when the user pinned "dark" — see
+   theme.jsx, which sets data-theme on <html>.
+
+   Space tokens are named by their pixel value (--space-12 = 12px) so a
+   migrated inline value maps onto a token without rounding the layout. */
+
+:root {
+  color-scheme: light;
+
+  /* Typography */
+  --font-sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Manrope", "Public Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --font-size-2xs: 10.5px;
+  --font-size-xs: 11.5px;
+  --font-size-sm: 12.5px;
+  --font-size-md: 13.5px;
+  --font-size-lg: 15px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 22px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --tracking-display: -0.01em;
+
+  /* Space (suffix = px) */
+  --space-2: 2px;
+  --space-3: 3px;
+  --space-4: 4px;
+  --space-5: 5px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --space-36: 36px;
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Layers */
+  --z-dropdown: 1000;
+  --z-toast: 1100;
+
+  /* Layout */
+  --rail-width: 212px;
+  --form-max-width: 680px;
+
+  /* Colour — surfaces and text */
+  --bg: oklch(98.3% 0.003 250);
+  --card: oklch(99% 0.002 250);
+  --row-bg: oklch(97% 0.003 250);
+  --surface-sunken: oklch(94% 0.004 250);
+  --input-bg: oklch(100% 0 0);
+  --border: oklch(91% 0.004 250);
+  --border-strong: oklch(84% 0.006 250);
+  --text: oklch(18% 0.015 250);
+  --text-secondary: oklch(42% 0.015 250);
+  /* Was 58%: ~4:1 on cards, under WCAG AA for the 10.5–11.5px text it's
+     used for. 50% clears 4.5:1 on --card and --row-bg. */
+  --text-muted: oklch(50% 0.015 250);
+
+  --accent: oklch(55% 0.16 255);
+  --accent-hover: oklch(50% 0.16 255);
+  --accent-tint: oklch(95.5% 0.03 255);
+  --on-accent: oklch(100% 0 0);
+  --focus-ring: oklch(55% 0.16 255);
+
+  /* Colour — status (bg/border/text for tinted surfaces, solid for dots,
+     bars and icons) */
+  --healthy-bg: oklch(95% 0.05 150);
+  --healthy-border: oklch(85% 0.08 150);
+  --healthy-text: oklch(28% 0.1 150);
+  --healthy-solid: oklch(56% 0.15 150);
+
+  --critical-bg: oklch(95% 0.05 25);
+  --critical-border: oklch(85% 0.08 25);
+  --critical-text: oklch(30% 0.14 25);
+  --critical-solid: oklch(52% 0.2 25);
+
+  --attention-bg: oklch(94.5% 0.045 80);
+  --attention-border: oklch(85% 0.07 78);
+  --attention-text: oklch(30% 0.09 70);
+  --attention-solid: oklch(60% 0.16 75);
+
+  --info-bg: oklch(95.5% 0.03 255);
+  --info-border: oklch(86% 0.06 255);
+  --info-text: oklch(35% 0.1 255);
+  --info-solid: oklch(55% 0.16 255);
+
+  --unknown-bg: oklch(94% 0.004 250);
+  --unknown-border: oklch(88% 0.006 250);
+  --unknown-text: oklch(42% 0.015 250);
+  --unknown-solid: oklch(65% 0.008 250);
+
+  /* Colour — data series (charts, wait-event classes). Same hues in both
+     themes, lighter in dark so they hold contrast against the dark card. */
+  --chart-1: oklch(55% 0.16 255); /* blue */
+  --chart-2: oklch(60% 0.15 50); /* orange */
+  --chart-3: oklch(56% 0.14 150); /* green */
+  --chart-4: oklch(55% 0.18 330); /* magenta */
+  --chart-5: oklch(55% 0.13 200); /* teal */
+  --chart-6: oklch(55% 0.18 25); /* red */
+  --chart-7: oklch(60% 0.16 75); /* amber */
+  --chart-grid: oklch(91% 0.004 250);
+
+  /* Colour — column chips (columnColor.js), bg/text pairs */
+  --column-1-bg: oklch(91% 0.05 255);
+  --column-1-text: oklch(35% 0.13 255);
+  --column-2-bg: oklch(91% 0.05 50);
+  --column-2-text: oklch(35% 0.13 50);
+  --column-3-bg: oklch(91% 0.05 150);
+  --column-3-text: oklch(35% 0.13 150);
+  --column-4-bg: oklch(91% 0.05 330);
+  --column-4-text: oklch(35% 0.13 330);
+  --column-5-bg: oklch(91% 0.05 200);
+  --column-5-text: oklch(35% 0.13 200);
+  --column-6-bg: oklch(91% 0.05 25);
+  --column-6-text: oklch(35% 0.13 25);
+  --column-7-bg: oklch(91% 0.05 290);
+  --column-7-text: oklch(35% 0.13 290);
+  --column-8-bg: oklch(91% 0.05 100);
+  --column-8-text: oklch(35% 0.13 100);
+
+  /* Elevation */
+  --overlay: oklch(20% 0.01 250 / 55%);
+  --shadow-sm: 0 4px 12px oklch(0% 0 0 / 12%);
+  --shadow-md: 0 8px 24px oklch(0% 0 0 / 15%);
+  --shadow-lg: 0 4px 16px oklch(0% 0 0 / 20%);
+}
+
+/* Dark palette. Written twice — once for "follow the OS" and once for
+   "pinned dark" — because a media query can't be combined with an
+   attribute selector into a single rule. Keep the two blocks identical. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: oklch(17% 0.01 250);
+    --card: oklch(21% 0.012 250);
+    --row-bg: oklch(19.5% 0.011 250);
+    --surface-sunken: oklch(25% 0.012 250);
+    --input-bg: oklch(18.5% 0.01 250);
+    --border: oklch(30% 0.012 250);
+    --border-strong: oklch(38% 0.014 250);
+    --text: oklch(94% 0.006 250);
+    --text-secondary: oklch(80% 0.01 250);
+    --text-muted: oklch(70% 0.012 250);
+
+    --accent: oklch(70% 0.14 255);
+    --accent-hover: oklch(76% 0.13 255);
+    --accent-tint: oklch(30% 0.06 255);
+    --on-accent: oklch(16% 0.02 255);
+    --focus-ring: oklch(76% 0.13 255);
+
+    --healthy-bg: oklch(27% 0.05 150);
+    --healthy-border: oklch(40% 0.07 150);
+    --healthy-text: oklch(86% 0.1 150);
+    --healthy-solid: oklch(70% 0.15 150);
+
+    --critical-bg: oklch(27% 0.06 25);
+    --critical-border: oklch(42% 0.1 25);
+    --critical-text: oklch(86% 0.08 25);
+    --critical-solid: oklch(66% 0.19 25);
+
+    --attention-bg: oklch(28% 0.05 80);
+    --attention-border: oklch(43% 0.08 78);
+    --attention-text: oklch(88% 0.1 85);
+    --attention-solid: oklch(76% 0.15 75);
+
+    --info-bg: oklch(28% 0.05 255);
+    --info-border: oklch(42% 0.08 255);
+    --info-text: oklch(85% 0.08 255);
+    --info-solid: oklch(70% 0.14 255);
+
+    --unknown-bg: oklch(26% 0.01 250);
+    --unknown-border: oklch(36% 0.012 250);
+    --unknown-text: oklch(80% 0.01 250);
+    --unknown-solid: oklch(60% 0.01 250);
+
+    --chart-1: oklch(70% 0.14 255);
+    --chart-2: oklch(74% 0.14 50);
+    --chart-3: oklch(72% 0.14 150);
+    --chart-4: oklch(70% 0.16 330);
+    --chart-5: oklch(72% 0.11 200);
+    --chart-6: oklch(68% 0.17 25);
+    --chart-7: oklch(78% 0.14 75);
+    --chart-grid: oklch(30% 0.012 250);
+
+    --column-1-bg: oklch(32% 0.06 255);
+    --column-1-text: oklch(87% 0.08 255);
+    --column-2-bg: oklch(32% 0.06 50);
+    --column-2-text: oklch(87% 0.08 50);
+    --column-3-bg: oklch(32% 0.06 150);
+    --column-3-text: oklch(87% 0.08 150);
+    --column-4-bg: oklch(32% 0.06 330);
+    --column-4-text: oklch(87% 0.08 330);
+    --column-5-bg: oklch(32% 0.06 200);
+    --column-5-text: oklch(87% 0.08 200);
+    --column-6-bg: oklch(32% 0.06 25);
+    --column-6-text: oklch(87% 0.08 25);
+    --column-7-bg: oklch(32% 0.06 290);
+    --column-7-text: oklch(87% 0.08 290);
+    --column-8-bg: oklch(32% 0.06 100);
+    --column-8-text: oklch(87% 0.08 100);
+
+    --overlay: oklch(5% 0 0 / 65%);
+    --shadow-sm: 0 4px 12px oklch(0% 0 0 / 40%);
+    --shadow-md: 0 8px 24px oklch(0% 0 0 / 50%);
+    --shadow-lg: 0 4px 16px oklch(0% 0 0 / 55%);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: oklch(17% 0.01 250);
+  --card: oklch(21% 0.012 250);
+  --row-bg: oklch(19.5% 0.011 250);
+  --surface-sunken: oklch(25% 0.012 250);
+  --input-bg: oklch(18.5% 0.01 250);
+  --border: oklch(30% 0.012 250);
+  --border-strong: oklch(38% 0.014 250);
+  --text: oklch(94% 0.006 250);
+  --text-secondary: oklch(80% 0.01 250);
+  --text-muted: oklch(70% 0.012 250);
+
+  --accent: oklch(70% 0.14 255);
+  --accent-hover: oklch(76% 0.13 255);
+  --accent-tint: oklch(30% 0.06 255);
+  --on-accent: oklch(16% 0.02 255);
+  --focus-ring: oklch(76% 0.13 255);
+
+  --healthy-bg: oklch(27% 0.05 150);
+  --healthy-border: oklch(40% 0.07 150);
+  --healthy-text: oklch(86% 0.1 150);
+  --healthy-solid: oklch(70% 0.15 150);
+
+  --critical-bg: oklch(27% 0.06 25);
+  --critical-border: oklch(42% 0.1 25);
+  --critical-text: oklch(86% 0.08 25);
+  --critical-solid: oklch(66% 0.19 25);
+
+  --attention-bg: oklch(28% 0.05 80);
+  --attention-border: oklch(43% 0.08 78);
+  --attention-text: oklch(88% 0.1 85);
+  --attention-solid: oklch(76% 0.15 75);
+
+  --info-bg: oklch(28% 0.05 255);
+  --info-border: oklch(42% 0.08 255);
+  --info-text: oklch(85% 0.08 255);
+  --info-solid: oklch(70% 0.14 255);
+
+  --unknown-bg: oklch(26% 0.01 250);
+  --unknown-border: oklch(36% 0.012 250);
+  --unknown-text: oklch(80% 0.01 250);
+  --unknown-solid: oklch(60% 0.01 250);
+
+  --chart-1: oklch(70% 0.14 255);
+  --chart-2: oklch(74% 0.14 50);
+  --chart-3: oklch(72% 0.14 150);
+  --chart-4: oklch(70% 0.16 330);
+  --chart-5: oklch(72% 0.11 200);
+  --chart-6: oklch(68% 0.17 25);
+  --chart-7: oklch(78% 0.14 75);
+  --chart-grid: oklch(30% 0.012 250);
+
+  --column-1-bg: oklch(32% 0.06 255);
+  --column-1-text: oklch(87% 0.08 255);
+  --column-2-bg: oklch(32% 0.06 50);
+  --column-2-text: oklch(87% 0.08 50);
+  --column-3-bg: oklch(32% 0.06 150);
+  --column-3-text: oklch(87% 0.08 150);
+  --column-4-bg: oklch(32% 0.06 330);
+  --column-4-text: oklch(87% 0.08 330);
+  --column-5-bg: oklch(32% 0.06 200);
+  --column-5-text: oklch(87% 0.08 200);
+  --column-6-bg: oklch(32% 0.06 25);
+  --column-6-text: oklch(87% 0.08 25);
+  --column-7-bg: oklch(32% 0.06 290);
+  --column-7-text: oklch(87% 0.08 290);
+  --column-8-bg: oklch(32% 0.06 100);
+  --column-8-text: oklch(87% 0.08 100);
+
+  --overlay: oklch(5% 0 0 / 65%);
+  --shadow-sm: 0 4px 12px oklch(0% 0 0 / 40%);
+  --shadow-md: 0 8px 24px oklch(0% 0 0 / 50%);
+  --shadow-lg: 0 4px 16px oklch(0% 0 0 / 55%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+  }
+}

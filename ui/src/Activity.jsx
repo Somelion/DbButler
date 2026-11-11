@@ -1,72 +1,87 @@
-import { useEffect, useState } from "react";
+import { useId } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Circle, CornerDownRight } from "lucide-react";
 import { api } from "./api";
+import { targetKey } from "./queryClient";
+import { Alert, Badge, Card, EmptyState, Skeleton, useConfirm } from "./components";
+import tone from "./components/tone.module.css";
+import styles from "./Activity.module.css";
 
 const POLL_INTERVAL_MS = 5000;
 
 export default function Activity({ targetId }) {
-  const [sessions, setSessions] = useState([]);
-  const [error, setError] = useState(null);
-  const [busyPid, setBusyPid] = useState(null);
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
+  const activityKey = targetKey(targetId, "activity");
 
-  const refresh = () =>
-    api
-      .getActivity(targetId)
-      .then((data) => {
-        setSessions(data.sessions);
-        setError(null);
-      })
-      .catch((err) => setError(err.message));
+  const { data, error, isPending } = useQuery({
+    queryKey: activityKey,
+    queryFn: ({ signal }) => api.getActivity(targetId, { signal }),
+    refetchInterval: POLL_INTERVAL_MS,
+  });
+  const sessions = data?.sessions ?? [];
 
-  useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetId]);
+  const actionMutation = useMutation({
+    mutationFn: ({ pid, action }) =>
+      action === "terminate" ? api.terminateSession(targetId, pid) : api.cancelQuery(targetId, pid),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: activityKey }),
+  });
+  const busyPid = actionMutation.isPending ? actionMutation.variables.pid : null;
 
   const handleAction = async (pid, action) => {
-    const verb = action === "terminate" ? "terminate session" : "cancel the query for session";
-    if (!window.confirm(`Really ${verb} ${pid}?`)) return;
-    setBusyPid(pid);
-    try {
-      if (action === "terminate") await api.terminateSession(targetId, pid);
-      else await api.cancelQuery(targetId, pid);
-      await refresh();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusyPid(null);
-    }
+    const terminate = action === "terminate";
+    const confirmed = await confirm(
+      terminate
+        ? {
+            title: `Terminate session ${pid}?`,
+            message:
+              "Closes this backend's connection (pg_terminate_backend). Any open transaction is rolled back and the client gets disconnected.",
+            confirmLabel: "Terminate",
+            tone: "danger",
+          }
+        : {
+            title: `Cancel the query for session ${pid}?`,
+            message: "Stops the statement this session is running (pg_cancel_backend). The connection itself stays open.",
+            confirmLabel: "Cancel query",
+            cancelLabel: "Keep running",
+          }
+    );
+    if (!confirmed) return;
+    actionMutation.mutate({ pid, action });
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        padding: "18px 20px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-      }}
+    <Card
+      actions={
+        !isPending && (
+          <span className={styles.meta}>
+            {sessions.length} session{sessions.length === 1 ? "" : "s"}
+          </span>
+        )
+      }
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Activity</span>
-        <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-          {sessions.length} session{sessions.length === 1 ? "" : "s"}
-        </span>
-      </div>
-      {error && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{error}</span>}
-      {sessions.length === 0 && !error && (
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>No other sessions right now.</span>
+      {error && (
+        <Alert tone="critical" compact>
+          {error.message}
+        </Alert>
       )}
+      {actionMutation.error && (
+        <Alert tone="critical" compact>
+          {actionMutation.error.message}
+        </Alert>
+      )}
+      {isPending && <Skeleton lines={4} label="Loading sessions…" />}
+      {data && sessions.length === 0 && <EmptyState title="No other sessions right now." />}
       <ApplicationBreakdown sessions={sessions} />
       <LockChains sessions={sessions} />
-      {sessions.map((session) => (
-        <SessionRow key={session.pid} session={session} busy={busyPid === session.pid} onAction={handleAction} />
-      ))}
-    </div>
+      {sessions.length > 0 && (
+        <ul className={styles.sessionList}>
+          {sessions.map((session) => (
+            <SessionRow key={session.pid} session={session} busy={busyPid === session.pid} onAction={handleAction} />
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
@@ -85,23 +100,15 @@ function ApplicationBreakdown({ sessions }) {
   if (entries.length < 2) return null;
 
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+    <ul className={styles.breakdown} aria-label="Sessions by application">
       {entries.map(([name, count]) => (
-        <span
-          key={name}
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            padding: "3px 9px",
-            borderRadius: 100,
-            background: "oklch(94% 0.004 250)",
-            color: "var(--text-secondary)",
-          }}
-        >
-          {name} · {count}
-        </span>
+        <li key={name}>
+          <Badge tone="neutral">
+            {name} · {count}
+          </Badge>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -119,6 +126,7 @@ function formatDuration(seconds) {
 // takes in practice — good enough for a visual grouping without a second,
 // heavier pg_locks self-join to derive exact direct-parent edges.
 function LockChains({ sessions }) {
+  const headingId = useId();
   const roots = sessions.filter((s) => s.blocked_by_pids.length === 0 && s.blocking_pids.length > 0);
   const blocked = sessions
     .filter((s) => s.blocked_by_pids.length > 0)
@@ -127,125 +135,82 @@ function LockChains({ sessions }) {
   if (roots.length === 0 && blocked.length === 0) return null;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        padding: "10px 12px",
-        borderRadius: 10,
-        background: "var(--critical-bg)",
-        border: "1px solid var(--critical-border)",
-      }}
-    >
-      <span style={{ fontSize: 11.5, fontWeight: 650, color: "var(--critical-text)" }}>
+    <section className={`${styles.lockChains} ${tone.critical}`} aria-labelledby={headingId}>
+      <h3 id={headingId} className={styles.lockChainsTitle}>
         Lock chain{roots.length === 1 ? "" : "s"}
-      </span>
-      {roots.map((root) => (
-        <LockChainLine key={root.pid} session={root} depth={0} />
-      ))}
-      {blocked.map((session) => (
-        <LockChainLine key={session.pid} session={session} depth={session.blocked_by_pids.length} />
-      ))}
-    </div>
+      </h3>
+      <ul className={styles.lockChainList}>
+        {roots.map((root) => (
+          <LockChainLine key={root.pid} session={root} depth={0} />
+        ))}
+        {blocked.map((session) => (
+          <LockChainLine key={session.pid} session={session} depth={session.blocked_by_pids.length} />
+        ))}
+      </ul>
+    </section>
   );
 }
 
+// Indented by depth (an inline custom property, since it's data-driven);
+// the icon is decorative, so the role and depth are spelled out for screen
+// readers instead.
 function LockChainLine({ session, depth }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: 6, paddingLeft: depth * 18 }}>
-      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{depth > 0 ? "└─" : "●"}</span>
-      <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11.5, fontWeight: 600, color: "var(--text)" }}>
-        pid {session.pid}
-      </span>
-      <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{session.usename}</span>
-      {session.waiting_lock && (
-        <span style={{ fontSize: 11, color: "var(--critical-text)" }}>waiting on {session.waiting_lock}</span>
+    <li className={styles.lockChainLine} style={{ "--depth": depth }}>
+      {depth > 0 ? (
+        <CornerDownRight size={12} className={styles.lockChainIcon} aria-hidden="true" />
+      ) : (
+        <Circle size={8} className={`${styles.lockChainIcon} ${styles.rootIcon}`} aria-hidden="true" />
       )}
-      {depth > 0 && (
-        <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>
-          (blocked by {session.blocked_by_pids.join(", ")})
-        </span>
-      )}
-    </div>
+      <span className="sr-only">{depth > 0 ? `Blocked, depth ${depth}:` : "Blocking root:"}</span>
+      <span className={styles.chainPid}>pid {session.pid}</span>
+      <span className={styles.chainUser}>{session.usename}</span>
+      {session.waiting_lock && <span className={styles.chainWaiting}>waiting on {session.waiting_lock}</span>}
+      {depth > 0 && <span className={styles.chainBlockedBy}>(blocked by {session.blocked_by_pids.join(", ")})</span>}
+    </li>
   );
 }
 
 function SessionRow({ session, busy, onAction }) {
   const isBlocked = session.blocked_by_pids.length > 0;
   const isBlocking = session.blocking_pids.length > 0;
-  const background = isBlocked ? "var(--critical-bg)" : isBlocking ? "var(--attention-bg)" : "var(--row-bg)";
-  const border = isBlocked ? "var(--critical-border)" : isBlocking ? "var(--attention-border)" : "var(--border)";
+  // Tints the card; the "blocked by" / "blocking" text below carries the
+  // same status in words.
+  const toneClass = isBlocked ? tone.critical : isBlocking ? tone.attention : "";
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        padding: "10px 12px",
-        borderRadius: 10,
-        background,
-        border: `1px solid ${border}`,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
-            pid {session.pid}
-          </span>
-          <span style={{ fontSize: 11.5, color: "var(--text-secondary)" }}>{session.usename}</span>
-          <span
-            style={{
-              fontSize: 10.5,
-              fontWeight: 650,
-              textTransform: "uppercase",
-              letterSpacing: "0.02em",
-              padding: "2px 7px",
-              borderRadius: 100,
-              background: "oklch(94% 0.004 250)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            {session.state ?? "unknown"}
-          </span>
-          {isBlocked && (
-            <span style={{ fontSize: 10.5, fontWeight: 650, color: "var(--critical-text)" }}>
-              blocked by {session.blocked_by_pids.join(", ")}
-            </span>
-          )}
-          {isBlocking && (
-            <span style={{ fontSize: 10.5, fontWeight: 650, color: "var(--attention-text)" }}>
-              blocking {session.blocking_pids.join(", ")}
-            </span>
-          )}
+    <li className={`${styles.session} ${toneClass}`}>
+      <div className={styles.sessionHeader}>
+        <div className={styles.sessionInfo}>
+          <span className={styles.sessionPid}>pid {session.pid}</span>
+          <span className={styles.sessionUser}>{session.usename}</span>
+          <span className={styles.statePill}>{session.state ?? "unknown"}</span>
+          {isBlocked && <span className={styles.blockedBy}>blocked by {session.blocked_by_pids.join(", ")}</span>}
+          {isBlocking && <span className={styles.blocking}>blocking {session.blocking_pids.join(", ")}</span>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-            {formatDuration(session.query_duration_seconds)}
-          </span>
-          <button className="button-secondary" disabled={busy} onClick={() => onAction(session.pid, "cancel")}>
+        <div className={styles.sessionActions}>
+          <span className={styles.duration}>{formatDuration(session.query_duration_seconds)}</span>
+          <button
+            type="button"
+            className="button-secondary"
+            disabled={busy}
+            aria-label={`Cancel query of session ${session.pid}`}
+            onClick={() => onAction(session.pid, "cancel")}
+          >
             Cancel
           </button>
-          <button className="button-danger" disabled={busy} onClick={() => onAction(session.pid, "terminate")}>
+          <button
+            type="button"
+            className="button-danger"
+            disabled={busy}
+            aria-label={`Terminate session ${session.pid}`}
+            onClick={() => onAction(session.pid, "terminate")}
+          >
             Terminate
           </button>
         </div>
       </div>
-      {session.query && (
-        <span
-          style={{
-            fontFamily: "IBM Plex Mono, monospace",
-            fontSize: 11.5,
-            color: "var(--text-muted)",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {session.query}
-        </span>
-      )}
-    </div>
+      {session.query && <span className={styles.query}>{session.query}</span>}
+    </li>
   );
 }

@@ -1,15 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import styles from "./TrendsScreen.module.css";
 import { api } from "./api";
+import { targetKey } from "./queryClient";
+import { Alert, Card, EmptyState, SegmentedControl, Skeleton } from "./components";
 import TrendChart from "./TrendChart";
 import MultiTrendChart, { MULTI_TREND_PALETTE } from "./MultiTrendChart";
 import TablePicker from "./TablePicker";
 import { formatMetricValue } from "./format";
 
 const RANGE_OPTIONS = [
-  { hours: 24, label: "24 hours" },
-  { hours: 24 * 7, label: "7 days" },
-  { hours: 24 * 30, label: "30 days" },
+  { value: 24, label: "24 hours" },
+  { value: 24 * 7, label: "7 days" },
+  { value: 24 * 30, label: "30 days" },
 ];
+const DEFAULT_HOURS = 24;
 
 // Matches the severity thresholds used elsewhere (severity.py) — only shown
 // where a "healthy zone" genuinely applies; connection count and database
@@ -23,6 +28,7 @@ const TABLE_METRIC_OPTIONS = [
   { value: "table_dead_pct", label: "Dead Tuple %" },
   { value: "table_size_bytes", label: "Size" },
 ];
+const DEFAULT_TABLE_METRIC = "table_dead_pct";
 
 const DEFAULT_TABLE_SELECTION = 5;
 
@@ -43,230 +49,187 @@ function forecastFooter(series) {
         } until ${forecast.threshold_label}.`
       : `At this rate, ~${formatMetricValue(forecast.projected_value_30d, series.unit)} in 30 days.`;
 
-  return (
-    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-      {text}
-    </span>
-  );
+  return <span className={styles.forecast}>{text}</span>;
 }
 
+// View state lives in the URL so a Trends view can be reloaded or shared:
+//   ?hours=168            time range (one of RANGE_OPTIONS, else 24)
+//   ?metric=table_size_bytes  table metric (one of TABLE_METRIC_OPTIONS)
+//   ?tables=a.b,c.d       the tables being compared. Absent = the default
+//                         (worst DEFAULT_TABLE_SELECTION for the metric);
+//                         present but empty = the user cleared the list.
+function readView(searchParams) {
+  const hours = Number(searchParams.get("hours"));
+  const metric = searchParams.get("metric");
+  const tables = searchParams.get("tables");
+  return {
+    hours: RANGE_OPTIONS.some((o) => o.value === hours) ? hours : DEFAULT_HOURS,
+    tableMetric: TABLE_METRIC_OPTIONS.some((o) => o.value === metric) ? metric : DEFAULT_TABLE_METRIC,
+    pickedTables:
+      tables == null
+        ? null
+        : [...new Set(tables.split(",").filter(Boolean))].slice(0, MULTI_TREND_PALETTE.length),
+  };
+}
+
+const tableKey = (t) => `${t.schema_name}.${t.table_name}`;
+
 export default function TrendsScreen({ targetId }) {
-  const [hours, setHours] = useState(24);
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { hours, tableMetric, pickedTables } = readView(searchParams);
 
-  const [waitEvents, setWaitEvents] = useState(null);
-  const [waitEventsError, setWaitEventsError] = useState(null);
+  const updateParams = (changes) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [name, value] of Object.entries(changes)) {
+          if (value == null) next.delete(name);
+          else next.set(name, String(value));
+        }
+        return next;
+      },
+      { replace: true }
+    );
 
-  const [tableMetric, setTableMetric] = useState("table_dead_pct");
-  const [summary, setSummary] = useState(null);
-  const [summaryError, setSummaryError] = useState(null);
-  const [tableTrends, setTableTrends] = useState(null);
-  const [tableTrendsError, setTableTrendsError] = useState(null);
-  const [selectedTables, setSelectedTables] = useState(new Set());
-  // Tracks (targetId, tableMetric) together — either one changing means the
-  // previous selection may no longer even exist on the new target/metric,
-  // not just "the user picked a different metric". Was keyed on tableMetric
-  // alone, which left a stale selection (schema.table keys from the old
-  // target) in place across a target switch, silently requesting
-  // now-nonexistent tables from getTableTrends below.
-  const prevKeyRef = useRef(`${targetId}:${tableMetric}`);
+  const trendsQuery = useQuery({
+    queryKey: targetKey(targetId, "trends", hours),
+    queryFn: ({ signal }) => api.getTrends(targetId, hours, { signal }),
+    placeholderData: keepPreviousData,
+  });
 
-  useEffect(() => {
-    setData(null);
-    api
-      .getTrends(targetId, hours)
-      .then((d) => {
-        setData(d);
-        setError(null);
-      })
-      .catch((err) => setError(err.message));
-  }, [targetId, hours]);
-
-  useEffect(() => {
-    setWaitEvents(null);
-    api
-      .getWaitEventTrend(targetId, hours)
-      .then((d) => {
-        setWaitEvents(d);
-        setWaitEventsError(null);
-      })
-      .catch((err) => setWaitEventsError(err.message));
-  }, [targetId, hours]);
+  const waitEventsQuery = useQuery({
+    queryKey: targetKey(targetId, "wait-event-trend", hours),
+    queryFn: ({ signal }) => api.getWaitEventTrend(targetId, hours, { signal }),
+    placeholderData: keepPreviousData,
+  });
 
   // Cheap: latest value per table only, regardless of table count or history
   // depth. Drives the search/pick list. Doesn't depend on `hours` — "latest"
   // means the same thing no matter which range is showing.
-  useEffect(() => {
-    const key = `${targetId}:${tableMetric}`;
-    const changed = prevKeyRef.current !== key;
-    prevKeyRef.current = key;
+  const summaryQuery = useQuery({
+    queryKey: targetKey(targetId, "table-trends-summary", tableMetric),
+    queryFn: ({ signal }) => api.getTableTrendsSummary(targetId, tableMetric, { signal }),
+    placeholderData: keepPreviousData,
+  });
+  const summary = summaryQuery.data;
+  // While a new metric's summary is loading, the previous one is still on
+  // screen (keepPreviousData) — but its tables belong to the old metric, so
+  // nothing downstream should act on them yet.
+  const summaryIsCurrent = Boolean(summary) && !summaryQuery.isPlaceholderData;
 
-    api
-      .getTableTrendsSummary(targetId, tableMetric)
-      .then((d) => {
-        setSummary(d);
-        setSummaryError(null);
-        setSelectedTables((prev) => {
-          // Keep the user's picks across a range change; only re-default
-          // when the target or metric changed (different tables matter),
-          // since the summary is already sorted worst-first server-side.
-          if (!changed && prev.size > 0) return prev;
-          return new Set(d.tables.slice(0, DEFAULT_TABLE_SELECTION).map((t) => `${t.schema_name}.${t.table_name}`));
-        });
-      })
-      .catch((err) => setSummaryError(err.message));
-  }, [targetId, tableMetric]);
+  // The user's picks (from the URL) survive a range change; a metric change
+  // drops them (see changeMetric), falling back to the default — the summary
+  // is already sorted worst-first server-side. A target switch remounts this
+  // screen on a fresh URL, so a selection never carries across targets.
+  // Picks that the current summary doesn't know are dropped.
+  const knownTables = summaryIsCurrent ? new Set(summary.tables.map(tableKey)) : null;
+  const selectedList = !summaryIsCurrent
+    ? []
+    : pickedTables == null
+      ? summary.tables.slice(0, DEFAULT_TABLE_SELECTION).map(tableKey)
+      : pickedTables.filter((key) => knownTables.has(key));
+  // Preserve selection order (a Set iterates in insertion order) so a
+  // table's color stays stable as long as it stays selected.
+  const selectedTables = new Set(selectedList);
 
   // Full history — only for whichever tables are actually selected, so the
   // payload stays bounded no matter how many tables the target has.
-  useEffect(() => {
-    if (selectedTables.size === 0) {
-      setTableTrends(null);
-      return;
-    }
-    api
-      .getTableTrends(targetId, tableMetric, hours, [...selectedTables])
-      .then((d) => {
-        setTableTrends(d);
-        setTableTrendsError(null);
-      })
-      .catch((err) => setTableTrendsError(err.message));
-  }, [targetId, tableMetric, hours, selectedTables]);
+  const tableTrendsQuery = useQuery({
+    queryKey: targetKey(targetId, "table-trends", tableMetric, hours, selectedList),
+    queryFn: ({ signal }) => api.getTableTrends(targetId, tableMetric, hours, selectedList, { signal }),
+    enabled: selectedList.length > 0,
+    placeholderData: keepPreviousData,
+  });
+  const tableTrends = tableTrendsQuery.data;
+
+  const setTables = (list) => updateParams({ tables: list.join(",") });
 
   const toggleTable = (key) => {
-    setSelectedTables((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else if (next.size < MULTI_TREND_PALETTE.length) {
-        next.add(key);
-      }
-      return next;
-    });
+    if (selectedTables.has(key)) {
+      setTables(selectedList.filter((k) => k !== key));
+    } else if (selectedList.length < MULTI_TREND_PALETTE.length) {
+      setTables([...selectedList, key]);
+    }
   };
 
-  const clearSelection = () => setSelectedTables(new Set());
+  const clearSelection = () => setTables([]);
 
-  // Preserve selection order (a Set iterates in insertion order) so a
-  // table's color stays stable as long as it stays selected.
+  const changeMetric = (metric) => updateParams({ metric, tables: null });
+
   const chartSeries = tableTrends
-    ? [...selectedTables]
-        .map((key) => tableTrends.tables.find((t) => `${t.schema_name}.${t.table_name}` === key))
+    ? selectedList
+        .map((key) => tableTrends.tables.find((t) => tableKey(t) === key))
         .filter(Boolean)
-        .map((t) => ({ name: `${t.schema_name}.${t.table_name}`, points: t.points }))
+        .map((t) => ({ name: tableKey(t), points: t.points }))
     : [];
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 18,
-        padding: "18px 20px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Trends</span>
-        <div style={{ display: "flex", gap: 6 }}>
-          {RANGE_OPTIONS.map((opt) => (
-            <span
-              key={opt.hours}
-              onClick={() => setHours(opt.hours)}
-              style={{
-                padding: "6px 12px",
-                fontSize: 12,
-                fontWeight: hours === opt.hours ? 650 : 600,
-                color: hours === opt.hours ? "white" : "var(--text-secondary)",
-                background: hours === opt.hours ? "var(--accent)" : "var(--row-bg)",
-                borderRadius: 100,
-                cursor: "pointer",
-              }}
-            >
-              {opt.label}
-            </span>
-          ))}
-        </div>
+    <div className={styles.screen}>
+      <div className={styles.toolbar}>
+        <SegmentedControl
+          label="Time range"
+          options={RANGE_OPTIONS}
+          value={hours}
+          onChange={(value) => updateParams({ hours: value === DEFAULT_HOURS ? null : value })}
+        />
       </div>
 
-      {error && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{error}</span>}
-
-      {data && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
-          {data.series.map((s) => {
-            const [thresholdMin, thresholdMax] = THRESHOLDS[s.metric_name] ?? [null, null];
-            return (
-              <TrendChart
-                key={s.metric_name}
-                label={s.label}
-                unit={s.unit}
-                points={s.points}
-                thresholdMin={thresholdMin}
-                thresholdMax={thresholdMax}
-                footer={forecastFooter(s)}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      <div style={{ height: 1, background: "var(--border)" }} />
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Wait Events</span>
-        <span style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: -8 }}>
-          Active sessions grouped by what they were waiting on, sampled every few minutes — useful for spotting when a
-          lock or I/O storm happened, after the fact.
-        </span>
-
-        {waitEventsError && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{waitEventsError}</span>}
-
-        {waitEvents && waitEvents.series.length === 0 && (
-          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>No wait event history yet.</span>
+      <Card title="Database trends">
+        {trendsQuery.error && <Alert tone="critical">{trendsQuery.error.message}</Alert>}
+        {trendsQuery.isPending && <Skeleton lines={4} label="Loading trends…" />}
+        {trendsQuery.data && (
+          <div className={styles.chartGrid}>
+            {trendsQuery.data.series.map((s) => {
+              const [thresholdMin, thresholdMax] = THRESHOLDS[s.metric_name] ?? [null, null];
+              return (
+                <TrendChart
+                  key={s.metric_name}
+                  label={s.label}
+                  unit={s.unit}
+                  points={s.points}
+                  thresholdMin={thresholdMin}
+                  thresholdMax={thresholdMax}
+                  footer={forecastFooter(s)}
+                />
+              );
+            })}
+          </div>
         )}
+      </Card>
 
-        {waitEvents && waitEvents.series.length > 0 && (
+      <Card
+        title="Wait events"
+        description="Active sessions grouped by what they were waiting on, sampled every few minutes — useful for spotting when a lock or I/O storm happened, after the fact."
+      >
+        {waitEventsQuery.error && <Alert tone="critical">{waitEventsQuery.error.message}</Alert>}
+        {waitEventsQuery.isPending && <Skeleton height={220} label="Loading wait events…" />}
+        {waitEventsQuery.data && waitEventsQuery.data.series.length === 0 && (
+          <EmptyState title="No wait event history yet." />
+        )}
+        {waitEventsQuery.data && waitEventsQuery.data.series.length > 0 && (
           <MultiTrendChart
             unit=""
-            series={waitEvents.series.map((s) => ({ name: s.category, points: s.points }))}
+            series={waitEventsQuery.data.series.map((s) => ({ name: s.category, points: s.points }))}
           />
         )}
-      </div>
+      </Card>
 
-      <div style={{ height: 1, background: "var(--border)" }} />
+      <Card
+        title="Table trends"
+        actions={
+          <SegmentedControl
+            label="Table metric"
+            size="sm"
+            options={TABLE_METRIC_OPTIONS}
+            value={tableMetric}
+            onChange={changeMetric}
+          />
+        }
+      >
+        {summaryQuery.error && <Alert tone="critical">{summaryQuery.error.message}</Alert>}
+        {summaryQuery.isPending && <Skeleton lines={5} label="Loading tables…" />}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Table Trends</span>
-          <div style={{ display: "flex", alignItems: "center", padding: 3, background: "var(--row-bg)", borderRadius: 9 }}>
-            {TABLE_METRIC_OPTIONS.map((opt) => (
-              <span
-                key={opt.value}
-                onClick={() => setTableMetric(opt.value)}
-                style={{
-                  padding: "6px 14px",
-                  fontSize: 12,
-                  fontWeight: tableMetric === opt.value ? 650 : 600,
-                  color: tableMetric === opt.value ? "white" : "var(--text-secondary)",
-                  background: tableMetric === opt.value ? "var(--accent)" : "transparent",
-                  borderRadius: 7,
-                  cursor: "pointer",
-                }}
-              >
-                {opt.label}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {summaryError && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{summaryError}</span>}
-
-        {summary && summary.tables.length === 0 && (
-          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>No table history yet.</span>
-        )}
+        {summary && summary.tables.length === 0 && <EmptyState title="No table history yet." />}
 
         {summary && summary.tables.length > 0 && (
           <>
@@ -279,18 +242,22 @@ export default function TrendsScreen({ targetId }) {
               maxSelected={MULTI_TREND_PALETTE.length}
             />
 
-            {tableTrendsError && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{tableTrendsError}</span>}
+            {tableTrendsQuery.error && <Alert tone="critical">{tableTrendsQuery.error.message}</Alert>}
 
-            {selectedTables.size === 0 && (
-              <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-                Select at least one table above to see its trend.
-              </span>
+            {summaryIsCurrent && selectedList.length === 0 && (
+              <p className={styles.note}>Select at least one table above to see its trend.</p>
             )}
 
-            {selectedTables.size > 0 && tableTrends && <MultiTrendChart unit={tableTrends.unit} series={chartSeries} />}
+            {selectedList.length > 0 && tableTrendsQuery.isPending && (
+              <Skeleton height={220} label="Loading table trends…" />
+            )}
+
+            {selectedList.length > 0 && tableTrends && (
+              <MultiTrendChart unit={tableTrends.unit} series={chartSeries} />
+            )}
           </>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

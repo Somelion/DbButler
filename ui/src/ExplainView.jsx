@@ -1,119 +1,93 @@
 import { useEffect, useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { api } from "./api";
 import { formatMs } from "./format";
 import FindingCard from "./FindingCard";
 import QueryParamsForm from "./QueryParamsForm";
 import { applyPlaceholderValues, extractPlaceholders } from "./queryParams";
+import { Alert, Card, Field } from "./components";
+import styles from "./ExplainView.module.css";
 
 export default function ExplainView({ targetId, seedQuery, onSeedConsumed }) {
   const [queryText, setQueryText] = useState("");
   const [paramValues, setParamValues] = useState({});
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const [running, setRunning] = useState(false);
 
-  useEffect(() => {
+  // A query handed over from the Query Intelligence table replaces whatever
+  // is in the editor. Taken into local state while rendering (React's
+  // "adjust state on prop change" pattern), then the parent is told it was
+  // consumed so it can clear seedQuery — which lets the same query be
+  // loaded again later.
+  const [prevSeed, setPrevSeed] = useState(null);
+  if (seedQuery !== prevSeed) {
+    setPrevSeed(seedQuery);
     if (seedQuery) {
       setQueryText(seedQuery);
       setParamValues({});
-      onSeedConsumed?.();
     }
+  }
+
+  useEffect(() => {
+    if (seedQuery) onSeedConsumed?.();
   }, [seedQuery, onSeedConsumed]);
 
   const placeholders = useMemo(() => extractPlaceholders(queryText), [queryText]);
   const allParamsFilled = placeholders.every((n) => (paramValues[n] ?? "").trim() !== "");
 
-  const handleRun = async () => {
-    setRunning(true);
-    setError(null);
-    setResult(null);
-    try {
-      const finalQuery = placeholders.length > 0 ? applyPlaceholderValues(queryText, paramValues) : queryText;
-      const data = await api.explainQuery(targetId, finalQuery);
-      setResult(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setRunning(false);
-    }
+  // EXPLAIN ANALYZE actually runs the query, so it's only ever user-triggered:
+  // a mutation, not a query. Starting a new run clears the previous result.
+  const explain = useMutation({
+    mutationFn: (finalQuery) => api.explainQuery(targetId, finalQuery),
+  });
+  const result = explain.data;
+  const canRun = !explain.isPending && queryText.trim() !== "" && allParamsFilled;
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    if (!canRun) return;
+    explain.mutate(placeholders.length > 0 ? applyPlaceholderValues(queryText, paramValues) : queryText);
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-        padding: "18px 20px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-      }}
+    <Card
+      title="EXPLAIN ANALYZE"
+      description="Paste a read-only SELECT query — this actually runs it, so only SELECT / WITH queries are accepted."
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>EXPLAIN ANALYZE</span>
-        <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-          Paste a read-only SELECT query — this actually runs it, so only SELECT / WITH queries are accepted.
-        </span>
-      </div>
+      <form className={styles.form} onSubmit={handleSubmit}>
+        <Field label="Query">
+          <textarea
+            className={styles.queryInput}
+            value={queryText}
+            onChange={(e) => setQueryText(e.target.value)}
+            rows={4}
+            placeholder="SELECT ..."
+          />
+        </Field>
 
-      <textarea
-        value={queryText}
-        onChange={(e) => setQueryText(e.target.value)}
-        rows={4}
-        placeholder="SELECT ..."
-        style={{
-          fontFamily: "IBM Plex Mono, monospace",
-          fontSize: 12.5,
-          color: "var(--text)",
-          padding: 10,
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          resize: "vertical",
-        }}
-      />
+        <QueryParamsForm
+          placeholders={placeholders}
+          values={paramValues}
+          onChange={(n, value) => setParamValues((prev) => ({ ...prev, [n]: value }))}
+        />
 
-      <QueryParamsForm
-        placeholders={placeholders}
-        values={paramValues}
-        onChange={(n, value) => setParamValues((prev) => ({ ...prev, [n]: value }))}
-      />
-
-      <div>
-        <button
-          className="button-primary"
-          onClick={handleRun}
-          disabled={running || !queryText.trim() || !allParamsFilled}
-        >
-          {running ? "Running…" : "Run EXPLAIN ANALYZE"}
-        </button>
-      </div>
-
-      {error && (
-        <div
-          style={{
-            padding: "10px 12px",
-            background: "var(--critical-bg)",
-            border: "1px solid var(--critical-border)",
-            borderRadius: 9,
-            color: "var(--critical-text)",
-            fontSize: 12.5,
-          }}
-        >
-          {error}
+        <div className={styles.actions}>
+          <button type="submit" className="button-primary" disabled={!canRun}>
+            {explain.isPending ? "Running…" : "Run EXPLAIN ANALYZE"}
+          </button>
         </div>
-      )}
+      </form>
+
+      {explain.error && <Alert tone="critical">{explain.error.message}</Alert>}
 
       {result && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+        <div className={styles.result}>
+          <p className={styles.meta}>
             Execution time: {result.execution_time_ms != null ? formatMs(result.execution_time_ms) : "—"}
-          </span>
+          </p>
 
           {result.findings.length === 0 ? (
-            <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>No red flags found in this plan.</span>
+            <p className={styles.empty}>No red flags found in this plan.</p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className={styles.findings}>
               {result.findings.map((finding) => (
                 <FindingCard key={finding.id} finding={finding} />
               ))}
@@ -121,27 +95,11 @@ export default function ExplainView({ targetId, seedQuery, onSeedConsumed }) {
           )}
 
           <details>
-            <summary style={{ fontSize: 11.5, fontWeight: 600, color: "var(--accent)", cursor: "pointer" }}>
-              Raw plan
-            </summary>
-            <pre
-              style={{
-                marginTop: 6,
-                padding: "10px 12px",
-                background: "var(--row-bg)",
-                borderRadius: 8,
-                fontFamily: "IBM Plex Mono, monospace",
-                fontSize: 11.5,
-                color: "var(--text-secondary)",
-                overflowX: "auto",
-                whiteSpace: "pre",
-              }}
-            >
-              {result.plan_text}
-            </pre>
+            <summary className={styles.rawSummary}>Raw plan</summary>
+            <pre className={styles.rawPlan}>{result.plan_text}</pre>
           </details>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

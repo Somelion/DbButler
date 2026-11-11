@@ -1,0 +1,17 @@
+.queryCell {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Scoped under the tbody so it outranks Table.module.css's .td colour. */
+.body .secondaryCell {
+  color: var(--text-secondary);
+}
+
+.rowActions {
+  display: flex;
+  gap: var(--space-6);
+  white-space: nowrap;
+}

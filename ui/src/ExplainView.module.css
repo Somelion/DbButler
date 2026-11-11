@@ -1,0 +1,55 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.queryInput {
+  font-size: var(--font-size-sm);
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.empty {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.findings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.rawSummary {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.rawPlan {
+  margin: var(--space-6) 0 0;
+  padding: var(--space-10) var(--space-12);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: pre;
+  overflow-x: auto;
+  background: var(--row-bg);
+  border-radius: var(--radius-md);
+}

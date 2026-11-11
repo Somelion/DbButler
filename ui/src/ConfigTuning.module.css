@@ -1,0 +1,30 @@
+.name {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.current {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.recommended {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-semibold);
+  color: var(--healthy-text);
+  white-space: nowrap;
+}
+
+.why {
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}

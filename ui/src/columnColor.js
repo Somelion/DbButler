@@ -2,16 +2,11 @@
 // the same pill color everywhere it's rendered (Over-Indexed Tables' and
 // Covering Index Candidates' index/column coverage tables) — letting a user
 // visually spot which indexes on a table overlap on the same column(s).
-const PALETTE = [
-  { bg: "oklch(91% 0.05 255)", text: "oklch(35% 0.13 255)" }, // blue
-  { bg: "oklch(91% 0.05 50)", text: "oklch(35% 0.13 50)" }, // orange
-  { bg: "oklch(91% 0.05 150)", text: "oklch(35% 0.13 150)" }, // green
-  { bg: "oklch(91% 0.05 330)", text: "oklch(35% 0.13 330)" }, // magenta
-  { bg: "oklch(91% 0.05 200)", text: "oklch(35% 0.13 200)" }, // teal
-  { bg: "oklch(91% 0.05 25)", text: "oklch(35% 0.13 25)" }, // red
-  { bg: "oklch(91% 0.05 290)", text: "oklch(35% 0.13 290)" }, // purple
-  { bg: "oklch(91% 0.05 100)", text: "oklch(35% 0.13 100)" }, // olive
-];
+//
+// Returns CSS colour values for a bg/text pair. The actual hues (blue,
+// orange, green, magenta, teal, red, purple, olive) live in tokens.css as
+// --column-1-* … --column-8-*, with a light and a dark variant each.
+const PALETTE_SIZE = 8;
 
 function hashString(value) {
   let hash = 0;
@@ -22,5 +17,6 @@ function hashString(value) {
 }
 
 export function colorForColumn(columnName) {
-  return PALETTE[hashString(columnName) % PALETTE.length];
+  const slot = (hashString(columnName) % PALETTE_SIZE) + 1;
+  return { bg: `var(--column-${slot}-bg)`, text: `var(--column-${slot}-text)` };
 }

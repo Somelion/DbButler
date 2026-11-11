@@ -1,135 +1,83 @@
-import { useEffect, useState } from "react";
-import { api } from "./api";
+import { useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { formatRelativeTime } from "./format";
+import { queryAnalysesQuery } from "./queries";
+import { Alert, Badge, Card, EmptyState, Skeleton } from "./components";
+import tableStyles from "./components/Table.module.css";
+import styles from "./AiAnalysisScreen.module.css";
 
 const POLL_INTERVAL_MS = 5000;
 
 const STATUS_META = {
-  pending: { label: "Running…", bg: "var(--attention-bg)", text: "var(--attention-text)" },
-  done: { label: "Done", bg: "var(--healthy-bg)", text: "var(--healthy-text)" },
-  error: { label: "Error", bg: "var(--critical-bg)", text: "var(--critical-text)" },
+  pending: { label: "Running…", tone: "attention" },
+  done: { label: "Done", tone: "healthy" },
+  error: { label: "Error", tone: "critical" },
 };
 
 export default function AiAnalysisScreen({ targetId }) {
-  const [analyses, setAnalyses] = useState(null);
-  const [error, setError] = useState(null);
-
-  const refresh = () =>
-    api
-      .getQueryAnalyses(targetId)
-      .then((data) => {
-        setAnalyses(data.analyses);
-        setError(null);
-      })
-      .catch((err) => setError(err.message));
-
-  useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetId]);
+  // Same cache entry the app-wide "analysis ready" watcher (App.jsx) polls;
+  // this screen just polls it faster while it's open.
+  const { data, error, isPending } = useQuery({
+    ...queryAnalysesQuery(targetId),
+    refetchInterval: POLL_INTERVAL_MS,
+  });
+  const analyses = data?.analyses;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        padding: "18px 20px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-      }}
+    <Card
+      title="Analysis history"
+      description="Every query you've sent for AI analysis from Query Intelligence, newest first. Open a row for the full EXPLAIN plan and the AI's response."
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontFamily: "Manrope, sans-serif", fontWeight: 650, fontSize: 14, color: "var(--text)" }}>
-          AI Analysis history
-        </span>
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          Every query you've sent for AI analysis from Query Intelligence, newest first. Click a row for the full
-          EXPLAIN plan and the AI's response.
-        </span>
-      </div>
+      {error && <Alert tone="critical">{error.message}</Alert>}
 
-      {error && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{error}</span>}
+      {isPending && <Skeleton lines={4} label="Loading analyses…" />}
 
       {analyses && analyses.length === 0 && (
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          Nothing here yet — use "Analyze with AI" on a query in Query Intelligence to start one.
-        </span>
+        <EmptyState icon={Sparkles} title="Nothing here yet">
+          Use "Analyze with AI" on a query in Query Intelligence to start one.
+        </EmptyState>
       )}
 
       {analyses && analyses.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <ul className={styles.list}>
           {analyses.map((a) => (
             <AnalysisRow key={a.id} analysis={a} />
           ))}
-        </div>
+        </ul>
       )}
-    </div>
+    </Card>
   );
 }
 
 function AnalysisRow({ analysis }) {
   const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
   const status = STATUS_META[analysis.status] ?? STATUS_META.pending;
 
   return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-      <div
-        onClick={() => setExpanded((prev) => !prev)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          padding: "10px 14px",
-          background: "var(--row-bg)",
-          cursor: "pointer",
-        }}
-      >
-        <span
-          title={analysis.original_query}
-          style={{
-            fontFamily: "IBM Plex Mono, monospace",
-            fontSize: 12,
-            color: "var(--text)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            flex: "1 1 auto",
-            // See QueryPicker.jsx's identical comment: minWidth:0 alone lets
-            // this column shrink to nothing on a narrow enough row once its
-            // non-shrinking siblings (timestamp, status badge) claim the
-            // rest — a real pixel floor keeps it legible instead.
-            minWidth: 160,
-          }}
+    <li className={styles.row}>
+      <h3 className={styles.rowHeading}>
+        <button
+          type="button"
+          className={styles.rowButton}
+          aria-expanded={expanded}
+          aria-controls={expanded ? detailsId : undefined}
+          onClick={() => setExpanded((prev) => !prev)}
         >
-          {analysis.original_query}
-        </span>
-        <span style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-          {formatRelativeTime(analysis.created_at)}
-        </span>
-        <span
-          style={{
-            padding: "3px 9px",
-            borderRadius: 100,
-            background: status.bg,
-            color: status.text,
-            fontSize: 11,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.03em",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {status.label}
-        </span>
-      </div>
+          <ChevronRight size={14} className={tableStyles.chevron} aria-hidden="true" />
+          <span title={analysis.original_query} className={styles.rowQuery}>
+            {analysis.original_query}
+          </span>
+          <span className={styles.rowTime}>{formatRelativeTime(analysis.created_at)}</span>
+          <Badge tone={status.tone} className={styles.status}>
+            {status.label}
+          </Badge>
+        </button>
+      </h3>
 
       {expanded && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "12px 14px" }}>
+        <div id={detailsId} className={styles.details}>
           <Detail label={analysis.anonymize ? "Query sent (anonymized)" : "Query sent"}>
             {analysis.anonymized_query ?? analysis.original_query}
           </Detail>
@@ -137,80 +85,36 @@ function AnalysisRow({ analysis }) {
           {analysis.explain_plan && <Detail label="EXPLAIN (ANALYZE, BUFFERS)">{analysis.explain_plan}</Detail>}
 
           {analysis.status === "done" && analysis.ai_response && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span
-                style={{
-                  fontSize: 10.5,
-                  color: "var(--text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.03em",
-                  fontWeight: 700,
-                }}
-              >
+            <div className={styles.detail}>
+              <h4 className={styles.detailLabel}>
                 AI recommendation{analysis.model_name ? ` — ${analysis.model_name}` : ""}
-              </span>
-              <div
-                style={{
-                  padding: "10px 12px",
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  maxHeight: 420,
-                  overflow: "auto",
-                }}
-              >
+              </h4>
+              <div className={styles.responseBox}>
                 <AiResponseView text={analysis.ai_response} />
               </div>
             </div>
           )}
 
           {analysis.status === "error" && analysis.error && (
-            <span style={{ fontSize: 12, color: "var(--critical-text)" }}>{analysis.error}</span>
+            <Alert tone="critical" compact>
+              {analysis.error}
+            </Alert>
           )}
 
           {analysis.status === "pending" && (
-            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-              Still running — this row updates automatically once the AI responds.
-            </span>
+            <p className={styles.note}>Still running — this row updates automatically once the AI responds.</p>
           )}
         </div>
       )}
-    </div>
+    </li>
   );
 }
 
 function Detail({ label, children }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <span
-        style={{
-          fontSize: 10.5,
-          color: "var(--text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.03em",
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </span>
-      <pre
-        style={{
-          margin: 0,
-          padding: "10px 12px",
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          fontFamily: "IBM Plex Mono, monospace",
-          fontSize: 12,
-          color: "var(--text)",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          maxHeight: 320,
-          overflow: "auto",
-        }}
-      >
-        {children}
-      </pre>
+    <div className={styles.detail}>
+      <h4 className={styles.detailLabel}>{label}</h4>
+      <pre className={styles.detailText}>{children}</pre>
     </div>
   );
 }
@@ -247,24 +151,10 @@ function renderInlineBold(line, key) {
 
 function AiResponseView({ text }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5, color: "var(--text)", lineHeight: 1.5 }}>
+    <div className={styles.response}>
       {splitCodeBlocks(text).map((block, i) =>
         block.type === "code" ? (
-          <pre
-            key={i}
-            style={{
-              margin: 0,
-              padding: "10px 12px",
-              background: "var(--row-bg)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              fontFamily: "IBM Plex Mono, monospace",
-              fontSize: 12,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              overflowX: "auto",
-            }}
-          >
+          <pre key={i} className={styles.responseCode}>
             {block.value}
           </pre>
         ) : (
@@ -273,20 +163,23 @@ function AiResponseView({ text }) {
             const trimmed = line.trim();
             if (trimmed.startsWith("## ")) {
               return (
-                <div key={key} style={{ fontWeight: 700, fontSize: 13, marginTop: j === 0 ? 0 : 6 }}>
+                <div
+                  key={key}
+                  className={[styles.responseHeading, j === 0 && styles.responseHeadingFirst].filter(Boolean).join(" ")}
+                >
                   {trimmed.slice(3)}
                 </div>
               );
             }
             if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
               return (
-                <div key={key} style={{ display: "flex", gap: 6, paddingLeft: 4 }}>
-                  <span>•</span>
+                <div key={key} className={styles.bullet}>
+                  <span aria-hidden="true">•</span>
                   {renderInlineBold(trimmed.slice(2), `${key}-b`)}
                 </div>
               );
             }
-            if (trimmed === "") return <div key={key} style={{ height: 4 }} />;
+            if (trimmed === "") return <div key={key} className={styles.spacer} />;
             return renderInlineBold(line, key);
           })
         )

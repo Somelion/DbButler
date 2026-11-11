@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import { api } from "./api";
-import PgBouncerSettings from "./PgBouncerSettings";
+import PgBouncerSettings, { SSL_MODE_OPTIONS } from "./PgBouncerSettings";
 import CollapsibleGroup from "./CollapsibleGroup";
+import { Alert, Badge, Card, Field, severityMeta, useConfirm } from "./components";
+import tone from "./components/tone.module.css";
+import styles from "./ConnectionsScreen.module.css";
 
 const EMPTY_FORM = {
   name: "",
@@ -29,13 +33,22 @@ function formatAllowedSchemas(list) {
   return list && list.length > 0 ? list.join(", ") : "";
 }
 
+// Focuses an inline editor's input when it opens (instead of autoFocus).
+function useFocusWhen(active) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (active) ref.current?.focus();
+  }, [active]);
+  return ref;
+}
+
 export default function ConnectionsScreen({ targets, activeTargetId, onCreated, onRemoved, onUpdated, onSelect }) {
   const [showForm, setShowForm] = useState(targets.length === 0);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, width: 680 }}>
+    <div className={styles.screen}>
       {targets.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className={styles.list}>
           {targets.map((target) => (
             <ConnectionCard
               key={target.id}
@@ -58,36 +71,11 @@ export default function ConnectionsScreen({ targets, activeTargetId, onCreated, 
           onCancel={targets.length > 0 ? () => setShowForm(false) : undefined}
         />
       ) : (
-        <button className="button-secondary" onClick={() => setShowForm(true)} style={{ alignSelf: "flex-start" }}>
-          + Add another connection
+        <button type="button" className={`button-secondary ${styles.addButton}`} onClick={() => setShowForm(true)}>
+          <Plus size={14} aria-hidden="true" />
+          Add another connection
         </button>
       )}
-    </div>
-  );
-}
-
-function ErrorBanner({ message }) {
-  return (
-    <div
-      style={{
-        padding: "12px 16px",
-        background: "var(--critical-bg)",
-        border: "1px solid var(--critical-border)",
-        borderRadius: 12,
-        color: "var(--critical-text)",
-        fontSize: 13,
-      }}
-    >
-      {message}
-    </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{label}</span>
-      {children}
     </div>
   );
 }
@@ -120,7 +108,8 @@ function ConnectionForm({ onSaved, onCancel }) {
     }
   };
 
-  const handleSave = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setSaving(true);
     setError(null);
     try {
@@ -134,97 +123,94 @@ function ConnectionForm({ onSaved, onCancel }) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {error && <ErrorBanner message={error} />}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          padding: 22,
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-        }}
-      >
-        <Field label="Nickname">
-          <input value={form.name} onChange={set("name")} placeholder="analytics-primary" />
-        </Field>
-
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
-          <Field label="Host">
-            <input value={form.host} onChange={set("host")} placeholder="10.0.4.22" />
-            <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>
-              Database on this machine? Use <b>host.docker.internal</b>, not localhost/127.0.0.1 &mdash;
-              DbButler runs in its own container, so that would point at itself.
-            </span>
+    <div className={styles.formBlock}>
+      {error && <Alert tone="critical">{error}</Alert>}
+      <Card title="New connection">
+        <form onSubmit={handleSubmit} className={styles.form}>
+          <Field label="Nickname">
+            <input value={form.name} onChange={set("name")} placeholder="analytics-primary" autoComplete="off" />
           </Field>
-          <Field label="Port">
-            <input value={form.port} onChange={set("port")} placeholder="5432" />
-          </Field>
-        </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Database">
-            <input value={form.dbname} onChange={set("dbname")} placeholder="analytics" />
-          </Field>
-          <Field label="SSL mode">
-            <input value={form.sslmode} onChange={set("sslmode")} placeholder="prefer" />
-          </Field>
-        </div>
+          <div className={styles.hostRow}>
+            <Field
+              label="Host"
+              hint={
+                <>
+                  Database on this machine? Use <b>host.docker.internal</b>, not localhost/127.0.0.1 — DbButler runs
+                  in its own container, so that would point at itself.
+                </>
+              }
+            >
+              <input value={form.host} onChange={set("host")} placeholder="10.0.4.22" autoComplete="off" />
+            </Field>
+            <Field label="Port">
+              <input
+                value={form.port}
+                onChange={set("port")}
+                placeholder="5432"
+                inputMode="numeric"
+                autoComplete="off"
+              />
+            </Field>
+          </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Username">
-            <input value={form.username} onChange={set("username")} placeholder="pgdba_monitor" />
+          <div className={styles.pairRow}>
+            <Field label="Database">
+              <input value={form.dbname} onChange={set("dbname")} placeholder="analytics" autoComplete="off" />
+            </Field>
+            <Field label="SSL mode">
+              <select value={form.sslmode} onChange={set("sslmode")}>
+                {SSL_MODE_OPTIONS.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          <div className={styles.pairRow}>
+            <Field label="Username">
+              <input value={form.username} onChange={set("username")} placeholder="pgdba_monitor" autoComplete="off" />
+            </Field>
+            <Field label="Password">
+              <input type="password" value={form.password} onChange={set("password")} autoComplete="new-password" />
+            </Field>
+          </div>
+
+          <Field
+            label="Schemas to monitor (optional)"
+            hint="Comma-separated schema names. Narrows Table Health and every Advisor tab to just these schemas — leave blank to see everything, the default."
+          >
+            <input
+              value={form.allowedSchemas}
+              onChange={set("allowedSchemas")}
+              placeholder="public, sales (leave blank to watch every schema)"
+              autoComplete="off"
+            />
           </Field>
-          <Field label="Password">
-            <input type="password" value={form.password} onChange={set("password")} />
-          </Field>
-        </div>
 
-        <Field label="Schemas to monitor (optional)">
-          <input
-            value={form.allowedSchemas}
-            onChange={set("allowedSchemas")}
-            placeholder="public, sales (leave blank to watch every schema)"
-          />
-          <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>
-            Comma-separated schema names. Narrows Table Health and every Advisor tab to just these
-            schemas — leave blank to see everything, the default.
-          </span>
-        </Field>
+          <Alert tone="info" compact>
+            <b>pg_monitor</b> is enough to watch a database — DbButler never needs superuser. To also use maintenance
+            actions (Vacuum/Analyze/reset stats), the role additionally needs to own the tables, or (PostgreSQL 17+)
+            membership in the built-in <b>pg_maintain</b> role.
+          </Alert>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "10px 12px",
-            background: "var(--accent-tint)",
-            borderRadius: 9,
-          }}
-        >
-          <span style={{ fontSize: 12, color: "oklch(35% 0.1 255)", lineHeight: 1.5 }}>
-            <b>pg_monitor</b> is enough to watch a database &mdash; DbButler never needs superuser. To also
-            use maintenance actions (Vacuum/Analyze/reset stats), the role additionally needs to own the
-            tables, or (PostgreSQL 17+) membership in the built-in <b>pg_maintain</b> role.
-          </span>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 4 }}>
-          <button className="button-primary" onClick={handleTest} disabled={testing || saving}>
-            {testing ? "Testing…" : "Test connection"}
-          </button>
-          <button className="button-secondary" onClick={handleSave} disabled={saving || testing}>
-            {saving ? "Saving…" : "Save connection"}
-          </button>
-          {onCancel && (
-            <button className="button-secondary" onClick={onCancel} disabled={saving || testing}>
-              Cancel
+          <div className={styles.formActions}>
+            <button type="button" className="button-primary" onClick={handleTest} disabled={testing || saving}>
+              {testing ? "Testing…" : "Test connection"}
             </button>
-          )}
-        </div>
-      </div>
+            <button type="submit" className="button-secondary" disabled={saving || testing}>
+              {saving ? "Saving…" : "Save connection"}
+            </button>
+            {onCancel && (
+              <button type="button" className="button-secondary" onClick={onCancel} disabled={saving || testing}>
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
+      </Card>
 
       {testResult && <TestResultBanner result={testResult} />}
     </div>
@@ -233,33 +219,17 @@ function ConnectionForm({ onSaved, onCancel }) {
 
 function TestResultBanner({ result }) {
   if (!result.ok) {
-    return <ErrorBanner message={result.message || "Could not connect."} />;
+    return <Alert tone="critical">{result.message || "Could not connect."}</Alert>;
   }
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "16px 18px",
-        background: "var(--healthy-bg)",
-        border: "1px solid var(--healthy-border)",
-        borderRadius: 14,
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        <span style={{ fontFamily: "Manrope, sans-serif", fontWeight: 650, fontSize: 13.5, color: "var(--healthy-text)" }}>
-          Connected &mdash; PostgreSQL {result.pg_version}
-        </span>
-        <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 12, color: "oklch(38% 0.09 150)" }}>
-          uptime {result.uptime_human}
-        </span>
-      </div>
-    </div>
+    <Alert tone="healthy" title={`Connected — PostgreSQL ${result.pg_version}`}>
+      <span className={styles.uptime}>uptime {result.uptime_human}</span>
+    </Alert>
   );
 }
 
 function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [renaming, setRenaming] = useState(false);
@@ -269,7 +239,15 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
   const [editingSchemas, setEditingSchemas] = useState(false);
   const [schemasDraft, setSchemasDraft] = useState(() => formatAllowedSchemas(target.allowed_schemas));
 
-  const handleSaveSchemas = async () => {
+  const renameRef = useFocusWhen(renaming);
+  const passwordRef = useFocusWhen(updatingPassword);
+  const schemasRef = useFocusWhen(editingSchemas);
+  const renameId = useId();
+  const passwordId = useId();
+  const schemasId = useId();
+
+  const handleSaveSchemas = async (e) => {
+    e.preventDefault();
     setBusy(true);
     setError(null);
     try {
@@ -303,6 +281,13 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
   };
 
   const handleRemove = async () => {
+    const confirmed = await confirm({
+      title: "Remove connection?",
+      message: `Remove "${target.name}" (${target.host}:${target.port}/${target.dbname})? DbButler stops monitoring it and its collected history is deleted. The database itself is not touched.`,
+      confirmLabel: "Remove connection",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     setBusy(true);
     setError(null);
     try {
@@ -310,7 +295,6 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
       onRemoved();
     } catch (err) {
       setError(err.message);
-    } finally {
       setBusy(false);
     }
   };
@@ -328,7 +312,8 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
     }
   };
 
-  const handleSaveRename = async () => {
+  const handleSaveRename = async (e) => {
+    e.preventDefault();
     if (!nameDraft.trim() || nameDraft === target.name) {
       setRenaming(false);
       setNameDraft(target.name);
@@ -347,7 +332,8 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
     }
   };
 
-  const handleSavePassword = async () => {
+  const handleSavePassword = async (e) => {
+    e.preventDefault();
     if (!passwordDraft) {
       setUpdatingPassword(false);
       return;
@@ -367,144 +353,107 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
   };
 
   const ok = target.last_test_ok;
+  const { Icon: StatusIcon } = severityMeta(ok ? "healthy" : "critical");
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {error && <ErrorBanner message={error} />}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          padding: 22,
-          background: "var(--card)",
-          border: `1px solid ${isActive ? "var(--accent)" : "var(--border)"}`,
-          borderRadius: 14,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+    <div className={styles.cardBlock}>
+      {error && <Alert tone="critical">{error}</Alert>}
+      <Card className={styles.connectionCard} aria-current={isActive ? "true" : undefined}>
+        <div className={styles.cardHeader}>
+          <div className={styles.identity}>
             {renaming ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <form onSubmit={handleSaveRename} className={styles.inlineForm}>
+                <label htmlFor={renameId} className="sr-only">
+                  Connection name
+                </label>
                 <input
+                  id={renameId}
+                  ref={renameRef}
                   value={nameDraft}
                   onChange={(e) => setNameDraft(e.target.value)}
-                  autoFocus
-                  style={{ fontSize: 15, fontWeight: 650, padding: "3px 6px" }}
+                  autoComplete="off"
                 />
-                <button className="button-secondary" onClick={handleSaveRename} disabled={busy} style={{ padding: "3px 10px", fontSize: 11.5 }}>
+                <button type="submit" className="button-secondary button-sm" disabled={busy}>
                   Save
                 </button>
                 <button
-                  className="button-secondary"
+                  type="button"
+                  className="button-secondary button-sm"
                   onClick={() => {
                     setRenaming(false);
                     setNameDraft(target.name);
                   }}
                   disabled={busy}
-                  style={{ padding: "3px 10px", fontSize: 11.5 }}
                 >
                   Cancel
                 </button>
-              </div>
+              </form>
             ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: "Manrope, sans-serif", fontWeight: 650, fontSize: 15, color: "var(--text)" }}>
-                  {target.name}
-                </span>
-                <span
+              <div className={styles.nameRow}>
+                <h2 className={styles.name}>{target.name}</h2>
+                <button
+                  type="button"
+                  className="button-link"
                   onClick={() => setRenaming(true)}
-                  title="Rename"
-                  style={{ fontSize: 11, color: "var(--accent)", cursor: "pointer" }}
+                  aria-label={`Rename ${target.name}`}
                 >
                   Rename
-                </span>
-                {!target.is_active && (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      letterSpacing: "0.02em",
-                      textTransform: "uppercase",
-                      color: "var(--text-muted)",
-                      padding: "2px 7px",
-                      borderRadius: 100,
-                      background: "var(--row-bg)",
-                    }}
-                  >
-                    Paused
-                  </span>
-                )}
+                </button>
+                {!target.is_active && <Badge tone="neutral">Paused</Badge>}
               </div>
             )}
-            <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 12, color: "var(--text-muted)" }}>
+            <span className={styles.address}>
               {target.host}:{target.port}/{target.dbname}
             </span>
           </div>
 
           {isActive ? (
-            <span
-              style={{
-                flexShrink: 0,
-                fontSize: 11,
-                fontWeight: 650,
-                color: "var(--accent)",
-                padding: "4px 10px",
-                borderRadius: 100,
-                background: "var(--accent-tint)",
-              }}
-            >
+            <Badge tone="info" className={styles.headerAction}>
               Currently viewing
-            </span>
+            </Badge>
           ) : (
-            <button className="button-secondary" onClick={onSelect} style={{ flexShrink: 0, padding: "5px 12px", fontSize: 11.5 }}>
-              Switch to this
+            <button
+              type="button"
+              className={`button-secondary button-sm ${styles.headerAction}`}
+              onClick={onSelect}
+            >
+              Switch to this<span className="sr-only">: {target.name}</span>
             </button>
           )}
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "14px 16px",
-            background: ok ? "var(--healthy-bg)" : "var(--critical-bg)",
-            border: `1px solid ${ok ? "var(--healthy-border)" : "var(--critical-border)"}`,
-            borderRadius: 12,
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            <span
-              style={{
-                fontFamily: "Manrope, sans-serif",
-                fontWeight: 650,
-                fontSize: 13.5,
-                color: ok ? "var(--healthy-text)" : "var(--critical-text)",
-              }}
-            >
+        <div className={`${styles.status} ${ok ? tone.healthy : tone.critical}`}>
+          <StatusIcon size={16} className={styles.statusIcon} aria-hidden="true" />
+          <div className={styles.statusText}>
+            <span className={styles.statusTitle}>
               {ok ? `Connected — PostgreSQL ${target.detected_pg_version}` : "Not connected"}
             </span>
             {!ok && target.last_test_message && (
-              <span style={{ fontSize: 12, color: "var(--critical-text)" }}>{target.last_test_message}</span>
+              <span className={styles.statusMessage}>{target.last_test_message}</span>
             )}
           </div>
         </div>
 
         {updatingPassword ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <form onSubmit={handleSavePassword} className={styles.inlineForm}>
+            <label htmlFor={passwordId} className="sr-only">
+              New password for {target.name}
+            </label>
             <input
+              id={passwordId}
+              ref={passwordRef}
               type="password"
-              autoFocus
               value={passwordDraft}
               onChange={(e) => setPasswordDraft(e.target.value)}
               placeholder="New password"
-              style={{ flex: 1 }}
+              autoComplete="new-password"
+              className={styles.grow}
             />
-            <button className="button-secondary" onClick={handleSavePassword} disabled={busy || !passwordDraft}>
+            <button type="submit" className="button-secondary" disabled={busy || !passwordDraft}>
               {busy ? "Testing…" : "Save & test"}
             </button>
             <button
+              type="button"
               className="button-secondary"
               onClick={() => {
                 setUpdatingPassword(false);
@@ -514,37 +463,43 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
             >
               Cancel
             </button>
-          </div>
+          </form>
         ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button className="button-secondary" onClick={handleRetest} disabled={busy}>
+          <div className={styles.actions}>
+            <button type="button" className="button-secondary" onClick={handleRetest} disabled={busy}>
               {busy ? "Working…" : "Test again"}
             </button>
-            <button className="button-secondary" onClick={() => setUpdatingPassword(true)} disabled={busy}>
+            <button type="button" className="button-secondary" onClick={() => setUpdatingPassword(true)} disabled={busy}>
               Update password
             </button>
-            <button className="button-secondary" onClick={handleTogglePaused} disabled={busy}>
+            <button type="button" className="button-secondary" onClick={handleTogglePaused} disabled={busy}>
               {target.is_active ? "Pause monitoring" : "Resume monitoring"}
             </button>
-            <button className="button-danger" onClick={handleRemove} disabled={busy}>
+            <button type="button" className="button-danger" onClick={handleRemove} disabled={busy}>
               Remove connection
             </button>
           </div>
         )}
 
         {editingSchemas ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <form onSubmit={handleSaveSchemas} className={styles.inlineForm}>
+            <label htmlFor={schemasId} className="sr-only">
+              Schemas to monitor (comma-separated)
+            </label>
             <input
-              autoFocus
+              id={schemasId}
+              ref={schemasRef}
               value={schemasDraft}
               onChange={(e) => setSchemasDraft(e.target.value)}
               placeholder="public, sales (leave blank to watch every schema)"
-              style={{ flex: 1 }}
+              autoComplete="off"
+              className={styles.grow}
             />
-            <button className="button-secondary" onClick={handleSaveSchemas} disabled={busy}>
+            <button type="submit" className="button-secondary" disabled={busy}>
               {busy ? "Saving…" : "Save"}
             </button>
             <button
+              type="button"
               className="button-secondary"
               onClick={() => {
                 setEditingSchemas(false);
@@ -554,27 +509,29 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
             >
               Cancel
             </button>
-          </div>
+          </form>
         ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+          <div className={styles.schemasRow}>
+            <span className={styles.schemas}>
               {target.allowed_schemas && target.allowed_schemas.length > 0
                 ? `Watching: ${target.allowed_schemas.join(", ")}`
                 : "Watching all schemas"}
             </span>
-            <span
+            <button
+              type="button"
+              className="button-link"
               onClick={() => setEditingSchemas(true)}
               title="Choose which schemas Table Health and the Advisor tabs consider"
-              style={{ fontSize: 11, color: "var(--accent)", cursor: "pointer" }}
+              aria-label={`Edit monitored schemas for ${target.name}`}
             >
               Edit
-            </span>
+            </button>
           </div>
         )}
-      </div>
+      </Card>
 
       <CollapsibleGroup label="PgBouncer (optional)" defaultExpanded={false}>
-        <PgBouncerSettings targetId={target.id} />
+        <PgBouncerSettings targetId={target.id} targetName={target.name} />
       </CollapsibleGroup>
     </div>
   );

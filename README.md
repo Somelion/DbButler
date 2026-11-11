@@ -165,7 +165,7 @@ python -m venv .venv
 .venv/Scripts/ruff check .
 .venv/Scripts/python -m pytest
 
-# ui (Node 20.19+, 22.13+ or 24)
+# ui (Node 22.22+ or 24 — react-router 8 needs it)
 cd ui
 npm ci
 npm run lint
@@ -181,8 +181,27 @@ file — `--universal` keeps Linux-only transitive deps in the lock even when it
 Windows or macOS), and the UI uses `package-lock.json` with `npm ci`. To upgrade, re-run the
 compile command with `--upgrade` (or `npm update` in `ui/`), then run the checks above.
 
-ESLint's accessibility (`jsx-a11y`) and `react-hooks/set-state-in-effect` findings are warnings
-for now, not errors — see the comment in `ui/eslint.config.js`.
+ESLint's accessibility (`jsx-a11y`) and React hooks rules are errors, so CI fails on a clickable
+`div`, an unlabelled input or data fetching that sets state inside an effect.
+
+### UI conventions
+
+- **Styling:**
+  - Every component has its own CSS Module (`Foo.module.css`), and every value comes from a
+    token in `ui/src/styles/tokens.css`. That file defines the light and dark palettes, type
+    scale, spacing, radii, shadows and motion. No raw colours.
+  - Inline styles are only for data-driven values, such as a bar width or a chart coordinate.
+- **Shared components** are in `ui/src/components/`:
+  - `Card`, `SegmentedControl`, `Tabs`, `Badge`/`SeverityBadge`, `Alert`, `EmptyState`,
+    `Skeleton`, `Stat`
+  - `Dialog`, `useConfirm`, `useToast`, `Popover`, `CopyButton`, `Field`, `SortHeader`
+- **Data fetching** goes through TanStack Query. Keys are per database (see
+  `ui/src/queryClient.js`), and requests are cancelled when you switch database. Polling pauses
+  while the tab is hidden.
+- **Routing** uses react-router. Screens live at `/t/<database id>/<screen>` (see
+  `ui/src/routes.js`), so reload, back/forward and shared links work. View state worth sharing
+  (time range, selected table or query, Advisor tab) is kept in the URL.
+- **Icons** are from `lucide-react`, and the fonts are self-hosted through `@fontsource`.
 
 ## Documentation
 

@@ -1,0 +1,28 @@
+.trigger {
+  white-space: nowrap;
+}
+
+.hiddenCount {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+
+.bulkActions {
+  display: flex;
+  gap: var(--space-12);
+  padding: var(--space-2) var(--space-8);
+}
+
+.option {
+  display: flex;
+}
+
+.itemLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+}

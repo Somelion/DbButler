@@ -1,9 +1,38 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CircleCheck } from "lucide-react";
+import styles from "./Advisor.module.css";
 import { api } from "./api";
+import { targetKey } from "./queryClient";
+import { screenPath } from "./routes";
+import { Alert, Card, EmptyState, Skeleton, TabPanel, Tabs } from "./components";
 import CategoryFilterDropdown from "./CategoryFilterDropdown";
 import FindingCard from "./FindingCard";
 import CollapsibleGroup from "./CollapsibleGroup";
 import { useFirstSeenMap } from "./useFirstSeenMap";
+
+// All three show/hide preferences below are stored as a JSON array under
+// one localStorage key each. A missing, corrupt or blocked entry reads as
+// "nothing hidden"; a blocked write just means the preference won't persist.
+function loadStoredSet(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveStoredSet(key, set) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...set]));
+  } catch {
+    // Storage blocked — the preference just won't persist.
+  }
+}
 
 // Categories are a fixed taxonomy per tab (GROUPS_BY_TAB below), the same
 // for every target, so the hidden-category preference is persisted per tab
@@ -11,32 +40,10 @@ import { useFirstSeenMap } from "./useFirstSeenMap";
 // vary target to target.
 const hiddenCategoriesKey = (tab) => `pgdba.advisor.hiddenCategories.${tab}`;
 
-function loadHiddenCategories(tab) {
-  try {
-    const raw = localStorage.getItem(hiddenCategoriesKey(tab));
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? new Set(parsed) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
 // Which top-level tabs (Index Advisor, Schema Lint, ...) to show. Same
 // reasoning as hidden categories — the tab list is fixed, not per-target —
 // but there's only one such list, so a single key covers it.
 const HIDDEN_TABS_KEY = "pgdba.advisor.hiddenTabs";
-
-function loadHiddenTabs() {
-  try {
-    const raw = localStorage.getItem(HIDDEN_TABS_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? new Set(parsed) : new Set();
-  } catch {
-    return new Set();
-  }
-}
 
 // Per-target, like Table Health's own hidden-schemas filter (schemas really
 // do vary target to target, unlike the fixed tab/category taxonomy above) —
@@ -44,17 +51,6 @@ function loadHiddenTabs() {
 // connection's own allowed_schemas allowlist (Connections screen) already
 // limited the server to computing in the first place.
 const hiddenSchemasKey = (targetId) => `pgdba.advisor.hiddenSchemas.${targetId}`;
-
-function loadHiddenSchemas(targetId) {
-  try {
-    const raw = localStorage.getItem(hiddenSchemasKey(targetId));
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? new Set(parsed) : new Set();
-  } catch {
-    return new Set();
-  }
-}
 
 const TABS = [
   { key: "index", label: "Index Advisor" },
@@ -66,6 +62,24 @@ const TABS = [
   { key: "security", label: "Security & Compliance" },
   { key: "extensions", label: "Extensions" },
 ];
+
+const DEFAULT_TAB = "index";
+
+// One endpoint per tab. Each is its own query (advisorKey below), fetched
+// only once its tab is opened and then served from cache, so one failing
+// advisor only affects its own tab.
+const FETCH_BY_TAB = {
+  index: api.getIndexAdvisor,
+  schema: api.getSchemaLint,
+  config: api.getConfigAdvisor,
+  replication: api.getReplicationAdvisor,
+  backup: api.getBackupAdvisor,
+  "pre-upgrade": api.getPreUpgradeAdvisor,
+  security: api.getSecurityAdvisor,
+  extensions: api.getExtensionAdvisor,
+};
+
+const advisorKey = (targetId, tab) => targetKey(targetId, "advisor", tab);
 
 // Maps a finding's id prefix to the collapsible group it belongs under —
 // finer-grained than the "index advisor"/"schema lint"/"configuration
@@ -194,82 +208,52 @@ function groupFindings(findings, groupDefs) {
   return order.map((label) => ({ label, findings: byLabel.get(label) }));
 }
 
-export default function Advisor({ targetId, initialTab }) {
-  // Lazy init only — a caller that navigates here with a specific tab in
-  // mind (e.g. the Dashboard's Replication tile) only gets one shot at it,
-  // right when this component mounts; manually switching tabs afterward
-  // should behave completely normally, not keep snapping back.
-  const [tab, setTab] = useState(() => initialTab || "index");
-  const [findingsByTab, setFindingsByTab] = useState({
-    index: null,
-    schema: null,
-    config: null,
-    replication: null,
-    backup: null,
-    "pre-upgrade": null,
-    security: null,
-    extensions: null,
-  });
-  const [error, setError] = useState(null);
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+export default function Advisor({ targetId }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { tab: urlTab } = useParams();
+
   const [firstSeenByFindingId] = useFirstSeenMap(targetId);
-  const [hiddenCategories, setHiddenCategories] = useState(() => loadHiddenCategories(tab));
-  const [hiddenTabs, setHiddenTabs] = useState(() => loadHiddenTabs());
-  const [hiddenSchemas, setHiddenSchemas] = useState(() => loadHiddenSchemas(targetId));
-
-  useEffect(() => {
-    setHiddenCategories(loadHiddenCategories(tab));
-  }, [tab]);
-
-  useEffect(() => {
-    setError(null);
-    setHiddenSchemas(loadHiddenSchemas(targetId));
-    Promise.all([
-      api.getIndexAdvisor(targetId),
-      api.getSchemaLint(targetId),
-      api.getConfigAdvisor(targetId),
-      api.getReplicationAdvisor(targetId),
-      api.getBackupAdvisor(targetId),
-      api.getPreUpgradeAdvisor(targetId),
-      api.getSecurityAdvisor(targetId),
-      api.getExtensionAdvisor(targetId),
-    ])
-      .then(
-        ([
-          indexData,
-          schemaData,
-          configData,
-          replicationData,
-          backupData,
-          preUpgradeData,
-          securityData,
-          extensionData,
-        ]) => {
-          setFindingsByTab({
-            index: indexData.findings,
-            schema: schemaData.findings,
-            config: configData.findings,
-            replication: replicationData.findings,
-            backup: backupData.findings,
-            "pre-upgrade": preUpgradeData.findings,
-            security: securityData.findings,
-            extensions: extensionData.findings,
-          });
-        }
-      )
-      .catch((err) => setError(err.message));
-  }, [targetId]);
+  const [hiddenTabs, setHiddenTabs] = useState(() => loadStoredSet(HIDDEN_TABS_KEY));
+  // Loaded once per mount: App remounts this screen (key={targetId}) when
+  // the target changes, so a fresh target always reads its own key.
+  const [hiddenSchemas, setHiddenSchemas] = useState(() => loadStoredSet(hiddenSchemasKey(targetId)));
+  const [actionError, setActionError] = useState(null);
 
   const tabLabels = TABS.map((t) => t.label);
   const visibleTabs = TABS.filter((t) => !hiddenTabs.has(t.label));
 
-  useEffect(() => {
-    if (visibleTabs.length > 0 && !visibleTabs.some((t) => t.key === tab)) {
-      setTab(visibleTabs[0].key);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hiddenTabs]);
+  // The active tab comes from the URL (/t/:id/advisor/:tab), so a deep link
+  // (e.g. the Dashboard's Replication tile) or a reload lands on it. An
+  // unknown or hidden tab falls back to Index Advisor, or to the first
+  // visible tab when that one is hidden too; null when every tab is hidden.
+  const isVisible = (key) => visibleTabs.some((t) => t.key === key);
+  const tab = isVisible(urlTab)
+    ? urlTab
+    : isVisible(DEFAULT_TAB)
+      ? DEFAULT_TAB
+      : (visibleTabs[0]?.key ?? null);
 
-  const activeFindings = findingsByTab[tab];
+  const changeTab = (key) => navigate(screenPath("advisor", targetId, key), { replace: true });
+
+  // Hidden categories follow the active tab: reloaded from storage whenever
+  // the tab changes (adjusted during render rather than in an effect).
+  const [hiddenCategories, setHiddenCategories] = useState(() => loadStoredSet(hiddenCategoriesKey(tab)));
+  const [categoriesTab, setCategoriesTab] = useState(tab);
+  if (tab !== categoriesTab) {
+    setCategoriesTab(tab);
+    setHiddenCategories(loadStoredSet(hiddenCategoriesKey(tab)));
+  }
+
+  const findingsQuery = useQuery({
+    queryKey: advisorKey(targetId, tab),
+    queryFn: ({ signal }) => FETCH_BY_TAB[tab](targetId, { signal }),
+    enabled: tab != null,
+  });
+
+  const activeFindings = findingsQuery.data?.findings ?? null;
   // Schema names present on the active tab's findings, regardless of current
   // hide state — the dropdown always lists every schema seen, same as
   // Categories does for group labels. Findings with no schema_name (a
@@ -288,7 +272,7 @@ export default function Advisor({ targetId, initialTab }) {
 
   const persistHiddenCategories = (next) => {
     setHiddenCategories(next);
-    localStorage.setItem(hiddenCategoriesKey(tab), JSON.stringify([...next]));
+    saveStoredSet(hiddenCategoriesKey(tab), next);
   };
 
   const toggleCategoryHidden = (label) => {
@@ -300,7 +284,7 @@ export default function Advisor({ targetId, initialTab }) {
 
   const persistHiddenTabs = (next) => {
     setHiddenTabs(next);
-    localStorage.setItem(HIDDEN_TABS_KEY, JSON.stringify([...next]));
+    saveStoredSet(HIDDEN_TABS_KEY, next);
   };
 
   const toggleTabHidden = (label) => {
@@ -312,7 +296,7 @@ export default function Advisor({ targetId, initialTab }) {
 
   const persistHiddenSchemas = (next) => {
     setHiddenSchemas(next);
-    localStorage.setItem(hiddenSchemasKey(targetId), JSON.stringify([...next]));
+    saveStoredSet(hiddenSchemasKey(targetId), next);
   };
 
   const toggleSchemaHidden = (schemaName) => {
@@ -322,80 +306,58 @@ export default function Advisor({ targetId, initialTab }) {
     persistHiddenSchemas(next);
   };
 
+  // Drops a finding from one tab's cached result — what Archive and Apply
+  // do on success, instead of refetching the whole advisor.
+  const removeFinding = (tabKey, findingId) =>
+    queryClient.setQueryData(advisorKey(targetId, tabKey), (prev) =>
+      prev ? { ...prev, findings: prev.findings.filter((f) => f.id !== findingId) } : prev
+    );
+
   const handleArchive = (finding) => {
+    const tabKey = tab;
+    setActionError(null);
     api
       .archiveFinding(targetId, finding)
-      .then(() =>
-        setFindingsByTab((prev) => ({
-          ...prev,
-          [tab]: prev[tab].filter((f) => f.id !== finding.id),
-        }))
-      )
-      .catch((err) => setError(err.message));
+      .then(() => {
+        removeFinding(tabKey, finding.id);
+        queryClient.invalidateQueries({ queryKey: targetKey(targetId, "archived-findings") });
+      })
+      .catch((err) => setActionError(err.message));
   };
 
   // Only Index Advisor findings are apply-able — Schema Lint/Configuration
   // Advisor's recommended_ddl (where present) is a data-type/setting change,
   // riskier to run unattended than a CREATE/DROP INDEX CONCURRENTLY.
   const handleApply = (finding) =>
-    api.applyIndexFinding(targetId, finding.id).then(() =>
-      setFindingsByTab((prev) => ({
-        ...prev,
-        index: prev.index.filter((f) => f.id !== finding.id),
-      }))
-    );
+    api.applyIndexFinding(targetId, finding.id).then(() => {
+      removeFinding("index", finding.id);
+      queryClient.invalidateQueries({ queryKey: targetKey(targetId, "index-testing") });
+    });
 
   // Covering Index Candidates' "Analyze with AI" panel can produce a
   // recommended_ddl the base finding didn't have (heuristic was
   // unconfident) — applied by referencing the stored analysis id, so the
   // server (not the client) is always the one supplying the actual DDL.
   const handleApplyAnalysis = (finding, analysisId) =>
-    api.applyIndexCoverageAnalysis(targetId, analysisId).then(() =>
-      setFindingsByTab((prev) => ({
-        ...prev,
-        index: prev.index.filter((f) => f.id !== finding.id),
-      }))
-    );
+    api.applyIndexCoverageAnalysis(targetId, analysisId).then(() => {
+      removeFinding("index", finding.id);
+      queryClient.invalidateQueries({ queryKey: targetKey(targetId, "index-testing") });
+    });
+
+  const countText =
+    activeFindings &&
+    `${plural(visibleFindingCount, "finding", "findings")}${
+      hiddenCategories.size > 0 ? ` (${plural(hiddenCategories.size, "category", "categories")} hidden)` : ""
+    }${hiddenSchemas.size > 0 ? ` (${plural(hiddenSchemas.size, "schema", "schemas")} hidden)` : ""}`;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        padding: "18px 20px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", padding: 3, background: "oklch(94% 0.004 250)", borderRadius: 9 }}>
-          {visibleTabs.map((t) => (
-            <span
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                padding: "6px 14px",
-                fontSize: 12.5,
-                fontWeight: tab === t.key ? 650 : 600,
-                color: tab === t.key ? "white" : "var(--text-secondary)",
-                background: tab === t.key ? "var(--accent)" : "transparent",
-                borderRadius: 7,
-                cursor: "pointer",
-              }}
-            >
-              {t.label}
-            </span>
-          ))}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
-          <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-            {activeFindings &&
-              `${visibleFindingCount} finding${visibleFindingCount === 1 ? "" : "s"}${
-                hiddenCategories.size > 0 ? ` (${hiddenCategories.size} categor${hiddenCategories.size === 1 ? "y" : "ies"} hidden)` : ""
-              }${hiddenSchemas.size > 0 ? ` (${hiddenSchemas.size} schema${hiddenSchemas.size === 1 ? "" : "s"} hidden)` : ""}`}
-          </span>
+    <Card>
+      <div className={styles.toolbar}>
+        {visibleTabs.length > 0 && (
+          <Tabs label="Advisor sections" idPrefix="advisor" items={visibleTabs} value={tab} onChange={changeTab} />
+        )}
+        <div className={styles.filters}>
+          {countText && <span className={styles.count}>{countText}</span>}
           <CategoryFilterDropdown
             label="Tabs"
             items={tabLabels}
@@ -427,53 +389,60 @@ export default function Advisor({ targetId, initialTab }) {
         </div>
       </div>
 
-      {error && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{error}</span>}
+      {actionError && <Alert tone="critical">{actionError}</Alert>}
 
       {visibleTabs.length === 0 && (
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          All Advisor tabs are hidden — use the Tabs button above to show one.
-        </span>
+        <p className={styles.note}>All Advisor tabs are hidden — use the Tabs button above to show one.</p>
       )}
 
-      {visibleTabs.length > 0 && activeFindings && activeFindings.length === 0 && (
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{EMPTY_MESSAGE_BY_TAB[tab]}</span>
-      )}
+      {tab != null && (
+        <TabPanel idPrefix="advisor" value={tab} className={styles.panel}>
+          {findingsQuery.error && <Alert tone="critical">{findingsQuery.error.message}</Alert>}
 
-      {visibleTabs.length > 0 && activeFindings && activeFindings.length > 0 && schemaFilteredFindings.length === 0 && (
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          All schemas are hidden — use the Schemas button above to show some.
-        </span>
-      )}
+          {findingsQuery.isPending && <Skeleton lines={4} label="Loading findings…" />}
 
-      {visibleTabs.length > 0 &&
-        activeFindings &&
-        activeFindings.length > 0 &&
-        schemaFilteredFindings.length > 0 &&
-        visibleGroups.length === 0 && (
-          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-            All categories are hidden — use the Categories button above to show some.
-          </span>
-        )}
+          {activeFindings && activeFindings.length === 0 && (
+            <EmptyState icon={CircleCheck} title="No findings">
+              {EMPTY_MESSAGE_BY_TAB[tab]}
+            </EmptyState>
+          )}
 
-      {visibleTabs.length > 0 && visibleGroups.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {visibleGroups.map((group) => (
-            <CollapsibleGroup key={group.label} label={group.label} count={group.findings.length}>
-              {group.findings.map((finding) => (
-                <FindingCard
-                  key={finding.id}
-                  finding={finding}
-                  targetId={tab === "index" ? targetId : undefined}
-                  onArchive={() => handleArchive(finding)}
-                  onApply={tab === "index" ? () => handleApply(finding) : undefined}
-                  onApplyAnalysis={tab === "index" ? (analysisId) => handleApplyAnalysis(finding, analysisId) : undefined}
-                  firstSeenAt={firstSeenByFindingId[finding.id]}
-                />
+          {activeFindings && activeFindings.length > 0 && schemaFilteredFindings.length === 0 && (
+            <p className={styles.note}>All schemas are hidden — use the Schemas button above to show some.</p>
+          )}
+
+          {activeFindings &&
+            activeFindings.length > 0 &&
+            schemaFilteredFindings.length > 0 &&
+            visibleGroups.length === 0 && (
+              <p className={styles.note}>
+                All categories are hidden — use the Categories button above to show some.
+              </p>
+            )}
+
+          {visibleGroups.length > 0 && (
+            <div className={styles.groups}>
+              {visibleGroups.map((group) => (
+                <CollapsibleGroup key={group.label} label={group.label} count={group.findings.length}>
+                  {group.findings.map((finding) => (
+                    <FindingCard
+                      key={finding.id}
+                      finding={finding}
+                      targetId={tab === "index" ? targetId : undefined}
+                      onArchive={() => handleArchive(finding)}
+                      onApply={tab === "index" ? () => handleApply(finding) : undefined}
+                      onApplyAnalysis={
+                        tab === "index" ? (analysisId) => handleApplyAnalysis(finding, analysisId) : undefined
+                      }
+                      firstSeenAt={firstSeenByFindingId[finding.id]}
+                    />
+                  ))}
+                </CollapsibleGroup>
               ))}
-            </CollapsibleGroup>
-          ))}
-        </div>
+            </div>
+          )}
+        </TabPanel>
       )}
-    </div>
+    </Card>
   );
 }

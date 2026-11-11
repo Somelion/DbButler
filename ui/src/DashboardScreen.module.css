@@ -1,0 +1,10 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+}

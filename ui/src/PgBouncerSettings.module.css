@@ -1,0 +1,85 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--text);
+}
+
+.description {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  max-width: var(--form-max-width);
+}
+
+.hostRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-12);
+}
+
+.credentialsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-12);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-10);
+}
+
+.statusBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-10);
+  padding: var(--space-12) var(--space-14);
+  background: var(--tone-bg);
+  border: 1px solid var(--tone-border);
+  border-radius: var(--radius-lg);
+}
+
+.statusIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--tone-solid);
+}
+
+.statusText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.statusTitle {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-sm);
+  color: var(--tone-text);
+}
+
+.statusMessage {
+  font-size: var(--font-size-xs);
+  color: var(--tone-text);
+}

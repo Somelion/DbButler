@@ -1,57 +1,56 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Archive as ArchiveIcon } from "lucide-react";
+import styles from "./Archive.module.css";
 import { api } from "./api";
+import { targetKey } from "./queryClient";
+import { Alert, Card, EmptyState, Skeleton } from "./components";
 import FindingCard from "./FindingCard";
 
 export default function Archive({ targetId }) {
-  const [archived, setArchived] = useState(null);
-  const [error, setError] = useState(null);
+  const queryClient = useQueryClient();
+  const [restoreError, setRestoreError] = useState(null);
+  const archivedKey = targetKey(targetId, "archived-findings");
 
-  useEffect(() => {
-    setError(null);
-    api
-      .getArchivedFindings(targetId)
-      .then((data) => setArchived(data.findings))
-      .catch((err) => setError(err.message));
-  }, [targetId]);
+  const { data, error, isPending } = useQuery({
+    queryKey: archivedKey,
+    queryFn: ({ signal }) => api.getArchivedFindings(targetId, { signal }),
+  });
+  const archived = data?.findings ?? null;
 
+  // A restored finding drops off this list right away, and the screens it
+  // came from (Advisor, Plan Regressions, Table Health) are marked stale so
+  // it shows up there again on next visit.
   const handleRestore = (entry) => {
+    setRestoreError(null);
     api
       .restoreFinding(targetId, entry.finding_id)
-      .then(() => setArchived((prev) => prev.filter((a) => a.finding_id !== entry.finding_id)))
-      .catch((err) => setError(err.message));
+      .then(() => {
+        queryClient.setQueryData(archivedKey, (prev) =>
+          prev ? { ...prev, findings: prev.findings.filter((a) => a.finding_id !== entry.finding_id) } : prev
+        );
+        queryClient.invalidateQueries({ queryKey: targetKey(targetId, "advisor") });
+        queryClient.invalidateQueries({ queryKey: targetKey(targetId, "plan-regressions") });
+        queryClient.invalidateQueries({ queryKey: targetKey(targetId, "table-health") });
+      })
+      .catch((err) => setRestoreError(err.message));
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        padding: "18px 20px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontFamily: "Manrope, sans-serif", fontWeight: 650, fontSize: 14, color: "var(--text)" }}>
-          Archived findings
-        </span>
-        <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-          {archived ? `${archived.length} archived` : ""}
-        </span>
-      </div>
+    <Card title="Archived findings" actions={archived && <span className={styles.count}>{archived.length} archived</span>}>
+      {error && <Alert tone="critical">{error.message}</Alert>}
+      {restoreError && <Alert tone="critical">{restoreError}</Alert>}
 
-      {error && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{error}</span>}
+      {isPending && <Skeleton lines={4} label="Loading archived findings…" />}
 
       {archived && archived.length === 0 && (
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          Nothing archived yet — archive a finding from the Advisor screen to see it here.
-        </span>
+        <EmptyState icon={ArchiveIcon} title="Nothing archived yet">
+          Archive a finding from the Advisor screen to see it here.
+        </EmptyState>
       )}
 
       {archived && archived.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className={styles.list}>
           {archived.map((entry) => (
             <FindingCard
               key={entry.id}
@@ -62,6 +61,6 @@ export default function Archive({ targetId }) {
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

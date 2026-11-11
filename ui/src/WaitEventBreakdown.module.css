@@ -1,0 +1,59 @@
+.total {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+
+.empty {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.bar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+/* Width and colour come from the row (inline custom properties). */
+.segment {
+  width: var(--segment-width);
+  background: var(--segment-color);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--segment-color);
+  flex-shrink: 0;
+}
+
+.legendLabel {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.legendCount {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}

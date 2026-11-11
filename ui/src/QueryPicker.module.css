@@ -1,0 +1,116 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  max-width: 220px;
+  padding: var(--space-4) var(--space-10);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--on-accent);
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+}
+
+.chip:hover {
+  background: var(--accent-hover);
+}
+
+.chipText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipIcon {
+  flex-shrink: 0;
+}
+
+.list {
+  max-height: 280px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.noMatch {
+  padding: var(--space-10) var(--space-12);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--font-size-xs);
+}
+
+.row:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.rowSelected {
+  background: var(--accent-tint);
+}
+
+/* Listed after .rowSelected: a focused row that is also selected shows as
+   focused (the button text says "Deep-diving" too). */
+.rowFocused {
+  background: var(--attention-bg);
+}
+
+.rowCheck {
+  flex: 1 1 auto;
+  /* A flex item with min-width:0 is willing to shrink all the way to
+     nothing once its siblings' own content (call count, button — neither
+     of which opts into shrinking below its own size) claims the rest of a
+     narrow row, which silently clips 100% of the query text instead of
+     just some of it. A real pixel floor keeps this column legible — the
+     row scrolls horizontally (see .list's overflow) rather than collapsing
+     the one column that actually matters. */
+  min-width: 160px;
+  overflow: hidden;
+}
+
+.queryText {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calls {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.deepDive {
+  flex-shrink: 0;
+}
+
+.hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}

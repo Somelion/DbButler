@@ -2,6 +2,8 @@ import { formatBytes } from "./format";
 import FindingCard from "./FindingCard";
 import CollapsibleGroup from "./CollapsibleGroup";
 import HeaderHint from "./HeaderHint";
+import tableStyles from "./components/Table.module.css";
+import styles from "./TableHealthDetail.module.css";
 
 // Finer-grained than the flat "table health" category every finding here
 // shares — mirrors Advisor.jsx's id-prefix grouping so related suggestions
@@ -62,8 +64,8 @@ export default function TableHealthDetail({ detail, onArchive, onApply, firstSee
   const toastPct = storage.total_bytes > 0 ? (100 * storage.toast_bytes) / storage.total_bytes : 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 28 }}>
+    <div className={styles.detail}>
+      <div className={styles.statGroups}>
         <StatGroup title="Storage">
           <Stat label="Heap" hint="This table's own data pages — everything except TOAST and indexes." value={formatBytes(storage.heap_bytes)} />
           <Stat
@@ -120,28 +122,14 @@ export default function TableHealthDetail({ detail, onArchive, onApply, firstSee
       </div>
 
       {columns.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--text-muted)" }}>
-            Columns
-          </span>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+        <div className={styles.section}>
+          <h3 className={styles.sectionTitle}>Columns</h3>
+          <div className={tableStyles.wrap}>
+            <table className={`${tableStyles.table} ${styles.columnsTable}`}>
               <thead>
                 <tr>
                   {COLUMN_HEADERS.map((col) => (
-                    <th
-                      key={col.label}
-                      style={{
-                        textAlign: "left",
-                        padding: "5px 8px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        fontSize: 10,
-                        letterSpacing: "0.02em",
-                        color: "var(--text-muted)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <th key={col.label} scope="col" className={`${tableStyles.th} ${styles.cell}`}>
                       {col.label}
                       <HeaderHint text={col.hint} />
                     </th>
@@ -151,24 +139,22 @@ export default function TableHealthDetail({ detail, onArchive, onApply, firstSee
               <tbody>
                 {columns.map((col) => (
                   <tr key={col.attname}>
-                    <td style={{ padding: "5px 8px", fontFamily: "IBM Plex Mono, monospace", color: "var(--text)" }}>
-                      {col.attname}
-                    </td>
-                    <td style={{ padding: "5px 8px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{col.data_type}</td>
-                    <td style={{ padding: "5px 8px", color: "var(--text-secondary)" }}>
+                    <td className={`${tableStyles.td} ${styles.cell} ${styles.mono}`}>{col.attname}</td>
+                    <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary} ${styles.nowrap}`}>{col.data_type}</td>
+                    <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary}`}>
                       {col.avg_width != null ? `${col.avg_width} B` : "—"}
                     </td>
-                    <td style={{ padding: "5px 8px", color: "var(--text-secondary)" }}>
+                    <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary}`}>
                       {col.null_frac != null ? `${(col.null_frac * 100).toFixed(0)}%` : "—"}
                     </td>
-                    <td style={{ padding: "5px 8px", color: "var(--text-secondary)" }}>
+                    <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary}`}>
                       {col.n_distinct != null ? col.n_distinct : "—"}
                     </td>
-                    <td style={{ padding: "5px 8px", color: "var(--text-secondary)" }}>
+                    <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary}`}>
                       {col.attstattarget === -1 || col.attstattarget == null ? "default" : col.attstattarget}
                     </td>
-                    <td style={{ padding: "5px 8px", color: "var(--text-secondary)" }}>{col.is_indexed ? "Yes" : "—"}</td>
-                    <td style={{ padding: "5px 8px", color: "var(--text-secondary)" }}>{col.storage}</td>
+                    <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary}`}>{col.is_indexed ? "Yes" : "—"}</td>
+                    <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary}`}>{col.storage}</td>
                   </tr>
                 ))}
               </tbody>
@@ -177,14 +163,12 @@ export default function TableHealthDetail({ detail, onArchive, onApply, firstSee
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--text-muted)" }}>
-          Suggestions
-        </span>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Suggestions</h3>
         {findings.length === 0 ? (
-          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>No suggestions for this table.</span>
+          <p className={styles.empty}>No suggestions for this table.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className={styles.groups}>
             {groups.map((group) => (
               <CollapsibleGroup key={group.label} label={group.label} count={group.findings.length} defaultExpanded>
                 {group.findings.map((finding) => (
@@ -207,23 +191,21 @@ export default function TableHealthDetail({ detail, onArchive, onApply, firstSee
 
 function StatGroup({ title, children }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--text-muted)" }}>
-        {title}
-      </span>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>{children}</div>
+    <div className={styles.statGroup}>
+      <h3 className={styles.sectionTitle}>{title}</h3>
+      <dl className={styles.stats}>{children}</dl>
     </div>
   );
 }
 
 function Stat({ label, value, hint }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <span style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.02em" }}>
+    <div className={styles.stat}>
+      <dt className={styles.statLabel}>
         {label}
         <HeaderHint text={hint} />
-      </span>
-      <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 12.5, color: "var(--text)" }}>{value}</span>
+      </dt>
+      <dd className={styles.statValue}>{value}</dd>
     </div>
   );
 }

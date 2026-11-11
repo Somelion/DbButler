@@ -1,0 +1,153 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.rowHeading {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.rowButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  width: 100%;
+  padding: var(--space-10) var(--space-14);
+  font-weight: var(--weight-regular);
+  text-align: left;
+  background: var(--row-bg);
+  border-radius: 0;
+}
+
+.rowButton:hover {
+  background: var(--surface-sunken);
+}
+
+.rowQuery {
+  flex: 1 1 auto;
+  /* See QueryPicker.module.css's identical comment: min-width:0 alone lets
+     this column shrink to nothing on a narrow enough row once its
+     non-shrinking siblings (timestamp, status badge) claim the rest — a
+     real pixel floor keeps it legible instead. */
+  min-width: 160px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowTime {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.status {
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-12) var(--space-14);
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.detailLabel {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.detailText {
+  margin: 0;
+  padding: var(--space-10) var(--space-12);
+  max-height: 320px;
+  overflow: auto;
+  font-size: var(--font-size-xs);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.responseBox {
+  max-height: 420px;
+  overflow: auto;
+  padding: var(--space-10) var(--space-12);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.note {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* AiResponseView */
+.response {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  font-size: var(--font-size-sm);
+  line-height: var(--leading-normal);
+  color: var(--text);
+}
+
+.responseCode {
+  margin: 0;
+  padding: var(--space-10) var(--space-12);
+  overflow-x: auto;
+  font-size: var(--font-size-xs);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--row-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.responseHeading {
+  margin-top: var(--space-6);
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-bold);
+}
+
+.responseHeadingFirst {
+  margin-top: 0;
+}
+
+.bullet {
+  display: flex;
+  gap: var(--space-6);
+  padding-left: var(--space-4);
+}
+
+.spacer {
+  height: var(--space-4);
+}

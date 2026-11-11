@@ -1,0 +1,85 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-18);
+}
+
+/* Scheduler */
+
+.jobList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.jobRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-16);
+  padding: var(--space-14) var(--space-16);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.jobInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.jobTitle {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--text);
+}
+
+.jobDescription {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.jobMeta {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
+.jobControls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-10);
+  flex-shrink: 0;
+}
+
+.intervalField {
+  width: 110px;
+}
+
+.cronField {
+  width: 160px;
+}
+
+/* AI provider and alerting forms */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  max-width: min(420px, var(--form-max-width));
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-10);
+}
+
+.detected {
+  color: var(--text);
+}

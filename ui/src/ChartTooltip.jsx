@@ -1,32 +1,20 @@
+import styles from "./ChartTooltip.module.css";
+
 // Shared floating tooltip for TrendChart/MultiTrendChart's hover state.
-// Positioned by percentage of the chart's SVG viewBox (xPercent/yPercent),
-// so it tracks correctly regardless of how the responsive SVG is scaled.
+// Positioned by percentage of the chart's SVG viewBox (xPercent), passed in
+// as the --tooltip-x custom property, so it tracks correctly regardless of
+// how the responsive SVG is scaled. Near either edge it anchors on that
+// edge instead of centring, so it never spills outside the chart.
 // The parent must be `position: relative`.
 export default function ChartTooltip({ xPercent, children }) {
-  const alignEnd = xPercent > 70;
-  const alignStart = xPercent < 30;
+  const align = xPercent > 70 ? styles.alignEnd : xPercent < 30 ? styles.alignStart : styles.alignCenter;
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: 4,
-        left: `${xPercent}%`,
-        transform: alignEnd ? "translateX(-100%)" : alignStart ? "translateX(0)" : "translateX(-50%)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 2,
-        padding: "6px 9px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        boxShadow: "0 4px 12px oklch(0% 0 0 / 0.12)",
-        pointerEvents: "none",
-        whiteSpace: "nowrap",
-        zIndex: 1,
-      }}
-    >
+    <div className={`${styles.tooltip} ${align}`} style={{ "--tooltip-x": `${xPercent}%` }}>
       {children}
     </div>
   );
 }
+
+// Shared row styles for the tooltip's contents (timestamp, value lines).
+export { styles as chartTooltipStyles };

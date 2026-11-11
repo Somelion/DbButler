@@ -28,6 +28,16 @@ export function onUnauthorized(handler) {
   unauthorizedHandler = handler;
 }
 
+// Raised for any non-2xx response, carrying the HTTP status so callers (and
+// the query client's retry policy) can tell a 4xx from a network blip.
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function request(path, options = {}) {
   const { headers: extraHeaders, ...rest } = options;
   const headers = {
@@ -42,32 +52,37 @@ async function request(path, options = {}) {
     const body = await res.json().catch(() => ({}));
     setAuthToken("");
     unauthorizedHandler?.();
-    throw new Error(body.detail || "Invalid or missing auth token.");
+    throw new ApiError(body.detail || "Invalid or missing auth token.", 401);
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || `Request failed (${res.status})`);
+    throw new ApiError(body.detail || `Request failed (${res.status})`, res.status);
   }
   return res.status === 204 ? null : res.json();
 }
 
+// Every read takes an optional trailing `opts` ({ signal }) — TanStack
+// Query passes an AbortSignal, so switching database or leaving a screen
+// cancels the in-flight request instead of letting a slow response from the
+// old target land on the new one.
 export const api = {
-  checkAuth: () => request("/api/auth/check"),
-  listTargets: () => request("/api/targets"),
+  checkAuth: (opts) => request("/api/auth/check", opts),
+  listTargets: (opts) => request("/api/targets", opts),
   createTarget: (payload) => request("/api/targets", { method: "POST", body: JSON.stringify(payload) }),
   deleteTarget: (id) => request(`/api/targets/${id}`, { method: "DELETE" }),
   updateTarget: (id, payload) => request(`/api/targets/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   testNewConnection: (payload) => request("/api/targets/test", { method: "POST", body: JSON.stringify(payload) }),
   retestTarget: (id) => request(`/api/targets/${id}/test`, { method: "POST" }),
-  getMetric: (targetId, metricName) => request(`/api/targets/${targetId}/metrics/${metricName}`),
-  getActivity: (targetId) => request(`/api/targets/${targetId}/activity`),
+  getMetric: (targetId, metricName, opts) => request(`/api/targets/${targetId}/metrics/${metricName}`, opts),
+  getActivity: (targetId, opts) => request(`/api/targets/${targetId}/activity`, opts),
   cancelQuery: (targetId, pid) => request(`/api/targets/${targetId}/activity/${pid}/cancel`, { method: "POST" }),
   terminateSession: (targetId, pid) =>
     request(`/api/targets/${targetId}/activity/${pid}/terminate`, { method: "POST" }),
-  getTableHealth: (targetId) => request(`/api/targets/${targetId}/table-health`),
-  getTableHealthFindings: (targetId, schemaName, tableName) =>
+  getTableHealth: (targetId, opts) => request(`/api/targets/${targetId}/table-health`, opts),
+  getTableHealthFindings: (targetId, schemaName, tableName, opts) =>
     request(
-      `/api/targets/${targetId}/table-health/${encodeURIComponent(schemaName)}/${encodeURIComponent(tableName)}/findings`
+      `/api/targets/${targetId}/table-health/${encodeURIComponent(schemaName)}/${encodeURIComponent(tableName)}/findings`,
+      opts
     ),
   // The server always re-derives the DDL itself from schema_name/table_name
   // + finding_id — it never runs DDL text supplied by the client.
@@ -76,21 +91,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ schema_name: schemaName, table_name: tableName, finding_id: findingId }),
     }),
-  getTableHealthDeepScanStatus: (targetId) => request(`/api/targets/${targetId}/table-health/deep-scan`),
+  getTableHealthDeepScanStatus: (targetId, opts) => request(`/api/targets/${targetId}/table-health/deep-scan`, opts),
   runTableHealthDeepScan: (targetId) =>
     request(`/api/targets/${targetId}/table-health/deep-scan`, { method: "POST" }),
-  getDashboard: (targetId) => request(`/api/targets/${targetId}/dashboard`),
-  getExtensionStatus: (targetId) => request(`/api/targets/${targetId}/extension-status`),
-  getDashboardSettings: () => request("/api/dashboard-settings"),
+  getDashboard: (targetId, opts) => request(`/api/targets/${targetId}/dashboard`, opts),
+  getExtensionStatus: (targetId, opts) => request(`/api/targets/${targetId}/extension-status`, opts),
+  getDashboardSettings: (opts) => request("/api/dashboard-settings", opts),
   updateDashboardSettings: (payload) =>
     request("/api/dashboard-settings", { method: "PUT", body: JSON.stringify(payload) }),
-  getWaitEvents: (targetId) => request(`/api/targets/${targetId}/wait-events`),
-  getWaitEventTrend: (targetId, hours) => request(`/api/targets/${targetId}/wait-events/trend?hours=${hours}`),
-  getQueryStats: (targetId) => request(`/api/targets/${targetId}/query-stats`),
+  getWaitEvents: (targetId, opts) => request(`/api/targets/${targetId}/wait-events`, opts),
+  getWaitEventTrend: (targetId, hours, opts) =>
+    request(`/api/targets/${targetId}/wait-events/trend?hours=${hours}`, opts),
+  getQueryStats: (targetId, opts) => request(`/api/targets/${targetId}/query-stats`, opts),
   explainQuery: (targetId, query) =>
     request(`/api/targets/${targetId}/explain`, { method: "POST", body: JSON.stringify({ query }) }),
-  diagnose: (targetId) => request(`/api/targets/${targetId}/diagnose`),
-  getIndexAdvisor: (targetId) => request(`/api/targets/${targetId}/index-advisor`),
+  diagnose: (targetId, opts) => request(`/api/targets/${targetId}/diagnose`, opts),
+  getIndexAdvisor: (targetId, opts) => request(`/api/targets/${targetId}/index-advisor`, opts),
   // Same story as applyTableHealthFinding — the server re-derives the DDL
   // from finding_id (or, for an AI covering-index suggestion, looks it up
   // by analysis_id from what it already generated and stored itself).
@@ -104,14 +120,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ analysis_id: analysisId }),
     }),
-  getSchemaLint: (targetId) => request(`/api/targets/${targetId}/schema-lint`),
-  getConfigAdvisor: (targetId) => request(`/api/targets/${targetId}/config-advisor`),
-  getReplicationAdvisor: (targetId) => request(`/api/targets/${targetId}/replication-advisor`),
-  getBackupAdvisor: (targetId) => request(`/api/targets/${targetId}/backup-advisor`),
-  getPreUpgradeAdvisor: (targetId) => request(`/api/targets/${targetId}/pre-upgrade-advisor`),
-  getSecurityAdvisor: (targetId) => request(`/api/targets/${targetId}/security-advisor`),
-  getExtensionAdvisor: (targetId) => request(`/api/targets/${targetId}/extension-advisor`),
-  getPgBouncerConnection: (targetId) => request(`/api/targets/${targetId}/pgbouncer`),
+  getSchemaLint: (targetId, opts) => request(`/api/targets/${targetId}/schema-lint`, opts),
+  getConfigAdvisor: (targetId, opts) => request(`/api/targets/${targetId}/config-advisor`, opts),
+  getReplicationAdvisor: (targetId, opts) => request(`/api/targets/${targetId}/replication-advisor`, opts),
+  getBackupAdvisor: (targetId, opts) => request(`/api/targets/${targetId}/backup-advisor`, opts),
+  getPreUpgradeAdvisor: (targetId, opts) => request(`/api/targets/${targetId}/pre-upgrade-advisor`, opts),
+  getSecurityAdvisor: (targetId, opts) => request(`/api/targets/${targetId}/security-advisor`, opts),
+  getExtensionAdvisor: (targetId, opts) => request(`/api/targets/${targetId}/extension-advisor`, opts),
+  getPgBouncerConnection: (targetId, opts) => request(`/api/targets/${targetId}/pgbouncer`, opts),
   testNewPgBouncerConnection: (targetId, payload) =>
     request(`/api/targets/${targetId}/pgbouncer/test`, { method: "POST", body: JSON.stringify(payload) }),
   savePgBouncerConnection: (targetId, payload) =>
@@ -119,19 +135,19 @@ export const api = {
   retestPgBouncerConnection: (targetId) =>
     request(`/api/targets/${targetId}/pgbouncer/retest`, { method: "POST" }),
   deletePgBouncerConnection: (targetId) => request(`/api/targets/${targetId}/pgbouncer`, { method: "DELETE" }),
-  getIndexTesting: (targetId) => request(`/api/targets/${targetId}/index-testing`),
+  getIndexTesting: (targetId, opts) => request(`/api/targets/${targetId}/index-testing`, opts),
   dropTrackedIndex: (targetId, trackedId) =>
     request(`/api/targets/${targetId}/index-testing/${trackedId}/drop`, { method: "POST" }),
   archiveFinding: (targetId, finding) =>
     request(`/api/targets/${targetId}/advisor/archive`, { method: "POST", body: JSON.stringify(finding) }),
-  getArchivedFindings: (targetId) => request(`/api/targets/${targetId}/advisor/archive`),
+  getArchivedFindings: (targetId, opts) => request(`/api/targets/${targetId}/advisor/archive`, opts),
   restoreFinding: (targetId, findingId) =>
     request(`/api/targets/${targetId}/advisor/archive/${encodeURIComponent(findingId)}`, { method: "DELETE" }),
-  detectHardware: (targetId) => request(`/api/targets/${targetId}/hardware-profile/detect`),
-  getHardwareProfile: (targetId) => request(`/api/targets/${targetId}/hardware-profile`),
+  detectHardware: (targetId, opts) => request(`/api/targets/${targetId}/hardware-profile/detect`, opts),
+  getHardwareProfile: (targetId, opts) => request(`/api/targets/${targetId}/hardware-profile`, opts),
   saveHardwareProfile: (targetId, payload) =>
     request(`/api/targets/${targetId}/hardware-profile`, { method: "POST", body: JSON.stringify(payload) }),
-  getConfigTuning: (targetId) => request(`/api/targets/${targetId}/config-tuning`),
+  getConfigTuning: (targetId, opts) => request(`/api/targets/${targetId}/config-tuning`, opts),
   analyzeTable: (targetId, schemaName, tableName) =>
     request(`/api/targets/${targetId}/maintenance/analyze`, {
       method: "POST",
@@ -149,39 +165,39 @@ export const api = {
     }),
   resetQueryStats: (targetId) =>
     request(`/api/targets/${targetId}/maintenance/reset-query-stats`, { method: "POST" }),
-  getTrends: (targetId, hours) => request(`/api/targets/${targetId}/trends?hours=${hours}`),
-  getTableTrendsSummary: (targetId, metric) =>
-    request(`/api/targets/${targetId}/table-trends/summary?metric=${metric}`),
-  getTableTrends: (targetId, metric, hours, tables) => {
+  getTrends: (targetId, hours, opts) => request(`/api/targets/${targetId}/trends?hours=${hours}`, opts),
+  getTableTrendsSummary: (targetId, metric, opts) =>
+    request(`/api/targets/${targetId}/table-trends/summary?metric=${metric}`, opts),
+  getTableTrends: (targetId, metric, hours, tables, opts) => {
     const tableParams = tables.map((t) => `tables=${encodeURIComponent(t)}`).join("&");
-    return request(`/api/targets/${targetId}/table-trends?metric=${metric}&hours=${hours}&${tableParams}`);
+    return request(`/api/targets/${targetId}/table-trends?metric=${metric}&hours=${hours}&${tableParams}`, opts);
   },
-  getSchedulerJobs: () => request("/api/scheduler/jobs"),
+  getSchedulerJobs: (opts) => request("/api/scheduler/jobs", opts),
   updateSchedulerJob: (jobName, payload) =>
     request(`/api/scheduler/jobs/${encodeURIComponent(jobName)}`, { method: "PUT", body: JSON.stringify(payload) }),
-  getDeepScanFindings: (targetId, status) =>
-    request(`/api/targets/${targetId}/deep-scan/findings${status ? `?status=${status}` : ""}`),
-  getAiSettings: () => request("/api/ai/settings"),
+  getDeepScanFindings: (targetId, status, opts) =>
+    request(`/api/targets/${targetId}/deep-scan/findings${status ? `?status=${status}` : ""}`, opts),
+  getAiSettings: (opts) => request("/api/ai/settings", opts),
   updateAiSettings: (payload) => request("/api/ai/settings", { method: "PUT", body: JSON.stringify(payload) }),
-  getAlertSettings: () => request("/api/alerts/settings"),
+  getAlertSettings: (opts) => request("/api/alerts/settings", opts),
   updateAlertSettings: (payload) => request("/api/alerts/settings", { method: "PUT", body: JSON.stringify(payload) }),
   testAlertWebhook: () => request("/api/alerts/test", { method: "POST" }),
-  anonymizeQueryPreview: (targetId, query) =>
-    request(`/api/targets/${targetId}/anonymize-preview`, { method: "POST", body: JSON.stringify({ query }) }),
+  anonymizeQueryPreview: (targetId, query, opts) =>
+    request(`/api/targets/${targetId}/anonymize-preview`, { method: "POST", body: JSON.stringify({ query }), ...opts }),
   createQueryAnalysis: (targetId, payload) =>
     request(`/api/targets/${targetId}/query-analyses`, { method: "POST", body: JSON.stringify(payload) }),
-  getQueryAnalyses: (targetId) => request(`/api/targets/${targetId}/query-analyses`),
+  getQueryAnalyses: (targetId, opts) => request(`/api/targets/${targetId}/query-analyses`, opts),
   createIndexCoverageAnalysis: (targetId, findingId) =>
     request(`/api/targets/${targetId}/index-coverage-analyses`, {
       method: "POST",
       body: JSON.stringify({ finding_id: findingId }),
     }),
-  getIndexCoverageAnalyses: (targetId, findingId) =>
-    request(`/api/targets/${targetId}/index-coverage-analyses?finding_id=${encodeURIComponent(findingId)}`),
-  getQueryHistorySummary: (targetId) => request(`/api/targets/${targetId}/query-history/summary`),
-  getQueryHistory: (targetId, hours, queryids) => {
+  getIndexCoverageAnalyses: (targetId, findingId, opts) =>
+    request(`/api/targets/${targetId}/index-coverage-analyses?finding_id=${encodeURIComponent(findingId)}`, opts),
+  getQueryHistorySummary: (targetId, opts) => request(`/api/targets/${targetId}/query-history/summary`, opts),
+  getQueryHistory: (targetId, hours, queryids, opts) => {
     const idParams = queryids.map((id) => `queryids=${encodeURIComponent(id)}`).join("&");
-    return request(`/api/targets/${targetId}/query-history?hours=${hours}&${idParams}`);
+    return request(`/api/targets/${targetId}/query-history?hours=${hours}&${idParams}`, opts);
   },
-  getPlanRegressions: (targetId) => request(`/api/targets/${targetId}/plan-regressions`),
+  getPlanRegressions: (targetId, opts) => request(`/api/targets/${targetId}/plan-regressions`, opts),
 };

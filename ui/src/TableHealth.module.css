@@ -1,0 +1,80 @@
+.meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.note {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.deepScanBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-10);
+  padding: var(--space-8) var(--space-12);
+  background: var(--row-bg);
+  border-radius: var(--radius-md);
+}
+
+/* Schema group header row */
+.schemaName {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-sm);
+  color: var(--tone-text, var(--text));
+}
+
+.schemaCount {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}
+
+/* Table rows, tinted by the worst of their severities */
+.rowCritical {
+  background: var(--critical-bg);
+}
+
+.rowAttention {
+  background: var(--attention-bg);
+}
+
+/* Room above a deep-linked row scrolled into view. */
+.scrollAnchor {
+  scroll-margin-top: var(--space-16);
+}
+
+.secondary {
+  color: var(--text-secondary);
+}
+
+.severityValue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-weight: var(--weight-semibold);
+  color: var(--tone-text, var(--text));
+}
+
+.asOf {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.messageCell {
+  padding: var(--space-8) var(--space-10);
+}
+
+.detailCell {
+  padding: var(--space-14);
+  background: var(--row-bg);
+  border-bottom: 1px solid var(--border);
+}

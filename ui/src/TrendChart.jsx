@@ -1,6 +1,7 @@
+import styles from "./TrendChart.module.css";
 import { formatMetricValue } from "./format";
 import { findNearestPoint, useTimeChartInteraction } from "./useTimeChartInteraction";
-import ChartTooltip from "./ChartTooltip";
+import ChartTooltip, { chartTooltipStyles } from "./ChartTooltip";
 
 const W = 520;
 const H = 150;
@@ -21,54 +22,36 @@ function formatTick(ts) {
 // for every other caller, so this is a no-op change for them.
 export default function TrendChart({ label, unit, points, thresholdMin, thresholdMax, bare = false, footer = null }) {
   const latest = points.length ? points[points.length - 1].value : null;
+  const latestText = formatMetricValue(latest, unit);
 
-  const content = (
-    <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-secondary)" }}>{label}</span>
-        <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 16, fontWeight: 600, color: "var(--text)" }}>
-          {formatMetricValue(latest, unit)}
-        </span>
+  return (
+    <div className={bare ? styles.bare : styles.card}>
+      <div className={styles.header}>
+        <span className={styles.label}>{label}</span>
+        <span className={styles.latest}>{latestText}</span>
       </div>
 
       {points.length < 2 ? (
-        <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Collecting data&hellip;</span>
+        <div className={styles.placeholder}>
+          <span className={styles.placeholderText}>Collecting data&hellip;</span>
         </div>
       ) : (
-        <Chart points={points} unit={unit} thresholdMin={thresholdMin} thresholdMax={thresholdMax} />
+        <Chart
+          label={label}
+          latestText={latestText}
+          points={points}
+          unit={unit}
+          thresholdMin={thresholdMin}
+          thresholdMax={thresholdMax}
+        />
       )}
 
       {footer}
-    </>
-  );
-
-  if (bare) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {content}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        padding: "14px 16px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-      }}
-    >
-      {content}
     </div>
   );
 }
 
-function Chart({ points, unit, thresholdMin, thresholdMax }) {
+function Chart({ label, latestText, points, unit, thresholdMin, thresholdMax }) {
   const fullMin = new Date(points[0].ts).getTime();
   const fullMax = new Date(points[points.length - 1].ts).getTime();
 
@@ -85,10 +68,10 @@ function Chart({ points, unit, thresholdMin, thresholdMax }) {
 
   if (visible.length < 2) {
     return (
-      <div style={{ height: 120, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>No data in this range.</span>
+      <div className={styles.placeholder}>
+        <span className={styles.placeholderText}>No data in this range.</span>
         {isZoomed && (
-          <button className="button-secondary" onClick={resetZoom} style={{ padding: "4px 10px", fontSize: 11 }}>
+          <button type="button" className="button-secondary button-sm" onClick={resetZoom}>
             Reset zoom
           </button>
         )}
@@ -115,30 +98,42 @@ function Chart({ points, unit, thresholdMin, thresholdMax }) {
   const lastPoint = visible[visible.length - 1];
   const hoverPoint = hoverT != null ? findNearestPoint(visible, hoverT) : null;
 
+  // The SVG is one image to assistive tech; this sentence stands in for the
+  // line (the hover tooltip is a pointer-only extra on top of it).
+  const summary =
+    `${label}, ${formatTick(min)} to ${formatTick(max)}. ` +
+    `Latest ${latestText}; low ${formatMetricValue(Math.min(...values), unit)}, ` +
+    `high ${formatMetricValue(Math.max(...values), unit)}.`;
+
   return (
-    <div style={{ position: "relative" }}>
+    <div className={styles.plot}>
       {isZoomed && (
-        <button
-          className="button-secondary"
-          onClick={resetZoom}
-          style={{ position: "absolute", top: 0, right: 0, padding: "3px 9px", fontSize: 10.5, zIndex: 1 }}
-        >
+        <button type="button" className={`button-secondary ${styles.resetZoom}`} onClick={resetZoom}>
           Reset zoom
         </button>
       )}
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${W} ${H}`}
-        style={{ width: "100%", height: "auto", display: "block", overflow: "visible", cursor: "crosshair" }}
-        {...handlers}
-      >
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={styles.svg} role="img" aria-label={summary} {...handlers}>
         {hasBand && (
-          <rect x={PAD_L} y={bandY} width={W - PAD_L - PAD_R} height={bandHeight} fill="var(--healthy-text)" opacity="0.08" />
+          <rect
+            x={PAD_L}
+            y={bandY}
+            width={W - PAD_L - PAD_R}
+            height={bandHeight}
+            fill="var(--healthy-solid)"
+            opacity="0.08"
+          />
         )}
-        <line x1={PAD_L} y1={BOTTOM_Y} x2={W - PAD_R} y2={BOTTOM_Y} stroke="var(--border)" strokeWidth="1" />
-        <path d={areaD} fill="var(--accent)" opacity="0.08" />
-        <path d={lineD} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={xAt(tAt(lastPoint))} cy={yAt(lastPoint.value)} r="4" fill="var(--accent)" stroke="white" strokeWidth="2" />
+        <line x1={PAD_L} y1={BOTTOM_Y} x2={W - PAD_R} y2={BOTTOM_Y} stroke="var(--chart-grid)" strokeWidth="1" />
+        <path d={areaD} fill="var(--chart-1)" opacity="0.08" />
+        <path d={lineD} fill="none" stroke="var(--chart-1)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <circle
+          cx={xAt(tAt(lastPoint))}
+          cy={yAt(lastPoint.value)}
+          r="4"
+          fill="var(--chart-1)"
+          stroke="var(--card)"
+          strokeWidth="2"
+        />
 
         {hoverPoint && (
           <g>
@@ -151,12 +146,26 @@ function Chart({ points, unit, thresholdMin, thresholdMax }) {
               strokeWidth="1"
               strokeDasharray="3,3"
             />
-            <circle cx={xAt(tAt(hoverPoint))} cy={yAt(hoverPoint.value)} r="4.5" fill="var(--accent)" stroke="white" strokeWidth="2" />
+            <circle
+              cx={xAt(tAt(hoverPoint))}
+              cy={yAt(hoverPoint.value)}
+              r="4.5"
+              fill="var(--chart-1)"
+              stroke="var(--card)"
+              strokeWidth="2"
+            />
           </g>
         )}
 
         {isDragging && dragBoxX2 - dragBoxX1 > 1 && (
-          <rect x={dragBoxX1} y={PAD_TOP} width={dragBoxX2 - dragBoxX1} height={BOTTOM_Y - PAD_TOP} fill="var(--accent)" opacity="0.12" />
+          <rect
+            x={dragBoxX1}
+            y={PAD_TOP}
+            width={dragBoxX2 - dragBoxX1}
+            height={BOTTOM_Y - PAD_TOP}
+            fill="var(--accent)"
+            opacity="0.12"
+          />
         )}
 
         <text x={PAD_L} y={H - 6} fontSize="10" fill="var(--text-muted)">
@@ -169,10 +178,8 @@ function Chart({ points, unit, thresholdMin, thresholdMax }) {
 
       {hoverPoint && (
         <ChartTooltip xPercent={(xAt(tAt(hoverPoint)) / W) * 100}>
-          <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{formatTick(hoverPoint.ts)}</span>
-          <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
-            {formatMetricValue(hoverPoint.value, unit)}
-          </span>
+          <span className={chartTooltipStyles.time}>{formatTick(hoverPoint.ts)}</span>
+          <span className={chartTooltipStyles.value}>{formatMetricValue(hoverPoint.value, unit)}</span>
         </ChartTooltip>
       )}
     </div>

@@ -1,0 +1,68 @@
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + var(--space-6));
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 220px;
+  max-height: min(420px, 70vh);
+  overflow: auto;
+  padding: var(--space-6);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.end {
+  right: 0;
+}
+
+.start {
+  left: 0;
+}
+
+/* Rows inside a popover panel: checkbox lines or menu-style buttons. */
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  padding: var(--space-6) var(--space-8);
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text);
+  text-align: left;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.option:hover {
+  background: var(--row-bg);
+}
+
+.option[aria-current="true"] {
+  background: var(--accent-tint);
+}
+
+.divider {
+  height: 1px;
+  margin: var(--space-4) 0;
+  background: var(--border);
+}
+
+.sectionLabel {
+  padding: var(--space-4) var(--space-8);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}

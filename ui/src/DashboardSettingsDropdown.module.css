@@ -1,0 +1,35 @@
+.hiddenCount {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+
+.panel {
+  min-width: 300px;
+  max-height: 380px;
+}
+
+/* Two-line rows: keep the checkbox level with the label, not centred
+   between label and description. */
+.option {
+  align-items: flex-start;
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.optionLabel {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-sm);
+  color: var(--text);
+}
+
+.optionDescription {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}

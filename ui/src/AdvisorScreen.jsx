@@ -1,5 +1,6 @@
 import Advisor from "./Advisor";
 
-export default function AdvisorScreen({ targetId, initialTab }) {
-  return <Advisor targetId={targetId} initialTab={initialTab} />;
+// The active tab is read from the URL inside Advisor (/t/:id/advisor/:tab).
+export default function AdvisorScreen({ targetId }) {
+  return <Advisor targetId={targetId} />;
 }

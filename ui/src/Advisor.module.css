@@ -1,0 +1,37 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-10);
+  margin-left: auto;
+}
+
+.count {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.note {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}

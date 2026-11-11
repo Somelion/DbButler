@@ -1,0 +1,70 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  width: 100%;
+  padding: var(--space-10) var(--space-14);
+  text-align: left;
+  background: var(--row-bg);
+  border-radius: 0;
+  user-select: none;
+}
+
+.header:hover {
+  background: var(--surface-sunken);
+}
+
+/* The group clips its corners (overflow: hidden), so draw the focus ring
+   inside the header instead of around it. */
+.header:focus-visible {
+  outline-offset: -2px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.header[aria-expanded="true"] .chevron {
+  transform: rotate(90deg);
+}
+
+.label {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--text);
+}
+
+.count {
+  padding: var(--space-2) var(--space-8);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-bold);
+  color: var(--text-muted);
+  background: var(--card);
+  border-radius: var(--radius-pill);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-12) var(--space-14);
+}

@@ -1,0 +1,42 @@
+.tooltip {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--tooltip-x);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-8);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.alignStart {
+  transform: translateX(0);
+}
+
+.alignCenter {
+  transform: translateX(-50%);
+}
+
+.alignEnd {
+  transform: translateX(-100%);
+}
+
+/* Contents */
+
+.time {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}

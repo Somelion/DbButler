@@ -1,15 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import styles from "./AuthGate.module.css";
 import { api, getAuthToken, onUnauthorized, setAuthToken } from "./api";
+import { Field, Skeleton } from "./components";
 
 // Gates the whole app behind the shared AUTH_TOKEN the backend was set up
 // with (see backend/app/auth.py) — a single setup-time secret, not per-user
 // login. Held in sessionStorage: re-prompts on a new tab/window, survives a
 // refresh within the same one.
 export default function AuthGate({ children }) {
-  const [status, setStatus] = useState("checking"); // checking | needed | ok
+  const queryClient = useQueryClient();
+  const [status, setStatus] = useState(() => (getAuthToken() ? "checking" : "needed")); // checking | needed | ok
   const [input, setInput] = useState("");
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef(null);
 
   const verify = (token) => {
     setAuthToken(token);
@@ -26,11 +31,21 @@ export default function AuthGate({ children }) {
   };
 
   useEffect(() => {
-    onUnauthorized(() => setStatus("needed"));
+    // A 401 from any screen: drop every cached response (they belong to the
+    // old session) and show the prompt again.
+    onUnauthorized(() => {
+      queryClient.clear();
+      setStatus("needed");
+    });
     const stored = getAuthToken();
     if (stored) verify(stored);
-    else setStatus("needed");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The prompt is the only thing on the page, so start typing right away.
+  useEffect(() => {
+    if (status === "needed") inputRef.current?.focus();
+  }, [status]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -41,8 +56,8 @@ export default function AuthGate({ children }) {
 
   if (status === "checking") {
     return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "var(--text-secondary)" }}>Loading&hellip;</span>
+      <div className={styles.page}>
+        <Skeleton lines={2} width="240px" label="Checking access…" />
       </div>
     );
   }
@@ -50,39 +65,28 @@ export default function AuthGate({ children }) {
   if (status === "ok") return children;
 
   return (
-    <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center" }}>
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          width: 360,
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-          padding: 28,
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 650, marginBottom: 4 }}>DbButler</div>
-          <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
-            Enter the access token this instance was set up with — the{" "}
-            <code>APP_AUTH_TOKEN</code> value in its <code>.env</code> file.
-          </div>
+    <main className={styles.page}>
+      <form onSubmit={handleSubmit} className={styles.card}>
+        <div className={styles.intro}>
+          <h1 className={styles.title}>DbButler</h1>
+          <p className={styles.description}>
+            Enter the access token this instance was set up with — the <code>APP_AUTH_TOKEN</code> value in its{" "}
+            <code>.env</code> file.
+          </p>
         </div>
-        <input
-          type="password"
-          autoFocus
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Access token"
-        />
-        {error && <div style={{ fontSize: 12.5, color: "var(--critical-text)" }}>{error}</div>}
+        <Field label="Access token" error={error}>
+          <input
+            ref={inputRef}
+            type="password"
+            autoComplete="current-password"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+          />
+        </Field>
         <button type="submit" className="button-primary" disabled={submitting || !input.trim()}>
           {submitting ? "Checking…" : "Continue"}
         </button>
       </form>
-    </div>
+    </main>
   );
 }

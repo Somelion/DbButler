@@ -1,0 +1,46 @@
+/* Status tones as custom-property bundles. Apply one of these classes to an
+   element, then style it with var(--tone-bg|border|text|solid) — the same
+   component CSS then works for every severity and both themes. */
+
+.critical {
+  --tone-bg: var(--critical-bg);
+  --tone-border: var(--critical-border);
+  --tone-text: var(--critical-text);
+  --tone-solid: var(--critical-solid);
+}
+
+.attention {
+  --tone-bg: var(--attention-bg);
+  --tone-border: var(--attention-border);
+  --tone-text: var(--attention-text);
+  --tone-solid: var(--attention-solid);
+}
+
+.healthy {
+  --tone-bg: var(--healthy-bg);
+  --tone-border: var(--healthy-border);
+  --tone-text: var(--healthy-text);
+  --tone-solid: var(--healthy-solid);
+}
+
+.info {
+  --tone-bg: var(--info-bg);
+  --tone-border: var(--info-border);
+  --tone-text: var(--info-text);
+  --tone-solid: var(--info-solid);
+}
+
+.unknown,
+.neutral {
+  --tone-bg: var(--unknown-bg);
+  --tone-border: var(--unknown-border);
+  --tone-text: var(--unknown-text);
+  --tone-solid: var(--unknown-solid);
+}
+
+.accent {
+  --tone-bg: var(--accent);
+  --tone-border: var(--accent);
+  --tone-text: var(--on-accent);
+  --tone-solid: var(--accent);
+}

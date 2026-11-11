@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+import { targetKey } from "./queryClient";
+import { Alert } from "./components";
+import styles from "./IndexCoverageAnalysisPanel.module.css";
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -9,37 +13,34 @@ const POLL_INTERVAL_MS = 3000;
 // under the finding it's about, since a covering-index verdict only makes
 // sense in the context of that one index.
 export default function IndexCoverageAnalysisPanel({ targetId, findingId, onApplyAnalysis }) {
-  const [analysis, setAnalysis] = useState(null);
+  // The analysis this panel started (as returned by the create call). Until
+  // then nothing is fetched or polled.
+  const [created, setCreated] = useState(null);
   const [starting, setStarting] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState(null);
-  const pollRef = useRef(null);
 
-  useEffect(() => () => clearInterval(pollRef.current), []);
+  // Polls the finding's analyses until the one we started leaves "pending".
+  // Poll failures are ignored, as before — the next tick tries again.
+  const { data } = useQuery({
+    queryKey: targetKey(targetId, "index-coverage-analyses", findingId),
+    queryFn: ({ signal }) => api.getIndexCoverageAnalyses(targetId, findingId, { signal }),
+    enabled: Boolean(created),
+    staleTime: 0,
+    refetchInterval: (query) => {
+      const latest = query.state.data?.analyses.find((a) => a.id === created?.id);
+      return latest && latest.status !== "pending" ? false : POLL_INTERVAL_MS;
+    },
+  });
 
-  const pollUntilDone = (analysisId) => {
-    pollRef.current = setInterval(() => {
-      api
-        .getIndexCoverageAnalyses(targetId, findingId)
-        .then((data) => {
-          const latest = data.analyses.find((a) => a.id === analysisId) ?? data.analyses[0];
-          if (!latest) return;
-          setAnalysis(latest);
-          if (latest.status !== "pending") clearInterval(pollRef.current);
-        })
-        .catch(() => {});
-    }, POLL_INTERVAL_MS);
-  };
+  const analysis = (created && data?.analyses.find((a) => a.id === created.id)) ?? created;
 
   const handleStart = () => {
     setStarting(true);
     setError(null);
     api
       .createIndexCoverageAnalysis(targetId, findingId)
-      .then((created) => {
-        setAnalysis(created);
-        pollUntilDone(created.id);
-      })
+      .then(setCreated)
       .catch((err) => setError(err.message))
       .finally(() => setStarting(false));
   };
@@ -55,68 +56,66 @@ export default function IndexCoverageAnalysisPanel({ targetId, findingId, onAppl
 
   if (!analysis) {
     return (
-      <button
-        className="button-secondary"
-        onClick={handleStart}
-        disabled={starting}
-        style={{ padding: "4px 10px", fontSize: 11, alignSelf: "flex-start" }}
-      >
-        {starting ? "Starting…" : "Analyze with AI"}
-      </button>
+      <>
+        <button
+          type="button"
+          className={`button-secondary button-sm ${styles.selfStart}`}
+          onClick={handleStart}
+          disabled={starting}
+        >
+          {starting ? "Starting…" : "Analyze with AI"}
+        </button>
+        {error && (
+          <Alert tone="critical" compact>
+            {error}
+          </Alert>
+        )}
+      </>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", background: "var(--row-bg)", borderRadius: 8 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--text-muted)" }}>
-        AI Analysis
-      </span>
+    <div className={styles.panel}>
+      <h4 className={styles.heading}>AI Analysis</h4>
 
-      {analysis.status === "pending" && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Running…</span>}
+      {analysis.status === "pending" && (
+        <p role="status" className={styles.muted}>
+          Running…
+        </p>
+      )}
 
-      {analysis.status === "error" && <span style={{ fontSize: 12, color: "var(--critical-text)" }}>{analysis.error}</span>}
+      {analysis.status === "error" && (
+        <Alert tone="critical" compact>
+          {analysis.error}
+        </Alert>
+      )}
 
       {analysis.status === "done" && (
         <>
-          <span style={{ fontSize: 12.5, color: "var(--text)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
-            {analysis.ai_response}
-          </span>
+          <p className={styles.response}>{analysis.ai_response}</p>
           {analysis.recommended_ddl ? (
             <>
-              <pre
-                style={{
-                  margin: 0,
-                  padding: "8px 10px",
-                  background: "var(--card)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  fontFamily: "IBM Plex Mono, monospace",
-                  fontSize: 11.5,
-                  color: "var(--text)",
-                  overflowX: "auto",
-                  whiteSpace: "pre",
-                }}
-              >
-                {analysis.recommended_ddl}
-              </pre>
+              <pre className={styles.code}>{analysis.recommended_ddl}</pre>
               <button
-                className="button-primary"
+                type="button"
+                className={`button-primary button-sm ${styles.selfStart}`}
                 onClick={handleApply}
                 disabled={applying}
-                style={{ alignSelf: "flex-start", padding: "4px 10px", fontSize: 11 }}
               >
                 {applying ? "Applying…" : "Apply"}
               </button>
             </>
           ) : (
-            <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-              The AI didn't recommend a change — see its reasoning above.
-            </span>
+            <p className={styles.muted}>The AI didn't recommend a change — see its reasoning above.</p>
           )}
         </>
       )}
 
-      {error && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{error}</span>}
+      {error && (
+        <Alert tone="critical" compact>
+          {error}
+        </Alert>
+      )}
     </div>
   );
 }

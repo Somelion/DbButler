@@ -1,0 +1,46 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-8);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-normal);
+  letter-spacing: 0.02em;
+  color: var(--tone-text);
+  background: var(--tone-bg);
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.outlined {
+  border: 1px solid var(--tone-border);
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.dotWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tone-solid);
+  flex-shrink: 0;
+}
+
+.dotLabel {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.severityIcon {
+  color: var(--tone-solid);
+  flex-shrink: 0;
+}

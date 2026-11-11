@@ -1,0 +1,92 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  height: 220px;
+}
+
+.placeholderText {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.plot {
+  position: relative;
+}
+
+.resetZoom {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  padding: var(--space-3) var(--space-8);
+  font-size: var(--font-size-2xs);
+  border-radius: var(--radius-sm);
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  cursor: crosshair;
+}
+
+/* Tooltip rows; --series-color is set per row from the palette. */
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  font-size: var(--font-size-xs);
+}
+
+.tooltipDot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--series-color);
+}
+
+.seriesName {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.legendSwatch {
+  width: 10px;
+  height: 2px;
+  flex-shrink: 0;
+  border-radius: 1px;
+  background: var(--series-color);
+}
+
+.legendValue {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}

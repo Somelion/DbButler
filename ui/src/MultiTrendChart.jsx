@@ -1,6 +1,7 @@
+import styles from "./MultiTrendChart.module.css";
 import { formatMetricValue } from "./format";
 import { findNearestPoint, useTimeChartInteraction } from "./useTimeChartInteraction";
-import ChartTooltip from "./ChartTooltip";
+import ChartTooltip, { chartTooltipStyles } from "./ChartTooltip";
 
 const W = 640;
 const H = 220;
@@ -12,27 +13,31 @@ const BOTTOM_Y = H - PAD_BOTTOM;
 
 // Fixed categorical order, never cycled — matches the app's severity
 // vocabulary in spirit (identity, not magnitude), assigned by selection
-// order. Selection is capped at this length so colors never repeat.
+// order. Selection is capped at this length so colors never repeat. The
+// values are the theme's data-series tokens, so each line holds contrast in
+// light and dark alike.
 export const MULTI_TREND_PALETTE = [
-  "oklch(55% 0.16 255)", // blue
-  "oklch(60% 0.15 50)", // orange
-  "oklch(56% 0.14 150)", // green
-  "oklch(55% 0.18 330)", // magenta
-  "oklch(55% 0.13 200)", // teal
-  "oklch(55% 0.18 25)", // red
+  "var(--chart-1)", // blue
+  "var(--chart-2)", // orange
+  "var(--chart-3)", // green
+  "var(--chart-4)", // magenta
+  "var(--chart-5)", // teal
+  "var(--chart-6)", // red
 ];
 
 function formatTick(ts) {
   return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+const colorAt = (i) => MULTI_TREND_PALETTE[i % MULTI_TREND_PALETTE.length];
+
 export default function MultiTrendChart({ unit, series }) {
   const allPoints = series.flatMap((s) => s.points);
 
   if (allPoints.length < 2) {
     return (
-      <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Not enough data yet.</span>
+      <div className={styles.placeholder}>
+        <span className={styles.placeholderText}>Not enough data yet.</span>
       </div>
     );
   }
@@ -61,10 +66,10 @@ function Chart({ unit, series, fullMin, fullMax }) {
 
   if (visibleValues.length === 0) {
     return (
-      <div style={{ height: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>No data in this range.</span>
+      <div className={styles.placeholder}>
+        <span className={styles.placeholderText}>No data in this range.</span>
         {isZoomed && (
-          <button className="button-secondary" onClick={resetZoom} style={{ padding: "4px 10px", fontSize: 11 }}>
+          <button type="button" className="button-secondary button-sm" onClick={resetZoom}>
             Reset zoom
           </button>
         )}
@@ -87,33 +92,34 @@ function Chart({ unit, series, fullMin, fullMax }) {
       ? visibleSeries
           .map((s, i) => {
             const point = s.points.length ? findNearestPoint(s.points, hoverT) : null;
-            return point ? { name: s.name, point, color: MULTI_TREND_PALETTE[i % MULTI_TREND_PALETTE.length] } : null;
+            return point ? { name: s.name, point, color: colorAt(i) } : null;
           })
           .filter(Boolean)
       : [];
   const hoverAnchorX = hoverPoints.length ? xAt(new Date(hoverPoints[0].point.ts).getTime()) : null;
 
+  // The SVG is one image to assistive tech; this sentence stands in for the
+  // lines (the legend below repeats each series' latest value as text too).
+  const latestBySeries = series.map((s) => {
+    const last = s.points[s.points.length - 1];
+    return `${s.name} ${last ? formatMetricValue(last.value, unit) : "no data"}`;
+  });
+  const summary =
+    `Trend of ${series.length} series, ${formatTick(min)} to ${formatTick(max)}. ` +
+    `Latest: ${latestBySeries.join(", ")}.`;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ position: "relative" }}>
+    <div className={styles.root}>
+      <div className={styles.plot}>
         {isZoomed && (
-          <button
-            className="button-secondary"
-            onClick={resetZoom}
-            style={{ position: "absolute", top: 0, right: 0, padding: "3px 9px", fontSize: 10.5, zIndex: 1 }}
-          >
+          <button type="button" className={`button-secondary ${styles.resetZoom}`} onClick={resetZoom}>
             Reset zoom
           </button>
         )}
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${W} ${H}`}
-          style={{ width: "100%", height: "auto", display: "block", overflow: "visible", cursor: "crosshair" }}
-          {...handlers}
-        >
+        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={styles.svg} role="img" aria-label={summary} {...handlers}>
           {yTicks.map((v, i) => (
             <g key={i}>
-              <line x1={PAD_L} y1={yAt(v)} x2={W - PAD_R} y2={yAt(v)} stroke="var(--border)" strokeWidth="1" />
+              <line x1={PAD_L} y1={yAt(v)} x2={W - PAD_R} y2={yAt(v)} stroke="var(--chart-grid)" strokeWidth="1" />
               <text x={PAD_L - 6} y={yAt(v) + 3} textAnchor="end" fontSize="9.5" fill="var(--text-muted)">
                 {formatMetricValue(v, unit)}
               </text>
@@ -122,7 +128,7 @@ function Chart({ unit, series, fullMin, fullMax }) {
 
           {visibleSeries.map((s, i) => {
             if (s.points.length === 0) return null;
-            const color = MULTI_TREND_PALETTE[i % MULTI_TREND_PALETTE.length];
+            const color = colorAt(i);
             const coords = s.points.map((p) => `${xAt(new Date(p.ts).getTime()).toFixed(1)},${yAt(p.value).toFixed(1)}`);
             const last = s.points[s.points.length - 1];
             return (
@@ -135,20 +141,50 @@ function Chart({ unit, series, fullMin, fullMax }) {
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
-                <circle cx={xAt(new Date(last.ts).getTime())} cy={yAt(last.value)} r="3.5" fill={color} stroke="white" strokeWidth="1.5" />
+                <circle
+                  cx={xAt(new Date(last.ts).getTime())}
+                  cy={yAt(last.value)}
+                  r="3.5"
+                  fill={color}
+                  stroke="var(--card)"
+                  strokeWidth="1.5"
+                />
               </g>
             );
           })}
 
           {hoverAnchorX != null && (
-            <line x1={hoverAnchorX} y1={PAD_TOP} x2={hoverAnchorX} y2={BOTTOM_Y} stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="3,3" />
+            <line
+              x1={hoverAnchorX}
+              y1={PAD_TOP}
+              x2={hoverAnchorX}
+              y2={BOTTOM_Y}
+              stroke="var(--text-muted)"
+              strokeWidth="1"
+              strokeDasharray="3,3"
+            />
           )}
           {hoverPoints.map(({ point, color }, i) => (
-            <circle key={i} cx={xAt(new Date(point.ts).getTime())} cy={yAt(point.value)} r="4.5" fill={color} stroke="white" strokeWidth="2" />
+            <circle
+              key={i}
+              cx={xAt(new Date(point.ts).getTime())}
+              cy={yAt(point.value)}
+              r="4.5"
+              fill={color}
+              stroke="var(--card)"
+              strokeWidth="2"
+            />
           ))}
 
           {isDragging && dragBoxX2 - dragBoxX1 > 1 && (
-            <rect x={dragBoxX1} y={PAD_TOP} width={dragBoxX2 - dragBoxX1} height={BOTTOM_Y - PAD_TOP} fill="var(--accent)" opacity="0.12" />
+            <rect
+              x={dragBoxX1}
+              y={PAD_TOP}
+              width={dragBoxX2 - dragBoxX1}
+              height={BOTTOM_Y - PAD_TOP}
+              fill="var(--accent)"
+              opacity="0.12"
+            />
           )}
 
           <text x={PAD_L} y={H - 6} fontSize="10" fill="var(--text-muted)">
@@ -161,35 +197,30 @@ function Chart({ unit, series, fullMin, fullMax }) {
 
         {hoverPoints.length > 0 && (
           <ChartTooltip xPercent={(hoverAnchorX / W) * 100}>
-            <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{formatTick(hoverPoints[0].point.ts)}</span>
+            <span className={chartTooltipStyles.time}>{formatTick(hoverPoints[0].point.ts)}</span>
             {hoverPoints.map(({ name, point, color }) => (
-              <span key={name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                <span style={{ color: "var(--text-secondary)" }}>{name}</span>
-                <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 600, color: "var(--text)" }}>
-                  {formatMetricValue(point.value, unit)}
-                </span>
+              <span key={name} className={styles.tooltipRow} style={{ "--series-color": color }}>
+                <span className={styles.tooltipDot} />
+                <span className={styles.seriesName}>{name}</span>
+                <span className={chartTooltipStyles.value}>{formatMetricValue(point.value, unit)}</span>
               </span>
             ))}
           </ChartTooltip>
         )}
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+      <ul className={styles.legend} aria-label="Legend">
         {series.map((s, i) => {
-          const color = MULTI_TREND_PALETTE[i % MULTI_TREND_PALETTE.length];
           const last = s.points[s.points.length - 1];
           return (
-            <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 10, height: 2, background: color, borderRadius: 1, flexShrink: 0 }} />
-              <span style={{ fontSize: 11.5, color: "var(--text-secondary)" }}>{s.name}</span>
-              <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11.5, color: "var(--text-muted)" }}>
-                {last ? formatMetricValue(last.value, unit) : "—"}
-              </span>
-            </div>
+            <li key={s.name} className={styles.legendItem} style={{ "--series-color": colorAt(i) }}>
+              <span className={styles.legendSwatch} aria-hidden="true" />
+              <span className={styles.seriesName}>{s.name}</span>
+              <span className={styles.legendValue}>{last ? formatMetricValue(last.value, unit) : "—"}</span>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </div>
   );
 }

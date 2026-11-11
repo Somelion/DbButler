@@ -1,16 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import QueryParamsForm from "./QueryParamsForm";
 import { applyPlaceholderValues, extractPlaceholders, splitOnPlaceholders } from "./queryParams";
+import { targetKey } from "./queryClient";
+import { queryAnalysesQuery } from "./queries";
+import { Alert, Checkbox, Dialog } from "./components";
+import styles from "./QueryAnalysisModal.module.css";
 
+// The parent only renders this while a query is picked, so the dialog is
+// always open; closing goes through onClose (Esc, backdrop, the close
+// button, Cancel). Dialog returns focus to the row's button afterwards.
 export default function QueryAnalysisModal({ targetId, query, onClose, onCreated }) {
+  const queryClient = useQueryClient();
+  const formId = useId();
   const [anonymize, setAnonymize] = useState(true);
   const [paramValues, setParamValues] = useState({});
-  const [preview, setPreview] = useState(null);
-  const [previewing, setPreviewing] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState(null);
 
   const placeholders = useMemo(() => extractPlaceholders(query), [query]);
   const allParamsFilled = placeholders.every((n) => (paramValues[n] ?? "").trim() !== "");
@@ -19,173 +24,108 @@ export default function QueryAnalysisModal({ targetId, query, onClose, onCreated
     [query, paramValues, placeholders.length]
   );
 
-  useEffect(() => {
-    if (placeholders.length > 0 && !allParamsFilled) {
-      setPreview(null);
-      return;
-    }
-    setPreviewing(true);
-    api
-      .anonymizeQueryPreview(targetId, finalQuery)
-      .then((data) => setPreview(data.anonymized_query))
-      .catch((err) => setError(err.message))
-      .finally(() => setPreviewing(false));
-  }, [targetId, finalQuery, allParamsFilled, placeholders.length]);
+  // What the anonymized query will look like. Keyed on the exact query text
+  // and the flag, and only fetched while anonymizing is on and every
+  // placeholder has a value — a half-filled template isn't worth a request.
+  const preview = useQuery({
+    queryKey: targetKey(targetId, "anonymize-preview", finalQuery, anonymize),
+    queryFn: ({ signal }) => api.anonymizeQueryPreview(targetId, finalQuery, { signal }),
+    enabled: anonymize && allParamsFilled,
+    // Same input, same output.
+    staleTime: Infinity,
+  });
+  const previewing = anonymize && allParamsFilled && preview.isPending;
 
-  const handleRunAnalysis = () => {
-    setSubmitting(true);
-    setError(null);
-    api
-      .createQueryAnalysis(targetId, { query: finalQuery, anonymize })
-      .then((analysis) => {
-        onCreated?.(analysis);
-        setSubmitted(true);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setSubmitting(false));
+  const createAnalysis = useMutation({
+    mutationFn: () => api.createQueryAnalysis(targetId, { query: finalQuery, anonymize }),
+    onSuccess: (analysis) => {
+      onCreated?.(analysis);
+      // AI Analysis and the app-wide "analysis ready" watcher read this
+      // cache; refreshing it now picks up the new pending row right away.
+      queryClient.invalidateQueries({ queryKey: queryAnalysesQuery(targetId).queryKey });
+    },
+  });
+  const submitted = createAnalysis.isSuccess;
+  const canRun = !createAnalysis.isPending && !previewing && allParamsFilled;
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    if (canRun) createAnalysis.mutate();
   };
 
-  const displayedQuery = anonymize && preview !== null ? preview : finalQuery;
+  const displayedQuery = anonymize && preview.data ? preview.data.anonymized_query : finalQuery;
+  const error = createAnalysis.error ?? (anonymize ? preview.error : null);
+
+  const footer = submitted ? (
+    <button type="button" className="button-primary" onClick={onClose}>
+      Close
+    </button>
+  ) : (
+    <>
+      <button type="button" className="button-secondary" onClick={onClose}>
+        Cancel
+      </button>
+      <button type="submit" form={formId} className="button-primary" disabled={!canRun}>
+        {createAnalysis.isPending ? "Starting…" : "Run Analysis"}
+      </button>
+    </>
+  );
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "oklch(20% 0.01 250 / 55%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-        padding: 24,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-          width: "100%",
-          maxWidth: 680,
-          maxHeight: "85vh",
-          overflow: "auto",
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-          padding: "20px 22px",
-          boxSizing: "border-box",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontFamily: "Manrope, sans-serif", fontWeight: 650, fontSize: 15, color: "var(--text)" }}>
-            Analyze with AI
-          </span>
-          <button className="button-secondary" onClick={onClose} style={{ padding: "3px 10px", fontSize: 11 }}>
-            Close
-          </button>
-        </div>
+    <Dialog open onClose={onClose} title="Analyze with AI" size="lg" footer={footer}>
+      {!submitted && (
+        <form id={formId} className={styles.form} onSubmit={handleSubmit}>
+          <p className={styles.lead}>
+            {placeholders.length > 0 && !allParamsFilled
+              ? "Query template — fill in a value for each $N placeholder below to see the query that will actually run."
+              : anonymize
+                ? "Table and column names below are anonymized before anything is sent to the AI provider."
+                : "This is the exact query text that will be sent to the AI provider, unmodified."}
+          </p>
 
-        {!submitted && (
-          <>
-            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-              {placeholders.length > 0 && !allParamsFilled
-                ? "Query template — fill in a value for each $N placeholder below to see the query that will actually run."
-                : anonymize
-                  ? "Table and column names below are anonymized before anything is sent to the AI provider."
-                  : "This is the exact query text that will be sent to the AI provider, unmodified."}
-            </span>
-
-            <pre
-              style={{
-                margin: 0,
-                padding: "12px 14px",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                fontFamily: "IBM Plex Mono, monospace",
-                fontSize: 12,
-                color: "var(--text)",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                maxHeight: 220,
-                overflow: "auto",
-              }}
-            >
-              {placeholders.length > 0 && !allParamsFilled
-                ? splitOnPlaceholders(query).map((part, i) =>
-                    part.type === "placeholder" ? (
-                      <span
-                        key={i}
-                        style={{
-                          background: "var(--accent-tint)",
-                          color: "var(--accent)",
-                          fontWeight: 700,
-                          borderRadius: 4,
-                          padding: "0 2px",
-                        }}
-                      >
-                        {part.value}
-                      </span>
-                    ) : (
-                      <span key={i}>{part.value}</span>
-                    )
+          <pre className={styles.preview}>
+            {placeholders.length > 0 && !allParamsFilled
+              ? splitOnPlaceholders(query).map((part, i) =>
+                  part.type === "placeholder" ? (
+                    <mark key={i} className={styles.placeholderToken}>
+                      {part.value}
+                    </mark>
+                  ) : (
+                    <span key={i}>{part.value}</span>
                   )
-                : previewing
-                  ? "Anonymizing…"
-                  : displayedQuery}
-            </pre>
+                )
+              : previewing
+                ? "Anonymizing…"
+                : displayedQuery}
+          </pre>
 
-            <QueryParamsForm
-              placeholders={placeholders}
-              values={paramValues}
-              onChange={(n, value) => setParamValues((prev) => ({ ...prev, [n]: value }))}
-            />
+          <QueryParamsForm
+            placeholders={placeholders}
+            values={paramValues}
+            onChange={(n, value) => setParamValues((prev) => ({ ...prev, [n]: value }))}
+          />
 
-            {error && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{error}</span>}
+          <Checkbox checked={anonymize} onChange={(e) => setAnonymize(e.target.checked)}>
+            Anonymize table/column names
+          </Checkbox>
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                className={anonymize ? "button-primary" : "button-secondary"}
-                onClick={() => setAnonymize((a) => !a)}
-              >
-                {anonymize ? "✓ Anonymize table/column names" : "Anonymize table/column names"}
-              </button>
-              <button
-                className="button-primary"
-                onClick={handleRunAnalysis}
-                disabled={submitting || previewing || !allParamsFilled}
-              >
-                {submitting ? "Starting…" : "Run Analysis"}
-              </button>
-            </div>
+          {error && <Alert tone="critical">{error.message}</Alert>}
 
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-              Runs EXPLAIN (ANALYZE, BUFFERS) against your database, then sends the query and plan to the AI
-              provider configured in Settings. Only literal values are already redacted (pg_stat_statements
-              normalizes those to $1/$2/... before this app ever sees the query) — anonymizing here additionally
-              hides real table/column names.
-            </span>
-          </>
-        )}
+          <p className={styles.footnote}>
+            Runs EXPLAIN (ANALYZE, BUFFERS) against your database, then sends the query and plan to the AI
+            provider configured in Settings. Only literal values are already redacted (pg_stat_statements
+            normalizes those to $1/$2/... before this app ever sees the query) — anonymizing here additionally
+            hides real table/column names.
+          </p>
+        </form>
+      )}
 
-        {submitted && (
-          <div
-            style={{
-              padding: "12px 14px",
-              background: "var(--healthy-bg)",
-              border: "1px solid var(--healthy-border)",
-              borderRadius: 10,
-            }}
-          >
-            <span style={{ fontSize: 12.5, color: "var(--healthy-text)" }}>
-              Analysis started. It's running in the background — you'll see a notification on the AI Analysis
-              tab when it's ready, or check there any time.
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
+      {submitted && (
+        <Alert tone="healthy">
+          Analysis started. It's running in the background — you'll see a notification on the AI Analysis tab
+          when it's ready, or check there any time.
+        </Alert>
+      )}
+    </Dialog>
   );
 }

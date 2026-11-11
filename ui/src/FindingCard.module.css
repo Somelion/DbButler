@@ -1,0 +1,257 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-14) var(--space-16);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.category {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.firstSeen {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+/* A router <Link> wearing the button-secondary look. */
+.linkButton {
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--text);
+}
+
+.summary {
+  font-size: var(--font-size-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
+
+.summaryToggle {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.detailsBody {
+  margin-top: var(--space-6);
+}
+
+.occurrences {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.occurrence {
+  padding: var(--space-8) var(--space-10);
+  background: var(--row-bg);
+  border-radius: var(--radius-md);
+}
+
+.occurrenceQuery {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.occurrenceMeta {
+  margin-top: var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* Tighter cells than the shared table: this one sits inside a card. */
+.th {
+  padding: var(--space-4) var(--space-8);
+}
+
+.td {
+  padding: var(--space-6) var(--space-8);
+  vertical-align: top;
+}
+
+.secondaryCell {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.uniqueBadge {
+  margin-left: var(--space-6);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+/* Colours come from colorForColumn() via --chip-bg / --chip-text. */
+.columnChip {
+  padding: 1px var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-semibold);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.sectionLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.verdicts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.verdict {
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-8) var(--space-3) var(--space-3);
+  font-weight: var(--weight-semibold);
+  letter-spacing: normal;
+}
+
+.verdictChip {
+  font-weight: var(--weight-bold);
+}
+
+.extensions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.extension {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-8);
+  border-radius: var(--radius-pill);
+  background: var(--row-bg);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.extensionName {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+
+.extensionVersion {
+  color: var(--text-muted);
+}
+
+.technical {
+  padding: var(--space-8) var(--space-10);
+  background: var(--row-bg);
+  border-radius: var(--radius-md);
+}
+
+.technicalText {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.suggested {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.ddlHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.code {
+  margin: 0;
+  padding: var(--space-8) var(--space-10);
+  background: var(--row-bg);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* Body of the "run this DDL?" confirmation dialog. */
+.confirmBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.archived {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}

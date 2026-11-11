@@ -1,0 +1,102 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-10);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--on-accent);
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+}
+
+.chip:hover {
+  background: var(--accent-hover);
+}
+
+.clear {
+  color: var(--text-muted);
+  font-weight: var(--weight-regular);
+}
+
+.list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.noMatch {
+  padding: var(--space-10) var(--space-12);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: var(--row-bg);
+}
+
+.rowDisabled,
+.rowDisabled:hover {
+  cursor: default;
+  opacity: 0.45;
+  background: transparent;
+}
+
+.rowActive,
+.rowActive:hover {
+  background: var(--accent-tint);
+}
+
+.checkbox {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.tableName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.value {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}

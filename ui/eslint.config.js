@@ -36,19 +36,6 @@ export default [
       // would only make the copy harder to read.
       "react/no-unescaped-entities": "off",
       "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
-
-      // Known debt, tracked as warnings so CI stays green until the UI
-      // foundation sprint fixes them (databank review §6.2/§6.3): clickable
-      // div/span/tr elements instead of buttons, unlabelled form controls,
-      // and data fetching that sets state synchronously inside effects
-      // (to be replaced by a shared useApi/usePolling hook). Flip these back
-      // to "error" once that sprint lands.
-      "jsx-a11y/click-events-have-key-events": "warn",
-      "jsx-a11y/no-static-element-interactions": "warn",
-      "jsx-a11y/no-noninteractive-element-interactions": "warn",
-      "jsx-a11y/label-has-associated-control": "warn",
-      "jsx-a11y/no-autofocus": "warn",
-      "react-hooks/set-state-in-effect": "warn",
     },
   },
   {

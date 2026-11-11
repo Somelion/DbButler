@@ -1,0 +1,79 @@
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-14);
+}
+
+.muted {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-8) var(--space-10);
+  border-radius: var(--radius-md);
+  background: var(--row-bg);
+}
+
+.stepLabel {
+  min-width: 170px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+
+.stepValue {
+  min-width: 50px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.stepDetail {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.queries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.queriesTitle {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.queryList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.query {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

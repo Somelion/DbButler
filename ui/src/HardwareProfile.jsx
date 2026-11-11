@@ -1,5 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
+import { targetKey } from "./queryClient";
+import { configTuningKey } from "./ConfigTuning";
+import { Alert, Card, Field, SegmentedControl, Skeleton, Stat, fieldStyles } from "./components";
+import styles from "./HardwareProfile.module.css";
 
 const WORKLOAD_OPTIONS = [
   { value: "mixed", label: "Mixed / general use" },
@@ -8,97 +13,57 @@ const WORKLOAD_OPTIONS = [
   { value: "home", label: "Small home project" },
 ];
 
+const STORAGE_OPTIONS = [
+  { value: "ssd", label: "SSD" },
+  { value: "hdd", label: "HDD" },
+];
+
+// `onSaved` is optional — ConfigTuning no longer needs it, since saving
+// invalidates its query directly.
 export default function HardwareProfile({ targetId, onSaved }) {
-  const [profile, setProfile] = useState(null);
-  const [detection, setDetection] = useState(null);
-  const [form, setForm] = useState(null);
+  const queryClient = useQueryClient();
+  const profileKey = targetKey(targetId, "hardware-profile");
   const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
 
-  const startEdit = (base) => {
-    api
-      .detectHardware(targetId)
-      .then((d) => {
-        setDetection(d);
-        setForm({
-          confirmed_ram_mb: base?.confirmed_ram_mb ?? d.detected_ram_mb,
-          confirmed_cpu_cores: base?.confirmed_cpu_cores ?? d.detected_cpu_cores,
-          storage_type: base?.storage_type ?? "ssd",
-          workload_type: base?.workload_type ?? "mixed",
-        });
-        setEditing(true);
-      })
-      .catch((err) => setError(err.message));
-  };
+  const profileQuery = useQuery({
+    queryKey: profileKey,
+    queryFn: ({ signal }) => api.getHardwareProfile(targetId, { signal }),
+  });
+  const profile = profileQuery.data;
 
-  useEffect(() => {
-    api
-      .getHardwareProfile(targetId)
-      .then((existing) => {
-        setProfile(existing);
-        if (!existing) startEdit(existing);
-      })
-      .catch((err) => setError(err.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetId]);
+  // No saved profile yet: go straight into the form (null = "not set",
+  // undefined = still loading).
+  const showForm = editing || profile === null;
 
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      const saved = await api.saveHardwareProfile(targetId, form);
-      setProfile(saved);
-      setEditing(false);
-      onSaved?.(saved);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
+  const handleSaved = (saved) => {
+    queryClient.setQueryData(profileKey, saved);
+    queryClient.invalidateQueries({ queryKey: configTuningKey(targetId) });
+    setEditing(false);
+    onSaved?.(saved);
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-        padding: "18px 20px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Hardware Profile</span>
-        {!editing && profile && (
-          <span
-            onClick={() => startEdit(profile)}
-            style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", cursor: "pointer" }}
-          >
+    <Card
+      title="Hardware Profile"
+      actions={
+        !showForm &&
+        profile && (
+          <button type="button" className="button-link" onClick={() => setEditing(true)}>
             Edit
-          </span>
-        )}
-      </div>
-
-      {error && (
-        <div
-          style={{
-            padding: "10px 12px",
-            background: "var(--critical-bg)",
-            border: "1px solid var(--critical-border)",
-            borderRadius: 9,
-            color: "var(--critical-text)",
-            fontSize: 12.5,
-          }}
-        >
-          {error}
-        </div>
+          </button>
+        )
+      }
+    >
+      {profileQuery.error && (
+        <Alert tone="critical" compact>
+          {profileQuery.error.message}
+        </Alert>
       )}
 
-      {!editing && profile && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+      {profileQuery.isPending && <Skeleton lines={2} label="Loading hardware profile…" />}
+
+      {!showForm && profile && (
+        <div className={styles.stats}>
           <Stat label="Memory" value={`${(profile.confirmed_ram_mb / 1024).toFixed(1)} GB`} />
           <Stat label="CPU" value={`${profile.confirmed_cpu_cores} cores`} />
           <Stat label="Storage" value={profile.storage_type.toUpperCase()} />
@@ -109,109 +74,146 @@ export default function HardwareProfile({ targetId, onSaved }) {
         </div>
       )}
 
-      {editing && form && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {detection && (
-            <div style={{ padding: "10px 12px", background: "var(--accent-tint)", borderRadius: 9 }}>
-              <span style={{ fontSize: 12, color: "oklch(35% 0.1 255)", lineHeight: 1.5 }}>{detection.caveat}</span>
-            </div>
-          )}
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Memory (MB)">
-              <input
-                value={form.confirmed_ram_mb}
-                onChange={(e) => setForm({ ...form, confirmed_ram_mb: parseInt(e.target.value, 10) || 0 })}
-              />
-            </Field>
-            <Field label="CPU cores">
-              <input
-                value={form.confirmed_cpu_cores}
-                onChange={(e) => setForm({ ...form, confirmed_cpu_cores: parseInt(e.target.value, 10) || 0 })}
-              />
-            </Field>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>Storage type</span>
-            <div style={{ display: "flex", gap: 8 }}>
-              {["ssd", "hdd"].map((s) => (
-                <Pill
-                  key={s}
-                  active={form.storage_type === s}
-                  label={s.toUpperCase()}
-                  onClick={() => setForm({ ...form, storage_type: s })}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>Workload type</span>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {WORKLOAD_OPTIONS.map((o) => (
-                <Pill
-                  key={o.value}
-                  active={form.workload_type === o.value}
-                  label={o.label}
-                  onClick={() => setForm({ ...form, workload_type: o.value })}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button className="button-primary" onClick={handleSave} disabled={saving}>
-              {saving ? "Saving…" : "Save"}
-            </button>
-            {profile && (
-              <button className="button-secondary" onClick={() => setEditing(false)} disabled={saving}>
-                Cancel
-              </button>
-            )}
-          </div>
-        </div>
+      {showForm && (
+        <HardwareEditor
+          targetId={targetId}
+          base={profile}
+          onSaved={handleSaved}
+          onCancel={profile ? () => setEditing(false) : undefined}
+        />
       )}
-    </div>
+    </Card>
   );
 }
 
-function Stat({ label, value }) {
+// Mounted only while the form is open. Detected RAM/CPU pre-fill the form;
+// gcTime 0 drops the result when the form closes, so every Edit re-detects
+// (as before), and staleTime Infinity keeps a background refetch from
+// changing the pre-fill under the user while the form is open.
+function HardwareEditor({ targetId, base, onSaved, onCancel }) {
+  const detectionQuery = useQuery({
+    queryKey: targetKey(targetId, "hardware-detect"),
+    queryFn: ({ signal }) => api.detectHardware(targetId, { signal }),
+    staleTime: Infinity,
+    gcTime: 0,
+  });
+
+  if (detectionQuery.error) {
+    return (
+      <>
+        <Alert tone="critical" compact>
+          {detectionQuery.error.message}
+        </Alert>
+        {onCancel && (
+          <div className={styles.actions}>
+            <button type="button" className="button-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          </div>
+        )}
+      </>
+    );
+  }
+  if (detectionQuery.isPending) return <Skeleton lines={3} label="Detecting hardware…" />;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 18, fontWeight: 600, color: "var(--text)" }}>
-        {value}
-      </span>
-      <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{label}</span>
-    </div>
+    <HardwareForm
+      targetId={targetId}
+      base={base}
+      detection={detectionQuery.data}
+      onSaved={onSaved}
+      onCancel={onCancel}
+    />
   );
 }
 
-function Field({ label, children }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{label}</span>
-      {children}
-    </div>
-  );
-}
+function HardwareForm({ targetId, base, detection, onSaved, onCancel }) {
+  const [form, setForm] = useState(() => ({
+    confirmed_ram_mb: base?.confirmed_ram_mb ?? detection.detected_ram_mb,
+    confirmed_cpu_cores: base?.confirmed_cpu_cores ?? detection.detected_cpu_cores,
+    storage_type: base?.storage_type ?? "ssd",
+    workload_type: base?.workload_type ?? "mixed",
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
-function Pill({ label, active, onClick }) {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      onSaved(await api.saveHardwareProfile(targetId, form));
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  };
+
   return (
-    <span
-      onClick={onClick}
-      style={{
-        padding: "7px 14px",
-        fontSize: 12.5,
-        fontWeight: active ? 650 : 600,
-        color: active ? "white" : "var(--text-secondary)",
-        background: active ? "var(--accent)" : "transparent",
-        border: active ? "none" : "1px solid var(--border)",
-        borderRadius: 100,
-        cursor: "pointer",
-      }}
-    >
-      {label}
-    </span>
+    <form onSubmit={handleSubmit} className={styles.form}>
+      {error && (
+        <Alert tone="critical" compact>
+          {error}
+        </Alert>
+      )}
+
+      {detection.caveat && (
+        <Alert tone="info" compact>
+          {detection.caveat}
+        </Alert>
+      )}
+
+      <div className={styles.twoColumns}>
+        <Field label="Memory (MB)">
+          <input
+            inputMode="numeric"
+            value={form.confirmed_ram_mb}
+            onChange={(e) => setForm({ ...form, confirmed_ram_mb: parseInt(e.target.value, 10) || 0 })}
+          />
+        </Field>
+        <Field label="CPU cores">
+          <input
+            inputMode="numeric"
+            value={form.confirmed_cpu_cores}
+            onChange={(e) => setForm({ ...form, confirmed_cpu_cores: parseInt(e.target.value, 10) || 0 })}
+          />
+        </Field>
+      </div>
+
+      <div className={styles.group}>
+        <span className={fieldStyles.label} aria-hidden="true">
+          Storage type
+        </span>
+        <SegmentedControl
+          label="Storage type"
+          options={STORAGE_OPTIONS}
+          value={form.storage_type}
+          onChange={(storage_type) => setForm({ ...form, storage_type })}
+        />
+      </div>
+
+      <div className={styles.group}>
+        <span className={fieldStyles.label} aria-hidden="true">
+          Workload type
+        </span>
+        <SegmentedControl
+          label="Workload type"
+          options={WORKLOAD_OPTIONS}
+          value={form.workload_type}
+          onChange={(workload_type) => setForm({ ...form, workload_type })}
+        />
+      </div>
+
+      <div className={styles.actions}>
+        <button type="submit" className="button-primary" disabled={saving}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+        {onCancel && (
+          <button type="button" className="button-secondary" onClick={onCancel} disabled={saving}>
+            Cancel
+          </button>
+        )}
+      </div>
+    </form>
   );
 }

@@ -1,0 +1,207 @@
+.rail {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-16);
+  width: var(--rail-width);
+  flex-shrink: 0;
+  height: 100%;
+  padding: var(--space-20) var(--space-12);
+  overflow-y: auto;
+  background: var(--row-bg);
+  border-right: 1px solid var(--border);
+}
+
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: 0 var(--space-8);
+}
+
+.logo {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.brandName {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--font-size-lg);
+  letter-spacing: var(--tracking-display);
+  color: var(--text);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.groupLabel {
+  padding: 0 var(--space-12) var(--space-4);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--font-size-md);
+  font-weight: var(--weight-medium);
+  color: var(--text);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.item:hover:not(.disabled) {
+  background: var(--surface-sunken);
+}
+
+.active,
+.active:hover {
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+  background: var(--accent-tint);
+}
+
+.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.active .icon {
+  color: var(--accent);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--space-4);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-bold);
+  line-height: 16px;
+  text-align: center;
+  color: var(--on-accent);
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-10) var(--space-8) 0;
+  border-top: 1px solid var(--border);
+}
+
+.instance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.instanceName {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Narrow windows: icon-only rail. Labels stay in the DOM for screen
+   readers; the link title shows them on hover. */
+@media (max-width: 900px) {
+  .rail {
+    width: 60px;
+    padding: var(--space-16) var(--space-8);
+  }
+
+  .brandName,
+  .instanceName {
+    display: none;
+  }
+
+  .brand,
+  .instance {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .groupLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .group + .group {
+    padding-top: var(--space-8);
+    border-top: 1px solid var(--border);
+  }
+
+  .item {
+    position: relative;
+    justify-content: center;
+    padding: var(--space-8);
+  }
+
+  .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+
+  .footer {
+    align-items: center;
+    padding: var(--space-10) 0 0;
+  }
+
+  .footer [role="radiogroup"] {
+    flex-direction: column;
+  }
+}

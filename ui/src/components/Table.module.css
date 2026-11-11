@@ -1,0 +1,107 @@
+/* Shared data-table styles. Import as
+     import tableStyles from "./components/Table.module.css";
+   and compose with a screen's own module where a table needs extras. */
+
+.wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.th {
+  padding: var(--space-8) var(--space-10);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.td {
+  padding: var(--space-8) var(--space-10);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.row:hover > .td {
+  background: var(--row-bg);
+}
+
+.selected > .td {
+  background: var(--accent-tint);
+}
+
+.groupRow > .td {
+  padding-top: var(--space-12);
+  font-weight: var(--weight-semibold);
+  background: var(--row-bg);
+}
+
+/* Sortable header button (SortHeader) */
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: transparent;
+  border-radius: var(--radius-xs);
+}
+
+.sortButton:hover {
+  color: var(--text);
+}
+
+.sortIcon {
+  flex-shrink: 0;
+  opacity: 0.45;
+}
+
+[aria-sort="ascending"] .sortIcon,
+[aria-sort="descending"] .sortIcon {
+  opacity: 1;
+}
+
+/* Row-expander button in the first cell. */
+.expander {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+[aria-expanded="true"] > .chevron {
+  transform: rotate(90deg);
+}

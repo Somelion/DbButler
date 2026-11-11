@@ -1,0 +1,170 @@
+.meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Lock chains (critical tone applied alongside) */
+.lockChains {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-10) var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--tone-bg);
+  border: 1px solid var(--tone-border);
+}
+
+.lockChainsTitle {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--tone-text);
+}
+
+.lockChainList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lockChainLine {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  padding-left: calc(var(--depth, 0) * var(--space-18));
+}
+
+.lockChainIcon {
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--text-muted);
+}
+
+.rootIcon {
+  fill: currentColor;
+}
+
+.chainPid {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+
+.chainUser {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.chainWaiting {
+  font-size: var(--font-size-xs);
+  color: var(--tone-text);
+}
+
+.chainBlockedBy {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
+/* Session cards. Without a tone class they fall back to the neutral row
+   surface; a blocked/blocking session gets the critical/attention tone. */
+.sessionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.session {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-10) var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--tone-bg, var(--row-bg));
+  border: 1px solid var(--tone-border, var(--border));
+}
+
+.sessionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.sessionInfo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.sessionPid {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+
+.sessionUser {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.statePill {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+}
+
+.blockedBy {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--critical-text);
+}
+
+.blocking {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--attention-text);
+}
+
+.sessionActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-shrink: 0;
+}
+
+.duration {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.query {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

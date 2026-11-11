@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { SearchCode } from "lucide-react";
 import { api } from "./api";
 import { formatMs } from "./format";
 import HeaderHint from "./HeaderHint";
+import { targetKey } from "./queryClient";
+import { Alert, Card, EmptyState, Skeleton, SortHeader, useConfirm } from "./components";
+import tableStyles from "./components/Table.module.css";
+import styles from "./QueryIntelligence.module.css";
 
 const POLL_INTERVAL_MS = 15000;
 const COLUMNS = [
@@ -10,56 +16,53 @@ const COLUMNS = [
     label: "Query",
     help: "Normalized query text — literal values are replaced with $1, $2, ... by pg_stat_statements.",
   },
-  { key: "calls", label: "Calls", help: "How many times this query has run since stats were last reset." },
+  { key: "calls", label: "Calls", numeric: true, help: "How many times this query has run since stats were last reset." },
   {
     key: "total_exec_ms",
     label: "Total",
+    numeric: true,
     help: "Total time spent executing this query across all its calls combined — the best single number for \"which query costs the most.\"",
   },
-  { key: "mean_exec_ms", label: "Mean", help: "Average execution time per call." },
-  { key: "rows", label: "Rows", help: "Total rows returned or affected across all calls combined." },
-  { key: "", label: "" },
+  { key: "mean_exec_ms", label: "Mean", numeric: true, help: "Average execution time per call." },
+  { key: "rows", label: "Rows", numeric: true, help: "Total rows returned or affected across all calls combined." },
 ];
 
 export default function QueryIntelligence({ targetId, onExplain, onAnalyzeWithAi }) {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState(null);
   const [sortKey, setSortKey] = useState("total_exec_ms");
   const [sortDir, setSortDir] = useState("desc");
 
-  const refresh = () =>
-    api
-      .getQueryStats(targetId)
-      .then((d) => {
-        setData(d);
-        setError(null);
-      })
-      .catch((err) => setError(err.message));
-
-  useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetId]);
+  const statsKey = targetKey(targetId, "query-stats");
+  const { data, error, isPending } = useQuery({
+    queryKey: statsKey,
+    queryFn: ({ signal }) => api.getQueryStats(targetId, { signal }),
+    refetchInterval: POLL_INTERVAL_MS,
+  });
 
   const handleReset = async () => {
-    if (!window.confirm("Reset all query statistics? The top-queries list will start empty again.")) return;
+    const ok = await confirm({
+      title: "Reset query statistics?",
+      message: "This clears pg_stat_statements for the whole server. The top-queries list will start empty again.",
+      confirmLabel: "Reset stats",
+      tone: "danger",
+    });
+    if (!ok) return;
     setResetting(true);
-    setError(null);
+    setResetError(null);
     try {
       await api.resetQueryStats(targetId);
-      await refresh();
+      await queryClient.invalidateQueries({ queryKey: statsKey });
     } catch (err) {
-      setError(err.message);
+      setResetError(err.message);
     } finally {
       setResetting(false);
     }
   };
 
   const handleSort = (key) => {
-    if (!key) return;
     if (key === sortKey) {
       setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
     } else {
@@ -80,94 +83,85 @@ export default function QueryIntelligence({ targetId, onExplain, onAnalyzeWithAi
     return copy;
   }, [data, sortKey, sortDir]);
 
+  // The screen's <h1> already says "Query Intelligence", so the card is
+  // named for what it lists.
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        padding: "18px 20px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Query Intelligence</span>
-        {data?.enabled && (
-          <button className="button-secondary" onClick={handleReset} disabled={resetting} style={{ padding: "4px 10px", fontSize: 11 }}>
+    <Card
+      title="Top queries"
+      actions={
+        data?.enabled && (
+          <button type="button" className="button-secondary button-sm" onClick={handleReset} disabled={resetting}>
             {resetting ? "Resetting…" : "Reset query stats"}
           </button>
-        )}
-      </div>
-      {error && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{error}</span>}
+        )
+      }
+    >
+      {error && <Alert tone="critical">{error.message}</Alert>}
+      {resetError && <Alert tone="critical">{resetError}</Alert>}
+
+      {isPending && <Skeleton lines={5} label="Loading query statistics…" />}
 
       {data && !data.enabled && (
-        <div style={{ padding: "10px 12px", background: "var(--accent-tint)", borderRadius: 9 }}>
-          <span style={{ fontSize: 12, color: "oklch(35% 0.1 255)", lineHeight: 1.5 }}>{data.message}</span>
-        </div>
+        <Alert tone="info" compact>
+          {data.message}
+        </Alert>
       )}
 
       {data && data.enabled && data.queries.length === 0 && (
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>No query activity recorded yet.</span>
+        <EmptyState icon={SearchCode} title="No query activity recorded yet." />
       )}
 
       {data && data.enabled && data.queries.length > 0 && (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <div className={tableStyles.wrap}>
+          <table className={tableStyles.table}>
             <thead>
               <tr>
                 {COLUMNS.map((col) => (
-                  <th
-                    key={col.key || "actions"}
-                    onClick={() => handleSort(col.key)}
-                    style={{
-                      textAlign: "left",
-                      padding: "6px 10px",
-                      fontSize: 10.5,
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.02em",
-                      color: "var(--text-muted)",
-                      cursor: col.key ? "pointer" : "default",
-                      userSelect: "none",
-                      whiteSpace: "nowrap",
-                    }}
+                  <SortHeader
+                    key={col.key}
+                    column={col.key}
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                    numeric={col.numeric}
+                    hint={<HeaderHint text={col.help} />}
                   >
                     {col.label}
-                    <HeaderHint text={col.help} />
-                    {sortKey === col.key && col.key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-                  </th>
+                  </SortHeader>
                 ))}
+                <th scope="col" className={tableStyles.th}>
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className={styles.body}>
               {sorted.map((q, i) => (
-                <tr key={i}>
-                  <td
-                    title={q.query}
-                    style={{
-                      padding: "8px 10px",
-                      fontFamily: "IBM Plex Mono, monospace",
-                      color: "var(--text)",
-                      maxWidth: 360,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                <tr key={i} className={tableStyles.row}>
+                  <td title={q.query} className={`${tableStyles.td} ${tableStyles.mono} ${styles.queryCell}`}>
                     {q.query}
                   </td>
-                  <td style={{ padding: "8px 10px", color: "var(--text-secondary)" }}>{q.calls.toLocaleString()}</td>
-                  <td style={{ padding: "8px 10px", color: "var(--text-secondary)" }}>{formatMs(q.total_exec_ms)}</td>
-                  <td style={{ padding: "8px 10px", color: "var(--text-secondary)" }}>{formatMs(q.mean_exec_ms)}</td>
-                  <td style={{ padding: "8px 10px", color: "var(--text-secondary)" }}>{q.rows.toLocaleString()}</td>
-                  <td style={{ padding: "8px 10px" }}>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button className="button-secondary" onClick={() => onExplain?.(q.query)}>
+                  <td className={`${tableStyles.td} ${tableStyles.numeric} ${styles.secondaryCell}`}>
+                    {q.calls.toLocaleString()}
+                  </td>
+                  <td className={`${tableStyles.td} ${tableStyles.numeric} ${styles.secondaryCell}`}>
+                    {formatMs(q.total_exec_ms)}
+                  </td>
+                  <td className={`${tableStyles.td} ${tableStyles.numeric} ${styles.secondaryCell}`}>
+                    {formatMs(q.mean_exec_ms)}
+                  </td>
+                  <td className={`${tableStyles.td} ${tableStyles.numeric} ${styles.secondaryCell}`}>
+                    {q.rows.toLocaleString()}
+                  </td>
+                  <td className={tableStyles.td}>
+                    <div className={styles.rowActions}>
+                      <button type="button" className="button-secondary button-sm" onClick={() => onExplain?.(q.query)}>
                         Load into Explain
                       </button>
-                      <button className="button-secondary" onClick={() => onAnalyzeWithAi?.(q.query)}>
+                      <button
+                        type="button"
+                        className="button-secondary button-sm"
+                        onClick={() => onAnalyzeWithAi?.(q.query)}
+                      >
                         Analyze with AI
                       </button>
                     </div>
@@ -178,6 +172,6 @@ export default function QueryIntelligence({ targetId, onExplain, onAnalyzeWithAi
           </table>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

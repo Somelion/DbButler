@@ -1,6 +1,11 @@
 import { useState } from "react";
+import { X } from "lucide-react";
+import styles from "./TablePicker.module.css";
 import { formatMetricValue } from "./format";
 
+// Search + checkbox list for picking which tables to compare. Selected
+// tables also show as removable chips above the search box. Once
+// `maxSelected` is reached, the unchecked rows are disabled.
 export default function TablePicker({ tables, unit, selected, onToggle, onClear, maxSelected }) {
   const [search, setSearch] = useState("");
 
@@ -10,78 +15,62 @@ export default function TablePicker({ tables, unit, selected, onToggle, onClear,
     : tables;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div className={styles.picker}>
       {selected.size > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+        <div className={styles.chips}>
           {[...selected].map((key) => (
-            <span
+            <button
               key={key}
+              type="button"
+              className={styles.chip}
               onClick={() => onToggle(key)}
+              aria-label={`Remove ${key} from comparison`}
               title="Remove from comparison"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "4px 10px",
-                fontSize: 11.5,
-                fontWeight: 650,
-                color: "white",
-                background: "var(--accent)",
-                borderRadius: 100,
-                cursor: "pointer",
-                fontFamily: "IBM Plex Mono, monospace",
-              }}
             >
               {key}
-              <span style={{ fontSize: 13, lineHeight: 1 }}>&times;</span>
-            </span>
+              <X size={12} aria-hidden="true" />
+            </button>
           ))}
-          <span onClick={onClear} style={{ fontSize: 11, color: "var(--text-muted)", cursor: "pointer" }}>
+          <button type="button" className={`button-link ${styles.clear}`} onClick={onClear}>
             Clear
-          </span>
+          </button>
         </div>
       )}
 
       <input
+        type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder={`Search ${tables.length} table${tables.length === 1 ? "" : "s"}…`}
+        aria-label="Search tables"
       />
 
-      <div style={{ maxHeight: 200, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 9 }}>
-        {filtered.length === 0 && (
-          <div style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-muted)" }}>No matching tables.</div>
-        )}
-        {filtered.map((t, i) => {
+      <div className={styles.list} role="group" aria-label="Tables to compare">
+        {filtered.length === 0 && <div className={styles.noMatch}>No matching tables.</div>}
+        {filtered.map((t) => {
           const key = `${t.schema_name}.${t.table_name}`;
           const active = selected.has(key);
           const disabled = !active && selected.size >= maxSelected;
           return (
-            <div
+            <label
               key={key}
-              onClick={() => !disabled && onToggle(key)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "6px 12px",
-                fontSize: 12,
-                cursor: disabled ? "default" : "pointer",
-                background: active ? "var(--accent-tint)" : "transparent",
-                opacity: disabled ? 0.45 : 1,
-                borderBottom: i === filtered.length - 1 ? "none" : "1px solid var(--border)",
-              }}
+              className={[styles.row, active && styles.rowActive, disabled && styles.rowDisabled].filter(Boolean).join(" ")}
             >
-              <span style={{ fontFamily: "IBM Plex Mono, monospace", color: "var(--text)" }}>{key}</span>
-              <span style={{ fontFamily: "IBM Plex Mono, monospace", color: "var(--text-muted)" }}>
-                {formatMetricValue(t.latest_value, unit)}
-              </span>
-            </div>
+              <input
+                type="checkbox"
+                className={styles.checkbox}
+                checked={active}
+                disabled={disabled}
+                onChange={() => onToggle(key)}
+              />
+              <span className={styles.tableName}>{key}</span>
+              <span className={styles.value}>{formatMetricValue(t.latest_value, unit)}</span>
+            </label>
           );
         })}
       </div>
 
-      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Compare up to {maxSelected} tables at once.</span>
+      <span className={styles.hint}>Compare up to {maxSelected} tables at once.</span>
     </div>
   );
 }

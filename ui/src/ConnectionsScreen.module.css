@@ -1,0 +1,174 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  width: 100%;
+  max-width: var(--form-max-width);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.addButton {
+  align-self: flex-start;
+}
+
+/* New-connection form */
+
+.formBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.hostRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-12);
+}
+
+.pairRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-12);
+}
+
+.formActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-10);
+  padding-top: var(--space-4);
+}
+
+.uptime {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+/* Connection card */
+
+.cardBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.connectionCard {
+  gap: var(--space-16);
+}
+
+/* The database currently being viewed. */
+.connectionCard[aria-current="true"] {
+  border-color: var(--accent);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.name {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-lg);
+  color: var(--text);
+}
+
+.address {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.headerAction {
+  flex-shrink: 0;
+}
+
+.inlineForm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.grow {
+  flex: 1;
+}
+
+.status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-10);
+  padding: var(--space-14) var(--space-16);
+  background: var(--tone-bg);
+  border: 1px solid var(--tone-border);
+  border-radius: var(--radius-lg);
+}
+
+.statusIcon {
+  flex-shrink: 0;
+  margin-top: var(--space-2);
+  color: var(--tone-solid);
+}
+
+.statusText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.statusTitle {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--tone-text);
+}
+
+.statusMessage {
+  font-size: var(--font-size-xs);
+  color: var(--tone-text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-10);
+}
+
+.schemasRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.schemas {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}

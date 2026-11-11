@@ -1,42 +1,45 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import { Link } from "react-router";
 import { useMode } from "./ModeContext";
 import { colorForColumn } from "./columnColor";
 import { formatBytes, formatRelativeTime } from "./format";
+import { Alert, Badge, CopyButton, SeverityBadge, useConfirm } from "./components";
+import tableStyles from "./components/Table.module.css";
 import IndexCoverageAnalysisPanel from "./IndexCoverageAnalysisPanel";
+import styles from "./FindingCard.module.css";
 
-const SEVERITY = {
-  critical: { label: "Critical", badgeBg: "var(--critical-bg)", badgeText: "var(--critical-text)", dot: "oklch(52% 0.20 25)" },
-  attention: { label: "Attention", badgeBg: "var(--attention-bg)", badgeText: "var(--attention-text)", dot: "oklch(60% 0.16 75)" },
-  healthy: { label: "Healthy", badgeBg: "var(--healthy-bg)", badgeText: "var(--healthy-text)", dot: "oklch(56% 0.15 150)" },
-  unknown: { label: "Unknown", badgeBg: "oklch(94% 0.004 250)", badgeText: "var(--text-secondary)", dot: "oklch(45% 0.02 255)" },
-};
-
+// Covering-index column verdicts: a tone plus a text label, so the verdict
+// never rests on the chip colour alone.
 const COVERING_VERDICT = {
-  key: { label: "used to filter/sort", bg: "var(--healthy-bg)", text: "var(--healthy-text)" },
-  include_candidate: { label: "INCLUDE candidate", bg: "var(--attention-bg)", text: "var(--attention-text)" },
-  unused_in_sample: { label: "not seen in sample", bg: "oklch(94% 0.004 250)", text: "var(--text-secondary)" },
-  no_data: { label: "no query data", bg: "oklch(94% 0.004 250)", text: "var(--text-secondary)" },
+  key: { label: "used to filter/sort", tone: "healthy" },
+  include_candidate: { label: "INCLUDE candidate", tone: "attention" },
+  unused_in_sample: { label: "not seen in sample", tone: "unknown" },
+  no_data: { label: "no query data", tone: "unknown" },
 };
 
-const TH_STYLE = {
-  textAlign: "left",
-  padding: "4px 8px",
-  fontSize: 10.5,
-  fontWeight: 700,
-  letterSpacing: "0.02em",
-  textTransform: "uppercase",
-  color: "var(--text-muted)",
-  borderBottom: "1px solid var(--border)",
-};
-const TD_STYLE = { padding: "6px 8px", verticalAlign: "top", borderBottom: "1px solid var(--border)" };
+// Column-name pill; its colour pair comes from columnColor.js (token values)
+// through inline custom properties.
+function ColumnChip({ column, className }) {
+  const c = colorForColumn(column);
+  return (
+    <span
+      className={[styles.columnChip, className].filter(Boolean).join(" ")}
+      style={{ "--chip-bg": c.bg, "--chip-text": c.text }}
+    >
+      {column}
+    </span>
+  );
+}
 
+// `navigateTo` is a router path (e.g. from screenPath()) rendered as an
+// "Open …" link labelled by `navigateLabel`.
 export default function FindingCard({
   finding,
   onArchive,
   onRestore,
   onApply,
   onApplyAnalysis,
-  onNavigate,
+  navigateTo,
   navigateLabel,
   onVacuum,
   targetId,
@@ -44,207 +47,180 @@ export default function FindingCard({
   firstSeenAt,
 }) {
   const mode = useMode();
-  const [confirming, setConfirming] = useState(false);
+  const confirm = useConfirm();
+  const titleId = useId();
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState(null);
   const [vacuuming, setVacuuming] = useState(false);
   const [vacuumError, setVacuumError] = useState(null);
-  const s = SEVERITY[finding.severity] ?? SEVERITY.unknown;
   const canApply = Boolean(onApply && finding.recommended_ddl);
   const canVacuum = Boolean(onVacuum && finding.schema_name && finding.table_name);
 
-  const handleConfirmApply = () => {
+  // DDL runs straight against the target, so it is confirmed first with the
+  // exact statement shown.
+  const handleApply = async () => {
+    const ok = await confirm({
+      title: "Run this against your database?",
+      message: (
+        <div className={styles.confirmBody}>
+          <p>This changes the target directly.</p>
+          <pre className={styles.code}>{finding.recommended_ddl}</pre>
+        </div>
+      ),
+      confirmLabel: "Confirm & run",
+      tone: "danger",
+    });
+    if (!ok) return;
     setApplying(true);
     setApplyError(null);
-    Promise.resolve(onApply())
-      .then(() => setConfirming(false))
-      .catch((err) => setApplyError(err.message))
-      .finally(() => setApplying(false));
+    try {
+      await onApply();
+    } catch (err) {
+      setApplyError(err.message);
+    } finally {
+      setApplying(false);
+    }
   };
 
-  const handleVacuum = () => {
-    if (!window.confirm(`Run VACUUM ANALYZE on ${finding.schema_name}.${finding.table_name}?`)) return;
+  const handleVacuum = async () => {
+    const ok = await confirm({
+      title: "Run VACUUM ANALYZE?",
+      message: `Run VACUUM ANALYZE on ${finding.schema_name}.${finding.table_name}?`,
+      confirmLabel: "Run Vacuum",
+    });
+    if (!ok) return;
     setVacuuming(true);
     setVacuumError(null);
-    Promise.resolve(onVacuum())
-      .catch((err) => setVacuumError(err.message))
-      .finally(() => setVacuuming(false));
+    try {
+      await onVacuum();
+    } catch (err) {
+      setVacuumError(err.message);
+    } finally {
+      setVacuuming(false);
+    }
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        padding: "14px 16px",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 9 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              padding: "3px 9px 3px 7px",
-              borderRadius: 100,
-              background: s.badgeBg,
-            }}
-          >
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot }} />
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.03em",
-                textTransform: "uppercase",
-                color: s.badgeText,
-              }}
-            >
-              {s.label}
-            </span>
-          </span>
-          <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11.5, color: "var(--text-muted)" }}>
-            {finding.category}
-          </span>
+    <article className={styles.card} aria-labelledby={titleId}>
+      <div className={styles.header}>
+        <div className={styles.meta}>
+          <SeverityBadge severity={finding.severity} />
+          <span className={styles.category}>{finding.category}</span>
           {firstSeenAt && (
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }} title="From the deep scan's persisted history">
+            <span className={styles.firstSeen} title="From the deep scan's persisted history">
               · open since {formatRelativeTime(firstSeenAt)}
             </span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div className={styles.actions}>
           {canVacuum && (
-            <button className="button-secondary" onClick={handleVacuum} disabled={vacuuming} style={{ padding: "4px 10px", fontSize: 11 }}>
+            <button type="button" className="button-secondary button-sm" onClick={handleVacuum} disabled={vacuuming}>
               {vacuuming ? "Running…" : "Run Vacuum"}
             </button>
           )}
-          {onNavigate && (
-            <button className="button-secondary" onClick={onNavigate} style={{ padding: "4px 10px", fontSize: 11 }}>
+          {navigateTo && (
+            <Link to={navigateTo} className={`button-secondary button-sm ${styles.linkButton}`}>
               {navigateLabel || "Open"}
-            </button>
+            </Link>
           )}
-          {canApply && !confirming && (
-            <button className="button-secondary" onClick={() => setConfirming(true)} style={{ padding: "4px 10px", fontSize: 11 }}>
-              Apply
+          {canApply && (
+            <button type="button" className="button-secondary button-sm" onClick={handleApply} disabled={applying}>
+              {applying ? "Running…" : "Apply"}
             </button>
           )}
           {onArchive && (
-            <button className="button-secondary" onClick={onArchive} style={{ padding: "4px 10px", fontSize: 11 }}>
+            <button type="button" className="button-secondary button-sm" onClick={onArchive}>
               Archive
             </button>
           )}
           {onRestore && (
-            <button className="button-secondary" onClick={onRestore} style={{ padding: "4px 10px", fontSize: 11 }}>
+            <button type="button" className="button-secondary button-sm" onClick={onRestore}>
               Restore
             </button>
           )}
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontFamily: "Manrope, sans-serif", fontWeight: 650, fontSize: 14, color: "var(--text)" }}>
+      <div className={styles.body}>
+        <h3 id={titleId} className={styles.title}>
           {finding.title}
-        </span>
-        <span style={{ fontSize: 13, lineHeight: 1.5, color: "var(--text-secondary)" }}>{finding.summary}</span>
-        {vacuumError && <span style={{ fontSize: 12, color: "var(--critical-text)" }}>Vacuum failed: {vacuumError}</span>}
+        </h3>
+        <p className={styles.summary}>{finding.summary}</p>
+        {vacuumError && (
+          <Alert tone="critical" compact>
+            Vacuum failed: {vacuumError}
+          </Alert>
+        )}
+        {applyError && (
+          <Alert tone="critical" compact>
+            Apply failed: {applyError}
+          </Alert>
+        )}
       </div>
 
       {finding.occurrences && finding.occurrences.length > 0 && (
         <details>
-          <summary style={{ fontSize: 11.5, fontWeight: 600, color: "var(--accent)", cursor: "pointer" }}>
+          <summary className={styles.summaryToggle}>
             {finding.occurrences.length} matching quer{finding.occurrences.length === 1 ? "y" : "ies"}
           </summary>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+          <ul className={styles.occurrences}>
             {finding.occurrences.map((occ, i) => (
-              <div key={i} style={{ padding: "8px 10px", background: "var(--row-bg)", borderRadius: 8 }}>
-                <div
-                  title={occ.query}
-                  style={{
-                    fontFamily: "IBM Plex Mono, monospace",
-                    fontSize: 11.5,
-                    color: "var(--text)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    cursor: "default",
-                  }}
-                >
+              <li key={i} className={styles.occurrence}>
+                <div title={occ.query} className={styles.occurrenceQuery}>
                   {occ.query}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                <div className={styles.occurrenceMeta}>
                   Called {occ.calls.toLocaleString()} times{occ.note ? ` · ${occ.note}` : ""}
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </details>
       )}
 
       {finding.index_columns && finding.index_columns.length > 0 && (
         <details>
-          <summary style={{ fontSize: 11.5, fontWeight: 600, color: "var(--accent)", cursor: "pointer" }}>
+          <summary className={styles.summaryToggle}>
             {finding.index_columns.length} index{finding.index_columns.length === 1 ? "" : "es"} on this table
           </summary>
-          <div style={{ marginTop: 6, overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div className={`${tableStyles.wrap} ${styles.detailsBody}`}>
+            <table className={tableStyles.table}>
               <thead>
                 <tr>
-                  <th style={TH_STYLE}>Index</th>
-                  <th style={TH_STYLE}>Columns</th>
-                  <th style={TH_STYLE}>Method</th>
-                  <th style={TH_STYLE}>Size</th>
+                  <th scope="col" className={`${tableStyles.th} ${styles.th}`}>
+                    Index
+                  </th>
+                  <th scope="col" className={`${tableStyles.th} ${styles.th}`}>
+                    Columns
+                  </th>
+                  <th scope="col" className={`${tableStyles.th} ${styles.th}`}>
+                    Method
+                  </th>
+                  <th scope="col" className={`${tableStyles.th} ${styles.th}`}>
+                    Size
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {finding.index_columns.map((idx) => (
                   <tr key={idx.index_name}>
-                    <td style={{ ...TD_STYLE, fontFamily: "IBM Plex Mono, monospace", fontSize: 11.5, color: "var(--text)" }}>
+                    <td className={`${tableStyles.td} ${tableStyles.mono} ${styles.td}`}>
                       {idx.index_name}
                       {idx.is_unique && (
-                        <span
-                          style={{
-                            marginLeft: 6,
-                            padding: "1px 6px",
-                            borderRadius: 100,
-                            background: "var(--healthy-bg)",
-                            color: "var(--healthy-text)",
-                            fontSize: 9.5,
-                            fontWeight: 700,
-                          }}
-                        >
+                        <Badge tone="healthy" className={styles.uniqueBadge}>
                           UNIQUE
-                        </span>
+                        </Badge>
                       )}
                     </td>
-                    <td style={TD_STYLE}>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {idx.columns.map((col) => {
-                          const c = colorForColumn(col);
-                          return (
-                            <span
-                              key={col}
-                              style={{
-                                padding: "1px 7px",
-                                borderRadius: 100,
-                                background: c.bg,
-                                color: c.text,
-                                fontSize: 10.5,
-                                fontWeight: 600,
-                              }}
-                            >
-                              {col}
-                            </span>
-                          );
-                        })}
+                    <td className={`${tableStyles.td} ${styles.td}`}>
+                      <div className={styles.chipRow}>
+                        {idx.columns.map((col) => (
+                          <ColumnChip key={col} column={col} />
+                        ))}
                       </div>
                     </td>
-                    <td style={{ ...TD_STYLE, fontSize: 11.5, color: "var(--text-secondary)" }}>{idx.method}</td>
-                    <td style={{ ...TD_STYLE, fontSize: 11.5, color: "var(--text-secondary)" }}>
+                    <td className={`${tableStyles.td} ${styles.td} ${styles.secondaryCell}`}>{idx.method}</td>
+                    <td className={`${tableStyles.td} ${styles.td} ${styles.secondaryCell}`}>
                       {idx.index_bytes != null ? formatBytes(idx.index_bytes) : "—"}
                     </td>
                   </tr>
@@ -256,69 +232,36 @@ export default function FindingCard({
       )}
 
       {finding.covering_analysis && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.02em",
-              textTransform: "uppercase",
-              color: "var(--text-muted)",
-            }}
-          >
+        <div className={styles.section}>
+          <h4 className={styles.sectionLabel}>
             Column usage ({finding.covering_analysis.matched_query_count.toLocaleString()} matched quer
             {finding.covering_analysis.matched_query_count === 1 ? "y" : "ies"})
-          </span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          </h4>
+          <ul className={styles.verdicts}>
             {finding.covering_analysis.columns.map((v) => {
-              const badge = COVERING_VERDICT[v.verdict] ?? COVERING_VERDICT.no_data;
-              const c = colorForColumn(v.column);
+              const verdict = COVERING_VERDICT[v.verdict] ?? COVERING_VERDICT.no_data;
               return (
-                <span
-                  key={v.column}
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px 3px 3px", borderRadius: 100, background: badge.bg }}
-                >
-                  <span
-                    style={{
-                      padding: "1px 6px",
-                      borderRadius: 100,
-                      background: c.bg,
-                      color: c.text,
-                      fontSize: 10,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {v.column}
-                  </span>
-                  <span style={{ fontSize: 10.5, fontWeight: 600, color: badge.text }}>{badge.label}</span>
-                </span>
+                <li key={v.column}>
+                  <Badge tone={verdict.tone} className={styles.verdict}>
+                    <ColumnChip column={v.column} className={styles.verdictChip} />
+                    {verdict.label}
+                  </Badge>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </div>
       )}
 
       {finding.extensions && finding.extensions.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <ul className={styles.extensions}>
           {finding.extensions.map((ext) => (
-            <span
-              key={ext.name}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "3px 9px",
-                borderRadius: 100,
-                background: "var(--row-bg)",
-                fontFamily: "IBM Plex Mono, monospace",
-                fontSize: 11.5,
-              }}
-            >
-              <span style={{ color: "var(--text)", fontWeight: 650 }}>{ext.name}</span>
-              <span style={{ color: "var(--text-muted)" }}>{ext.version}</span>
-            </span>
+            <li key={ext.name} className={styles.extension}>
+              <span className={styles.extensionName}>{ext.name}</span>
+              <span className={styles.extensionVersion}>{ext.version}</span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       {finding.id.startsWith("covering-index-") && targetId && onApplyAnalysis && (
@@ -327,117 +270,32 @@ export default function FindingCard({
 
       {mode === "advanced" && (
         <details open>
-          <summary style={{ fontSize: 11.5, fontWeight: 600, color: "var(--accent)", cursor: "pointer" }}>
-            Technical detail
-          </summary>
-          <div style={{ marginTop: 6, padding: "8px 10px", background: "var(--row-bg)", borderRadius: 8 }}>
-            <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11.5, color: "var(--text-secondary)" }}>
-              {finding.detail}
-            </span>
+          <summary className={styles.summaryToggle}>Technical detail</summary>
+          <div className={`${styles.detailsBody} ${styles.technical}`}>
+            <span className={styles.technicalText}>{finding.detail}</span>
           </div>
         </details>
       )}
 
-      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Suggested: {finding.suggested_action}</span>
+      <p className={styles.suggested}>Suggested: {finding.suggested_action}</p>
 
-      {confirming && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            padding: "10px 12px",
-            background: "var(--attention-bg)",
-            borderRadius: 8,
-          }}
-        >
-          <span style={{ fontSize: 12, fontWeight: 650, color: "var(--attention-text)" }}>
-            Run this against your database? This changes the target directly.
-          </span>
-          <pre
-            style={{
-              margin: 0,
-              padding: "8px 10px",
-              background: "var(--row-bg)",
-              borderRadius: 8,
-              fontFamily: "IBM Plex Mono, monospace",
-              fontSize: 11.5,
-              color: "var(--text)",
-              overflowX: "auto",
-              whiteSpace: "pre",
-            }}
-          >
-            {finding.recommended_ddl}
-          </pre>
-          {applyError && <span style={{ fontSize: 11.5, color: "var(--critical-text)" }}>{applyError}</span>}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="button-danger" onClick={handleConfirmApply} disabled={applying}>
-              {applying ? "Running…" : "Confirm & run"}
-            </button>
-            <button className="button-secondary" onClick={() => setConfirming(false)} disabled={applying}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      {finding.recommended_ddl && <DdlBlock ddl={finding.recommended_ddl} applyAvailable={canApply} />}
 
-      {finding.recommended_ddl && !confirming && <DdlBlock ddl={finding.recommended_ddl} applyAvailable={canApply} />}
-
-      {archivedAt && (
-        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-          Archived {new Date(archivedAt).toLocaleString()}
-        </span>
-      )}
-    </div>
+      {archivedAt && <p className={styles.archived}>Archived {new Date(archivedAt).toLocaleString()}</p>}
+    </article>
   );
 }
 
 function DdlBlock({ ddl, applyAvailable }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard
-      .writeText(ddl)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      })
-      .catch(() => {});
-  };
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.02em",
-            textTransform: "uppercase",
-            color: "var(--text-muted)",
-          }}
-        >
+    <div className={styles.section}>
+      <div className={styles.ddlHeader}>
+        <h4 className={styles.sectionLabel}>
           {applyAvailable ? "Suggested DDL — use Apply above, or copy to run yourself" : "Suggested DDL — not applied automatically"}
-        </span>
-        <button className="button-secondary" onClick={handleCopy} style={{ padding: "4px 10px", fontSize: 11 }}>
-          {copied ? "Copied" : "Copy"}
-        </button>
+        </h4>
+        <CopyButton text={ddl} />
       </div>
-      <pre
-        style={{
-          margin: 0,
-          padding: "8px 10px",
-          background: "var(--row-bg)",
-          borderRadius: 8,
-          fontFamily: "IBM Plex Mono, monospace",
-          fontSize: 11.5,
-          color: "var(--text)",
-          overflowX: "auto",
-          whiteSpace: "pre",
-        }}
-      >
-        {ddl}
-      </pre>
+      <pre className={styles.code}>{ddl}</pre>
     </div>
   );
 }

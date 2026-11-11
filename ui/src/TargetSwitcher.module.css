@@ -1,0 +1,56 @@
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  max-width: 240px;
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+  background: var(--row-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.trigger:hover {
+  border-color: var(--border-strong);
+}
+
+.triggerName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.panel {
+  min-width: 270px;
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.optionName {
+  font-weight: var(--weight-semibold);
+}
+
+.optionAddress {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manage {
+  font-weight: var(--weight-semibold);
+  color: var(--accent);
+}
