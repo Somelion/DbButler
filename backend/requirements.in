@@ -6,6 +6,8 @@
 fastapi
 uvicorn[standard]
 psycopg[binary]
+# Connection pool for the app's own store database (app/db/store.py).
+psycopg-pool
 pydantic
 pydantic-settings
 psutil

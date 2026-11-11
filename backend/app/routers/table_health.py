@@ -49,6 +49,10 @@ ALLOWED_APPLY_STATEMENT = re.compile(r"^\s*(ALTER\s+TABLE|ANALYZE)\s", re.IGNORE
 # TableHealthRow) purely so compute_table_findings below can run its extra
 # checks without extra lookups — dashboard.py::compute_health, which also
 # runs this exact query, only reads indices 0-8 and is unaffected.
+#
+# xid_age is the older of the heap and its TOAST table (VACUUM freezes both,
+# and either can be the one that wraps). A partitioned parent holds no rows
+# and has relfrozenxid 0, which age() reports as the maximum, so it's 0.
 _TABLE_HEALTH_COLUMNS = """
         s.schemaname,
         s.relname,
@@ -58,7 +62,8 @@ _TABLE_HEALTH_COLUMNS = """
         s.last_autovacuum,
         s.last_analyze,
         s.last_autoanalyze,
-        age(c.relfrozenxid) AS xid_age,
+        CASE WHEN c.relkind = 'p' THEN 0
+             ELSE greatest(age(c.relfrozenxid), age(toast.relfrozenxid)) END AS xid_age,
         {total_bytes_expr} AS total_bytes,
         100.0 * io.heap_blks_hit / nullif(io.heap_blks_hit + io.heap_blks_read, 0) AS cache_hit_pct,
         c.oid AS table_oid,
@@ -72,13 +77,14 @@ _TABLE_HEALTH_COLUMNS = """
 # but, run for every user table on every request, its cost scales with table/
 # index count and storage latency. The bulk query below leaves total_bytes
 # NULL here instead and get_table_health merges in the background-collected
-# table_size_bytes snapshot (_fetch_table_size_cache) — everything else in
+# size snapshot (_fetch_table_size_cache) — everything else in
 # this query stays pure in-memory catalog/stats reads with no disk I/O.
 TABLE_HEALTH_QUERY = f"""
     SELECT
 {_TABLE_HEALTH_COLUMNS.format(total_bytes_expr="NULL::bigint")}
     FROM pg_stat_user_tables s
     JOIN pg_class c ON c.oid = s.relid
+    LEFT JOIN pg_class toast ON toast.oid = c.reltoastrelid
     LEFT JOIN pg_statio_user_tables io ON io.relid = s.relid
     ORDER BY s.n_dead_tup DESC
 """
@@ -88,23 +94,26 @@ TABLE_HEALTH_SINGLE_QUERY = f"""
 {_TABLE_HEALTH_COLUMNS.format(total_bytes_expr="pg_total_relation_size(c.oid)")}
     FROM pg_stat_user_tables s
     JOIN pg_class c ON c.oid = s.relid
+    LEFT JOIN pg_class toast ON toast.oid = c.reltoastrelid
     LEFT JOIN pg_statio_user_tables io ON io.relid = s.relid
     WHERE s.schemaname = %s AND s.relname = %s
 """
 
 # Latest background-collected size per table (run_table_metrics_cycle,
 # scheduler.py, default every 5 min), read from pgdba-store rather than the
-# target. The tight collected_at bound keeps this cheap regardless of the
-# 30-day retention window or table count — it only ever scans one collection
-# cycle's worth of rows for this target.
+# target. Every row of one collection cycle shares one collected_at, so this
+# reads exactly the newest cycle (if it's recent enough) — cheap regardless
+# of the 30-day retention window or table count.
 TABLE_SIZE_CACHE_LOOKBACK_MINUTES = 10
 TABLE_SIZE_CACHE_QUERY = """
-    SELECT DISTINCT ON (labels->>'schema', labels->>'table')
-        labels->>'schema', labels->>'table', value, collected_at
-    FROM metric_points
-    WHERE target_id = %s AND metric_name = 'table_size_bytes'
-      AND collected_at >= now() - (%s * interval '1 minute')
-    ORDER BY labels->>'schema', labels->>'table', collected_at DESC
+    SELECT schema_name, table_name, total_bytes, collected_at
+    FROM table_stat_snapshots
+    WHERE target_id = %(target_id)s AND total_bytes IS NOT NULL
+      AND collected_at = (
+          SELECT max(collected_at) FROM table_stat_snapshots
+          WHERE target_id = %(target_id)s
+            AND collected_at >= now() - (%(lookback)s * interval '1 minute')
+      )
 """
 
 # One row per column, combining pg_attribute (always present) with pg_stats
@@ -160,10 +169,10 @@ VACUUM_PROGRESS_QUERY = """
 # based on, not a table's entire history.
 DEAD_TUPLE_HISTORY_LOOKBACK_DAYS = 3
 DEAD_TUPLE_HISTORY_QUERY = """
-    SELECT collected_at, value
-    FROM metric_points
-    WHERE target_id = %s AND metric_name = 'table_dead_pct'
-      AND labels->>'schema' = %s AND labels->>'table' = %s
+    SELECT collected_at, dead_pct
+    FROM table_stat_snapshots
+    WHERE target_id = %s AND schema_name = %s AND table_name = %s
+      AND dead_pct IS NOT NULL
       AND collected_at >= now() - (%s * interval '1 day')
     ORDER BY collected_at ASC
 """
@@ -287,7 +296,9 @@ def _fetch_table_size_cache(
     _fetch_dead_pct_history."""
     try:
         with store_conn() as conn, conn.cursor() as cur:
-            cur.execute(TABLE_SIZE_CACHE_QUERY, (target_id, TABLE_SIZE_CACHE_LOOKBACK_MINUTES))
+            cur.execute(
+                TABLE_SIZE_CACHE_QUERY, {"target_id": target_id, "lookback": TABLE_SIZE_CACHE_LOOKBACK_MINUTES}
+            )
             size_cache = {
                 (schema, table): (int(value), collected_at) for schema, table, value, collected_at in cur.fetchall()
             }
@@ -353,7 +364,7 @@ def _analyze_table(cur, row, target_id: uuid.UUID) -> tuple[list[dict], dict]:
     the findings half; the detail half is never persisted.
 
     target_id is only needed for find_dead_tuple_growth_forecast, which
-    reads pgdba-store's own metric_points history (table_metrics_cycle) —
+    reads pgdba-store's own table_stat_snapshots history (table_metrics_cycle) —
     everything else here queries the target via cur, same as before.
 
     For a TimescaleDB hypertable, `row`'s dead/live tuple counts are already

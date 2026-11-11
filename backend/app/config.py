@@ -15,6 +15,17 @@ class Settings(BaseSettings):
 
     store_database_url: str = "postgresql://pgdba:pgdba@pgdba-store:5432/pgdba_store"
 
+    # Store connection pool (app/db/store.py). Request handlers and the
+    # scheduler's per-target workers share it; a caller waits up to the
+    # timeout for a free connection instead of opening an unbounded number.
+    store_pool_max_size: int = 20
+    store_pool_timeout_seconds: float = 30.0
+
+    # How many targets each scheduler job works on at the same time
+    # (app/scheduler.py), so one slow or unreachable target no longer holds
+    # up every other target's collection.
+    scheduler_max_parallel_targets: int = 4
+
     # Encrypts stored target credentials (and AI provider keys, webhook
     # URLs) at rest. The insecure default below is only ever accepted if
     # allow_insecure_secret_key is also set — see the check below.

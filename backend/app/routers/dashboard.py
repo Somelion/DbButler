@@ -5,7 +5,8 @@ import psycopg
 from fastapi import APIRouter, HTTPException
 
 from app.backup_advisor import build_backup_status
-from app.collectors import CACHE_HIT_RATIO
+from app.cache_hit import LIFETIME_CACHE_HIT_QUERY
+from app.db.store import store_conn
 from app.pg_stat_statements import installed_but_too_old, unavailable_message
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.pgbouncer_conn import connect_to_pgbouncer, get_pgbouncer_credentials
@@ -26,9 +27,10 @@ from app.severity import (
     idle_in_tx_severity,
     long_running_query_severity,
     worse,
-    wraparound_severity,
 )
 from app.target_conn import APPLICATION_NAME, connect_to_target
+from app.wraparound import build_wraparound_status, fetch_wraparound_inputs
+from app.xmin_horizon import XMIN_HOLDERS_QUERY, build_xmin_horizon_status
 
 router = APIRouter(prefix="/api/targets", tags=["dashboard"])
 
@@ -55,6 +57,36 @@ ACTIVITY_SUMMARY_QUERY = """
 # aborts the rest of the transaction on the same cursor.
 CHECKPOINT_QUERY_LEGACY = "SELECT checkpoints_timed, checkpoints_req FROM pg_stat_bgwriter"
 CHECKPOINT_QUERY_PG17 = "SELECT num_timed, num_requested FROM pg_stat_checkpointer"
+
+
+# The newest interval cache hit rate the scheduler stored (app/cache_hit.py).
+# Generous enough to cover a quiet database, where an interval only closes
+# once enough blocks have been read.
+RECENT_CACHE_HIT_LOOKBACK_MINUTES = 15
+RECENT_CACHE_HIT_QUERY = """
+    SELECT value FROM metric_points
+    WHERE target_id = %s AND metric_name = 'cache_hit_ratio'
+      AND collected_at >= now() - (%s * interval '1 minute')
+    ORDER BY collected_at DESC
+    LIMIT 1
+"""
+
+
+def _fetch_cache_hit_pct(cur, target_id: uuid.UUID) -> tuple[float | None, bool]:
+    """(cache hit %, whether it reflects recent activity). Prefers the
+    scheduler's interval sample; falls back to the lifetime ratio from the
+    target (since the last stats reset) when there isn't one yet."""
+    try:
+        with store_conn() as conn, conn.cursor() as store_cur:
+            store_cur.execute(RECENT_CACHE_HIT_QUERY, (target_id, RECENT_CACHE_HIT_LOOKBACK_MINUTES))
+            row = store_cur.fetchone()
+    except psycopg.Error:
+        row = None
+    if row is not None:
+        return row[0], True
+    cur.execute(LIFETIME_CACHE_HIT_QUERY)
+    row = cur.fetchone()
+    return (float(row[0]) if row and row[0] is not None else None), False
 
 
 def _fetch_checkpoint_stats(cur):
@@ -143,10 +175,10 @@ def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
     cur.execute("SHOW max_connections")
     max_connections = int(cur.fetchone()[0])
 
-    table_rows = fetch_table_health_rows(cur, get_allowed_schemas(target_id))
+    allowed_schemas = get_allowed_schemas(target_id)
+    table_rows = fetch_table_health_rows(cur, allowed_schemas)
 
-    cur.execute(CACHE_HIT_RATIO.query)
-    cache_hit_row = cur.fetchone()
+    cache_pct, cache_is_recent = _fetch_cache_hit_pct(cur, target_id)
 
     checkpoint_row = _fetch_checkpoint_stats(cur)
 
@@ -327,16 +359,18 @@ def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
             )
         )
 
-    # Cache hit rate
-    cache_pct = cache_hit_row[0] if cache_hit_row else None
+    # Cache hit rate — over recent activity when the scheduler has a sample,
+    # otherwise since the last stats reset (which barely moves, so it's
+    # labelled as such).
     cache_severity = cache_hit_severity(cache_pct)
+    cache_window = "recent activity" if cache_is_recent else "since stats reset"
     categories.append(
         CategoryStatus(
             key="cache",
             label="Cache Hit Rate",
             severity=cache_severity,
             value=f"{cache_pct:.1f}%" if cache_pct is not None else "—",
-            detail="target: above 95%",
+            detail=f"{cache_window} · target: above 95%",
         )
     )
     if cache_pct is not None and cache_severity != "healthy":
@@ -347,10 +381,10 @@ def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
                 severity=cache_severity,
                 title="Cache hit rate has dropped",
                 summary=(
-                    f"Only {cache_pct:.1f}% of reads are being served from memory (target: above 95%). "
-                    "Queries may be hitting disk more than usual."
+                    f"Only {cache_pct:.1f}% of reads ({cache_window}) are being served from memory "
+                    "(target: above 95%). Queries may be hitting disk more than usual."
                 ),
-                detail=f"cache_hit_ratio={cache_pct:.2f}",
+                detail=f"cache_hit_ratio={cache_pct:.2f} window={cache_window.replace(' ', '_')}",
                 suggested_action="This can be temporary after a restart or bulk load — watch the Dashboard tile's trend.",
             )
         )
@@ -386,37 +420,17 @@ def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
             )
         )
 
-    # Wraparound — oldest table transaction age across the target
+    # Wraparound — oldest table XID age (heap or TOAST), plus the database's
+    # own datfrozenxid and multixact ages (app/wraparound.py)
     worst_wrap = None
     for row in table_rows:
         xid_age = row[8]
-        if worst_wrap is None or xid_age > worst_wrap[2]:
+        if xid_age is not None and (worst_wrap is None or xid_age > worst_wrap[2]):
             worst_wrap = (row[0], row[1], xid_age)
-    wrap_severity = wraparound_severity(worst_wrap[2]) if worst_wrap else "unknown"
-    categories.append(
-        CategoryStatus(
-            key="wraparound",
-            label="Wraparound",
-            severity=wrap_severity,
-            value=f"{worst_wrap[2]:,}" if worst_wrap else "—",
-            detail="oldest transaction age",
-        )
-    )
-    if worst_wrap and wrap_severity != "healthy":
-        schema_name, table_name, xid_age = worst_wrap
-        findings.append(
-            Finding(
-                id=f"wraparound-{schema_name}-{table_name}",
-                category="wraparound",
-                severity=wrap_severity,
-                title=f"Table {schema_name}.{table_name} is approaching transaction ID wraparound",
-                summary=f"This table's transaction age is {xid_age:,}, which is getting close to the safety limit.",
-                detail=f"xid_age={xid_age}",
-                suggested_action="Make sure autovacuum is running on this table; never disable autovacuum freeze.",
-                schema_name=schema_name,
-                table_name=table_name,
-            )
-        )
+    db_xid_age, db_mxid_age, worst_mxid = fetch_wraparound_inputs(cur, allowed_schemas)
+    wrap_category, wrap_findings = build_wraparound_status(worst_wrap, db_xid_age, worst_mxid, db_mxid_age)
+    categories.append(wrap_category)
+    findings.extend(Finding(**f) for f in wrap_findings)
 
     # Autovacuum — a live worker count plus the staleness of the least-
     # recently-vacuumed table with live rows. Reuses table_rows (already
@@ -488,6 +502,14 @@ def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
                 table_name=stale_table,
             )
         )
+
+    # Vacuum horizon — sessions, prepared transactions and replication slots
+    # holding back the xmin horizon, i.e. why dead rows may not be going away
+    # even though autovacuum runs (app/xmin_horizon.py)
+    cur.execute(XMIN_HOLDERS_QUERY)
+    horizon_category, horizon_findings = build_xmin_horizon_status(cur.fetchall())
+    categories.append(horizon_category)
+    findings.extend(Finding(**f) for f in horizon_findings)
 
     # Replication and Backup & WAL Health — same finding-producing functions
     # the Advisor tabs use (app/replication_advisor.py, app/backup_advisor.py),

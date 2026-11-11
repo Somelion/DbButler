@@ -34,6 +34,7 @@ const CATEGORY_DESTINATIONS = {
   checkpoints: { view: "config-tuning", label: "Open Config Tuning" },
   wraparound: { view: "table-health", label: "Open Table Health" },
   autovacuum: { view: "table-health", label: "Open Table Health" },
+  "xmin horizon": { view: "activity", label: "Open Activity" },
   replication: { view: "advisor", advisorTab: "replication", label: "Open Advisor" },
   "replication advisor": { view: "advisor", advisorTab: "replication", label: "Open Advisor" },
   backup: { view: "advisor", advisorTab: "backup", label: "Open Advisor" },

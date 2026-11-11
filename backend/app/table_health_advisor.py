@@ -116,7 +116,7 @@ DEAD_TUPLE_FORECAST_HORIZON_DAYS = 14
 
 def find_dead_tuple_growth_forecast(schema_name, table_name, dead_pct, severity, history) -> list[dict]:
     """history: (collected_at, value) dead_pct samples for this table from
-    pgdba-store's metric_points (table_metrics_cycle's existing 5-minute
+    pgdba-store's table_stat_snapshots (table_metrics_cycle's existing 5-minute
     collection — no new collector), oldest first. Fits a simple linear trend
     (app/forecasting.py) and projects forward; only raises a finding while
     the table is still healthy today (find_dead_tuple_finding above already

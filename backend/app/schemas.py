@@ -126,7 +126,7 @@ class TableHealthRow(BaseModel):
     xid_age: int
     wraparound_severity: str
     total_bytes: int
-    # Sourced from the table-metrics background cycle (metric_points),
+    # Sourced from the table-metrics background cycle (table_stat_snapshots),
     # never computed live in the bulk list query (see table_health.py) —
     # None means no sample has landed for this table yet.
     total_bytes_as_of: datetime | None = None
@@ -513,6 +513,10 @@ class QueryHistoryPoint(BaseModel):
     ts: datetime
     calls: int
     mean_exec_ms: float
+    # Rows returned/affected in this interval. None for intervals recorded
+    # before rows were stored as a per-interval delta (migration 004).
+    rows: int | None = None
+    rows_per_call: float | None = None
 
 
 class QueryHistorySeries(BaseModel):

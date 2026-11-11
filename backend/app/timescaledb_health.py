@@ -57,9 +57,9 @@ def is_timescaledb_installed(cur) -> bool:
 
 def fetch_chunk_map(cur) -> dict[tuple[str, str], tuple[str, str]]:
     """Also used directly by table_health.py's background size cache
-    (_fetch_table_size_cache) to roll up per-chunk metric_points samples onto
-    their hypertable — run_table_metrics_cycle (scheduler.py) isn't
-    TimescaleDB-aware, so it stores one table_size_bytes sample per chunk
+    (_fetch_table_size_cache) to roll up per-chunk table_stat_snapshots
+    samples onto their hypertable — run_table_metrics_cycle (scheduler.py)
+    isn't TimescaleDB-aware, so it stores one size sample per chunk
     (plus one for the hypertable's own near-empty native relation), the same
     "wrong information" this module's row aggregation fixes for the live
     query."""

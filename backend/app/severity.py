@@ -27,11 +27,15 @@ def dead_pct_severity(pct: float) -> str:
 
 
 # XID wraparound: alert past 1 billion (of the 2.147 billion hard ceiling).
+# Multixact IDs are also 32-bit counters with the same ceiling, so mxid ages
+# use the same scale.
 WRAPAROUND_ATTENTION = 1_000_000_000
 WRAPAROUND_CRITICAL = 1_500_000_000
 
 
-def wraparound_severity(xid_age: int) -> str:
+def wraparound_severity(xid_age: int | None) -> str:
+    if xid_age is None:
+        return "unknown"
     if xid_age >= WRAPAROUND_CRITICAL:
         return "critical"
     if xid_age >= WRAPAROUND_ATTENTION:
@@ -111,6 +115,28 @@ def connection_pool_severity(used_pct: float) -> str:
     if used_pct >= CONNECTION_POOL_CRITICAL_PCT:
         return "critical"
     if used_pct >= CONNECTION_POOL_ATTENTION_PCT:
+        return "attention"
+    return "healthy"
+
+
+# The xmin horizon: the oldest snapshot or transaction still needed by a
+# session, a prepared transaction or a replication slot. VACUUM can't remove
+# a row version deleted after it, so a horizon held back for long is why
+# "autovacuum runs but dead rows don't go away". Judged by both how long it's
+# been held and how many transactions have run since; held_seconds is None
+# for a replication slot, which has no start time.
+XMIN_HORIZON_ATTENTION_SECONDS = 30 * 60
+XMIN_HORIZON_CRITICAL_SECONDS = 4 * 3600
+XMIN_HORIZON_ATTENTION_AGE = 10_000_000
+XMIN_HORIZON_CRITICAL_AGE = 100_000_000
+
+
+def xmin_horizon_severity(xmin_age: int | None, held_seconds: int | None) -> str:
+    xmin_age = xmin_age or 0
+    held_seconds = held_seconds or 0
+    if xmin_age >= XMIN_HORIZON_CRITICAL_AGE or held_seconds >= XMIN_HORIZON_CRITICAL_SECONDS:
+        return "critical"
+    if xmin_age >= XMIN_HORIZON_ATTENTION_AGE or held_seconds >= XMIN_HORIZON_ATTENTION_SECONDS:
         return "attention"
     return "healthy"
 

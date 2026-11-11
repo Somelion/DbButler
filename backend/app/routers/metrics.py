@@ -21,13 +21,22 @@ router = APIRouter(prefix="/api/targets", tags=["metrics"])
 # (metric_name, display label, unit) for every series Trends charts. Adding a
 # metric here is the only step needed once its collector exists — see
 # app/collectors/__init__.py.
+#
+# worst_table_xid_age keeps its historical metric name so older history
+# still lines up, but is now the database's datfrozenxid age (which also
+# covers catalogs and TOAST tables) — see app/collectors/__init__.py.
 TREND_METRICS = [
     ("cache_hit_ratio", "Cache Hit Rate", "%"),
     ("connection_count", "Connections", ""),
     ("worst_table_dead_pct", "Worst Table Bloat", "%"),
     ("database_size_bytes", "Database Size", "bytes"),
-    ("worst_table_xid_age", "Worst Table Wraparound Age", ""),
+    ("worst_table_xid_age", "Wraparound Age (transaction IDs)", ""),
+    ("database_mxid_age", "Wraparound Age (multixact IDs)", ""),
 ]
+
+# Both wraparound series forecast days until the same critical threshold —
+# XIDs and multixact IDs are both 32-bit counters (app/severity.py).
+_WRAPAROUND_METRICS = ("worst_table_xid_age", "database_mxid_age")
 
 # Capacity forecasting (app/forecasting.py) only makes sense for metrics that
 # genuinely head toward a ceiling — cache hit rate and connection count
@@ -41,7 +50,7 @@ SIZE_PROJECTION_DAYS = 30
 
 
 def _build_forecast(metric_name: str, points: list[TrendPoint]) -> TrendForecast | None:
-    if metric_name not in ("database_size_bytes", "worst_table_xid_age"):
+    if metric_name != "database_size_bytes" and metric_name not in _WRAPAROUND_METRICS:
         return None
 
     history = [(p.ts, p.value) for p in points]
@@ -54,7 +63,7 @@ def _build_forecast(metric_name: str, points: list[TrendPoint]) -> TrendForecast
 
     current_value = points[-1].value
 
-    if metric_name == "worst_table_xid_age":
+    if metric_name in _WRAPAROUND_METRICS:
         days = days_to_reach(current_value, WRAPAROUND_CRITICAL, slope)
         if days is None:
             return None
@@ -72,12 +81,20 @@ def _build_forecast(metric_name: str, points: list[TrendPoint]) -> TrendForecast
     )
 
 
-# metric -> (display label, unit) for the per-table trend picker. Written by
-# app/scheduler.py's run_table_metrics_cycle, one row per table per cycle.
+# metric -> (display label, unit, table_stat_snapshots column) for the
+# per-table trend picker. Written by app/scheduler.py's
+# run_table_metrics_cycle, one row per table per cycle. The metric names are
+# the API's (and the UI's) and predate the typed table; the column is a
+# fixed value from this dict, never from the request.
 TABLE_TREND_METRICS = {
-    "table_dead_pct": ("Dead Tuple %", "%"),
-    "table_size_bytes": ("Size", "bytes"),
+    "table_dead_pct": ("Dead Tuple %", "%", "dead_pct"),
+    "table_size_bytes": ("Size", "bytes", "total_bytes"),
 }
+
+# How far back the per-table summary looks for "the latest value". Bounded
+# so the picker never scans the whole 30-day history (a table not seen in
+# the last day has most likely been dropped).
+TABLE_TREND_SUMMARY_LOOKBACK_HOURS = 24
 
 
 @router.get("/{target_id}/metrics/{metric_name}")
@@ -125,18 +142,18 @@ def get_table_trends_summary(target_id: uuid.UUID, metric: str = "table_dead_pct
     whichever tables get selected comes from get_table_trends below."""
     if metric not in TABLE_TREND_METRICS:
         raise HTTPException(status_code=400, detail=f"Unknown table trend metric '{metric}'")
-    label, unit = TABLE_TREND_METRICS[metric]
+    label, unit, column = TABLE_TREND_METRICS[metric]
 
     with store_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            """
-            SELECT DISTINCT ON (labels->>'schema', labels->>'table')
-                labels->>'schema' AS schema_name, labels->>'table' AS table_name, value
-            FROM metric_points
-            WHERE target_id = %s AND metric_name = %s
-            ORDER BY labels->>'schema', labels->>'table', collected_at DESC
+            f"""
+            SELECT DISTINCT ON (schema_name, table_name) schema_name, table_name, {column}
+            FROM table_stat_snapshots
+            WHERE target_id = %s AND {column} IS NOT NULL
+              AND collected_at >= now() - (%s * interval '1 hour')
+            ORDER BY schema_name, table_name, collected_at DESC
             """,
-            (target_id, metric),
+            (target_id, TABLE_TREND_SUMMARY_LOOKBACK_HOURS),
         )
         rows = cur.fetchall()
 
@@ -159,7 +176,7 @@ def get_table_trends(
     table is actually selected."""
     if metric not in TABLE_TREND_METRICS:
         raise HTTPException(status_code=400, detail=f"Unknown table trend metric '{metric}'")
-    label, unit = TABLE_TREND_METRICS[metric]
+    label, unit, column = TABLE_TREND_METRICS[metric]
     hours = max(1, min(hours, 24 * 90))
 
     if not tables:
@@ -167,15 +184,15 @@ def get_table_trends(
 
     with store_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            """
-            SELECT labels->>'schema' AS schema_name, labels->>'table' AS table_name, collected_at, value
-            FROM metric_points
-            WHERE target_id = %s AND metric_name = %s
+            f"""
+            SELECT schema_name, table_name, collected_at, {column}
+            FROM table_stat_snapshots
+            WHERE target_id = %s AND {column} IS NOT NULL
               AND collected_at >= now() - (%s * interval '1 hour')
-              AND ((labels->>'schema') || '.' || (labels->>'table')) = ANY(%s)
+              AND (schema_name || '.' || table_name) = ANY(%s)
             ORDER BY schema_name, table_name, collected_at
             """,
-            (target_id, metric, hours, tables),
+            (target_id, hours, tables),
         )
         rows = cur.fetchall()
 

@@ -58,6 +58,12 @@ def quote_qualified(*parts: str) -> str:
     return ".".join(quote_ident(part) for part in parts)
 
 
+def quote_literal(value: str) -> str:
+    """Mirrors PostgreSQL's quote_literal() for a string under the default
+    standard_conforming_strings=on: single-quoted, embedded quotes doubled."""
+    return "'" + value.replace("'", "''") + "'"
+
+
 def parse_qualified_name(text: str) -> list[str]:
     """Inverse of quote_qualified() for a name already matched by
     QUALIFIED_NAME_PATTERN: splits on dots outside quotes and unquotes each

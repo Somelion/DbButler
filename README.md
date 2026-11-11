@@ -104,7 +104,8 @@ path.
 
 To also start a disposable demo Postgres instance, seeded with a small dataset that has a few
 deliberate issues (an unindexed foreign key, float-typed money columns, an unvacuumed bloated
-table, duplicate/unused indexes) so every view has something real to show:
+table, duplicate/unused indexes, and a forgotten prepared transaction holding back VACUUM) so
+every view has something real to show:
 
 ```
 docker compose --profile demo up
@@ -117,6 +118,13 @@ default to `demo`/`demo`.
 
 No `.env` file or other setup is required for the demo — sensible local-dev defaults are baked
 into `docker-compose.yml`. `example.env` documents every override available if you want one.
+
+The forgotten prepared transaction means VACUUM can't remove rows deleted after the demo was
+seeded — the Dashboard's Vacuum Horizon tile shows it, with the fix
+(`ROLLBACK PREPARED 'demo_forgotten_2pc';`). The seed only runs on an empty volume, so to re-seed
+an existing demo database remove just its volume: `docker compose --profile demo rm -sf
+pgdba-demo-target`, then `docker volume rm` the volume ending in `_pgdba_demo_data` (see
+`docker volume ls`). Don't use `down -v` for this — it also deletes the store's history.
 
 ### Optional: TimescaleDB test target
 

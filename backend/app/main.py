@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth import require_auth
 from app.config import settings
 from app.db.migrate import run_migrations
+from app.db.store import close_store_pool
 from app.routers.activity import router as activity_router
 from app.routers.advisor_archive import router as advisor_archive_router
 from app.routers.ai_settings import router as ai_settings_router
@@ -79,6 +80,7 @@ async def lifespan(app: FastAPI):
     scheduler = start_scheduler()
     yield
     scheduler.shutdown()
+    close_store_pool()
 
 
 app = FastAPI(title="DbButler API", version=APP_VERSION, lifespan=lifespan)

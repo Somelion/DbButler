@@ -14,14 +14,9 @@ class Collector:
     query: str
 
 
-CACHE_HIT_RATIO = Collector(
-    name="cache_hit_ratio",
-    metric_name="cache_hit_ratio",
-    query="""
-        SELECT 100.0 * sum(heap_blks_hit) / nullif(sum(heap_blks_hit) + sum(heap_blks_read), 0)
-        FROM pg_statio_user_tables
-    """,
-)
+# The cache hit rate isn't one of these: it's the ratio between two samples
+# of pg_stat_database's counters, not a single reading — see app/cache_hit.py
+# and app/scheduler.py::_collect_cache_hit_ratio.
 
 CONNECTION_COUNT = Collector(
     name="connection_count",
@@ -51,19 +46,23 @@ DATABASE_SIZE = Collector(
     query="SELECT pg_database_size(current_database())",
 )
 
-# Same "worst offender, one trend line" framing as WORST_TABLE_DEAD_PCT above
-# and the same join Dashboard's own Wraparound category and Table Health use
-# (pg_stat_user_tables joined to pg_class) — feeds Trends' wraparound
-# forecast (routers/metrics.py), which the Dashboard tile alone can't
-# provide since it only ever shows the current age, never a trend.
+# Feeds Trends' wraparound forecast (routers/metrics.py), which the Dashboard
+# tile alone can't provide since it only ever shows the current age, never a
+# trend. The database's datfrozenxid is the oldest unfrozen XID of any table
+# in it — catalogs and TOAST tables included — so it's the age that actually
+# runs out; it used to be the oldest user table's heap only. The metric name
+# is kept so existing history stays on the same chart.
 WORST_TABLE_XID_AGE = Collector(
     name="worst_table_xid_age",
     metric_name="worst_table_xid_age",
-    query="""
-        SELECT COALESCE(MAX(age(c.relfrozenxid)), 0)
-        FROM pg_stat_user_tables s
-        JOIN pg_class c ON c.oid = s.relid
-    """,
+    query="SELECT age(datfrozenxid) FROM pg_database WHERE datname = current_database()",
 )
 
-COLLECTORS = [CACHE_HIT_RATIO, CONNECTION_COUNT, WORST_TABLE_DEAD_PCT, DATABASE_SIZE, WORST_TABLE_XID_AGE]
+# Multixact IDs wrap just like XIDs (app/wraparound.py).
+DATABASE_MXID_AGE = Collector(
+    name="database_mxid_age",
+    metric_name="database_mxid_age",
+    query="SELECT mxid_age(datminmxid) FROM pg_database WHERE datname = current_database()",
+)
+
+COLLECTORS = [CONNECTION_COUNT, WORST_TABLE_DEAD_PCT, DATABASE_SIZE, WORST_TABLE_XID_AGE, DATABASE_MXID_AGE]

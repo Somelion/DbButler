@@ -15,13 +15,25 @@ DASHBOARD_CATEGORIES = [
     DashboardCategoryInfo(key="connections", label="Connections", description="Active sessions and idle-in-transaction time."),
     DashboardCategoryInfo(key="locks", label="Locks", description="Sessions currently blocked waiting on another session."),
     DashboardCategoryInfo(key="bloat", label="Bloat", description="The worst table's dead-row percentage."),
-    DashboardCategoryInfo(key="cache", label="Cache Hit Rate", description="Share of reads served from memory vs. disk."),
+    DashboardCategoryInfo(key="cache", label="Cache Hit Rate", description="Share of recent reads served from memory vs. disk."),
     DashboardCategoryInfo(key="checkpoints", label="Checkpoints", description="Scheduled vs. forced checkpoints."),
-    DashboardCategoryInfo(key="wraparound", label="Wraparound", description="The oldest table's transaction ID age."),
+    DashboardCategoryInfo(
+        key="wraparound",
+        label="Wraparound",
+        description="The oldest transaction ID and multixact ID ages, per table and for the whole database.",
+    ),
     DashboardCategoryInfo(
         key="autovacuum",
         label="Autovacuum",
         description="Whether autovacuum is currently running and how stale the least-recently-vacuumed table is.",
+    ),
+    DashboardCategoryInfo(
+        key="xmin horizon",
+        label="Vacuum Horizon",
+        description=(
+            "Long transactions, forgotten prepared transactions and replication slots that stop VACUUM from "
+            "removing dead rows."
+        ),
     ),
     DashboardCategoryInfo(
         key="replication",

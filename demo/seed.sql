@@ -89,3 +89,24 @@ SELECT id, total, created_at FROM orders ORDER BY created_at DESC LIMIT 20 OFFSE
 
 -- NOT IN with a subquery anti-pattern.
 SELECT * FROM customers WHERE id NOT IN (SELECT customer_id FROM orders);
+
+-- A forgotten two-phase transaction: prepared, then never committed or rolled
+-- back — what a crashed transaction manager leaves behind. It holds back the
+-- vacuum horizon for this database from here on, so the Dashboard's Vacuum
+-- Horizon tile has a real holder to show: VACUUM can't remove rows deleted
+-- after this point until it's resolved. (The orders bloat above was created
+-- before it, so VACUUM still cleans that up.) To clear it:
+--   ROLLBACK PREPARED 'demo_forgotten_2pc';
+-- Needs max_prepared_transactions > 0 (set in docker-compose.yml); skipped
+-- otherwise, so the rest of the seed still works without it.
+CREATE TABLE payment_batches (
+    id         BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+SELECT current_setting('max_prepared_transactions')::int > 0 AS can_prepare \gset
+\if :can_prepare
+BEGIN;
+INSERT INTO payment_batches DEFAULT VALUES;
+PREPARE TRANSACTION 'demo_forgotten_2pc';
+\endif

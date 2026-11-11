@@ -1,0 +1,4 @@
+# Files executed inside Linux containers straight from the working tree must
+# keep LF endings even on a Windows checkout (core.autocrlf=true): the demo
+# seeds use psql meta-commands (\gset, \if), which don't tolerate a trailing CR.
+demo/*.sql text eol=lf

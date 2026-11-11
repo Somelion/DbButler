@@ -65,7 +65,7 @@ def get_query_history(target_id: uuid.UUID, hours: int = 24, queryids: list[int]
     with store_conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT tq.queryid, tq.query_text, s.collected_at, s.calls, s.mean_exec_ms
+            SELECT tq.queryid, tq.query_text, s.collected_at, s.calls, s.mean_exec_ms, s.rows
             FROM query_stat_snapshots s
             JOIN tracked_queries tq ON tq.id = s.tracked_query_id
             WHERE tq.target_id = %s AND tq.queryid = ANY(%s)
@@ -77,9 +77,17 @@ def get_query_history(target_id: uuid.UUID, hours: int = 24, queryids: list[int]
         rows = cur.fetchall()
 
     result: dict[int, QueryHistorySeries] = {}
-    for queryid, query_text, ts, calls, mean_exec_ms in rows:
+    for queryid, query_text, ts, calls, mean_exec_ms, row_count in rows:
         if queryid not in result:
             result[queryid] = QueryHistorySeries(queryid=queryid, query=_truncate(query_text), points=[])
-        result[queryid].points.append(QueryHistoryPoint(ts=ts, calls=calls, mean_exec_ms=mean_exec_ms))
+        result[queryid].points.append(
+            QueryHistoryPoint(
+                ts=ts,
+                calls=calls,
+                mean_exec_ms=mean_exec_ms,
+                rows=row_count,
+                rows_per_call=(row_count / calls) if row_count is not None and calls else None,
+            )
+        )
 
     return QueryHistoryResponse(hours=hours, queries=list(result.values()))

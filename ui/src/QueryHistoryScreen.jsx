@@ -13,6 +13,7 @@ const RANGE_OPTIONS = [
 const COMPARE_METRIC_OPTIONS = [
   { value: "mean_exec_ms", label: "Avg Latency" },
   { value: "calls", label: "Calls" },
+  { value: "rows_per_call", label: "Rows / Call" },
 ];
 
 // How many standard deviations above a query's own mean latency (across the
@@ -100,11 +101,16 @@ export default function QueryHistoryScreen({ targetId }) {
 
   // Preserve selection order (a Set iterates in insertion order) so a
   // query's overlay color stays stable as long as it stays selected —
-  // same technique TrendsScreen's Table Trends section uses.
+  // same technique TrendsScreen's Table Trends section uses. Intervals
+  // recorded before rows were stored per interval have rows_per_call null —
+  // left out rather than drawn as zero.
   const compareSeries = [...selectedQueryIds]
     .map((id) => seriesByQueryId.get(id))
     .filter(Boolean)
-    .map((q) => ({ name: q.query, points: q.points.map((p) => ({ ts: p.ts, value: p[compareMetric] })) }));
+    .map((q) => ({
+      name: q.query,
+      points: q.points.filter((p) => p[compareMetric] != null).map((p) => ({ ts: p.ts, value: p[compareMetric] })),
+    }));
 
   const focusedSeries = focusedQueryId != null ? seriesByQueryId.get(focusedQueryId) : null;
   const focusedCallsPoints = focusedSeries ? focusedSeries.points.map((p) => ({ ts: p.ts, value: p.calls })) : [];
