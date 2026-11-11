@@ -1,0 +1,18 @@
+.pairButton {
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--accent);
+  text-align: left;
+  border-radius: var(--radius-xs);
+}
+
+.pairButton:hover {
+  text-decoration: underline;
+}
+
+.ok {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}

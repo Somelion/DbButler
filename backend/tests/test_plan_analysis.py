@@ -24,9 +24,9 @@ PLAN_JSON = {
 
 
 def test_explain_sql_uses_generic_plan_only_when_needed_and_supported():
-    assert build_explain_sql("SELECT 1", 150000) == "EXPLAIN (FORMAT JSON) SELECT 1"
+    assert build_explain_sql("SELECT 1", 150000) == "EXPLAIN (VERBOSE, FORMAT JSON) SELECT 1"
     assert build_explain_sql("SELECT * FROM t WHERE id = $1", 160000) == (
-        "EXPLAIN (GENERIC_PLAN, FORMAT JSON) SELECT * FROM t WHERE id = $1"
+        "EXPLAIN (VERBOSE, GENERIC_PLAN, FORMAT JSON) SELECT * FROM t WHERE id = $1"
     )
     assert build_explain_sql("SELECT * FROM t WHERE id = $1", 150000) is None
 

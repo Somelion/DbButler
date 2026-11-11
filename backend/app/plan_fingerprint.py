@@ -42,12 +42,16 @@ def build_explain_sql(query_text: str, server_version_num: int) -> str | None:
     can't be safely captured this cycle — a parameterized query on a server
     older than GENERIC_PLAN_MIN_VERSION has no way to be planned without real
     parameter values this collector doesn't have, so it's skipped rather than
-    guessed at."""
+    guessed at.
+
+    VERBOSE adds each scan's schema and alias-qualified column references in
+    every condition — what the Workload Map (app/workload_extract.py) reads
+    joins from. It adds no structural keys, so fingerprints are unchanged."""
     if has_unfilled_placeholders(query_text):
         if server_version_num < GENERIC_PLAN_MIN_VERSION:
             return None
-        return f"EXPLAIN (GENERIC_PLAN, FORMAT JSON) {query_text}"
-    return f"EXPLAIN (FORMAT JSON) {query_text}"
+        return f"EXPLAIN (VERBOSE, GENERIC_PLAN, FORMAT JSON) {query_text}"
+    return f"EXPLAIN (VERBOSE, FORMAT JSON) {query_text}"
 
 
 def build_fingerprint(node: dict) -> dict:

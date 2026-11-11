@@ -90,6 +90,51 @@ SELECT id, total, created_at FROM orders ORDER BY created_at DESC LIMIT 20 OFFSE
 -- NOT IN with a subquery anti-pattern.
 SELECT * FROM customers WHERE id NOT IN (SELECT customer_id FROM orders);
 
+-- Workload Map. Three relationships, one of each kind the map tells apart:
+--   customers <- orders       FK, joined below — and the FK is unindexed
+--   orders    <- order_items  FK, joined below, indexed
+--   orders    <- refunds      joined below on refunds.order_ref, but no FK
+--                             declared (the dashed "joined without FK" edge)
+--   customers <- customer_notes  FK declared, never joined (dotted edge)
+-- The joins write intervals as '60 days'::interval, not interval '60 days':
+-- pg_stat_statements normalizes the latter to "interval $1", which no longer
+-- parses, so the Workload Map couldn't plan it.
+CREATE TABLE refunds (
+    id         BIGSERIAL PRIMARY KEY,
+    order_ref  BIGINT NOT NULL,          -- deliberately no REFERENCES orders(id)
+    amount     NUMERIC(10, 2) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO refunds (order_ref, amount, created_at)
+SELECT (random() * 19999 + 1)::bigint, round((random() * 50 + 1)::numeric, 2), now() - (random() * interval '90 days')
+FROM generate_series(1, 1500);
+
+CREATE TABLE customer_notes (
+    id          BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT NOT NULL REFERENCES customers(id),
+    note        TEXT NOT NULL
+);
+CREATE INDEX idx_customer_notes_customer_id ON customer_notes(customer_id);
+INSERT INTO customer_notes (customer_id, note)
+SELECT (random() * 4999 + 1)::bigint, 'Called about order ' || g FROM generate_series(1, 300) AS g;
+ANALYZE refunds;
+ANALYZE customer_notes;
+
+SELECT c.email, count(o.id) AS orders, sum(o.total) AS spent
+FROM customers c JOIN orders o ON o.customer_id = c.id
+WHERE c.created_at > now() - '60 days'::interval
+GROUP BY c.email ORDER BY spent DESC LIMIT 20;
+
+SELECT o.id, o.created_at, sum(oi.quantity * oi.unit_price) AS order_value
+FROM orders o JOIN order_items oi ON oi.order_id = o.id
+WHERE o.created_at > now() - '7 days'::interval
+GROUP BY o.id, o.created_at;
+
+SELECT o.customer_id, sum(r.amount) AS refunded
+FROM refunds r JOIN orders o ON o.id = r.order_ref
+WHERE r.created_at > now() - '30 days'::interval
+GROUP BY o.customer_id ORDER BY refunded DESC LIMIT 10;
+
 -- A forgotten two-phase transaction: prepared, then never committed or rolled
 -- back — what a crashed transaction manager leaves behind. It holds back the
 -- vacuum horizon for this database from here on, so the Dashboard's Vacuum

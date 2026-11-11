@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TargetCreate(BaseModel):
@@ -762,3 +762,138 @@ class TableHealthDeepScanStatus(BaseModel):
     last_run_status: str | None  # "ok" | "error" | None (never run yet)
     last_run_error: str | None
     open_findings: int
+
+
+# --- Workload Map (routers/workload_graph.py, app/workload_graph.py) --------
+
+
+class WorkloadTopQuery(BaseModel):
+    queryid: int
+    query: str
+    db_time_ms: float
+    calls: int
+
+
+class WorkloadForeignKey(BaseModel):
+    name: str
+    child: str  # "schema.table"
+    child_columns: list[str]
+    parent: str
+    parent_columns: list[str]
+    indexed: bool  # the FK's columns lead some index on the child table
+
+
+class WorkloadNode(BaseModel):
+    id: str  # "schema.table"
+    schema_: str = Field(alias="schema")
+    table: str
+    in_workload: bool  # touched by at least one tracked query (else: only an FK endpoint)
+    db_time_ms: float
+    share_pct: float
+    query_count: int
+    access_kinds: list[str]
+    written: bool
+    filter_columns: list[str]
+    severity: str | None  # worst open finding on this table; None = none open
+    total_bytes: int | None
+    live_rows: int | None
+    dead_pct: float | None
+    # Counter growth over meta.stats_window_hours, summed over partitions.
+    seq_scans: int | None
+    seq_tup_read: int | None
+    idx_scans: int | None
+    writes: int | None
+    hot_update_pct: float | None
+    folded_children: int  # partitions / TimescaleDB chunks folded into this node
+    top_queries: list[WorkloadTopQuery]
+
+    model_config = {"populate_by_name": True}
+
+
+class WorkloadEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+    kind: str  # "fk" | "no_fk" | "fk_unused"
+    db_time_ms: float
+    share_pct: float
+    calls: int
+    query_count: int
+    column_pairs: list[list[str]]  # [source column, target column]
+    join_types: list[str]
+    join_strategies: list[str]
+    source_indexed: bool
+    target_indexed: bool
+    foreign_keys: list[WorkloadForeignKey]
+    top_queries: list[WorkloadTopQuery]
+
+
+class WorkloadQueryStatusCounts(BaseModel):
+    ok: int
+    needs_generic_plan: int
+    explain_failed: int
+    not_planned_yet: int
+
+
+class WorkloadEdgeCounts(BaseModel):
+    fk: int
+    no_fk: int
+    fk_unused: int
+
+
+class WorkloadGraphMeta(BaseModel):
+    hours: int
+    weight_basis: str  # "window" | "lifetime" (nothing ran in the window)
+    tracked_queries: int
+    query_status_counts: WorkloadQueryStatusCounts
+    total_db_time_ms: float
+    mapped_db_time_ms: float
+    coverage_pct: float | None
+    edge_counts: WorkloadEdgeCounts
+    truncated_nodes: int
+    stats_window_hours: float | None
+    last_captured_at: datetime | None
+
+
+class WorkloadGraphResponse(BaseModel):
+    nodes: list[WorkloadNode]
+    edges: list[WorkloadEdge]
+    meta: WorkloadGraphMeta
+
+
+class WorkloadTableQuery(BaseModel):
+    queryid: int
+    query: str
+    db_time_ms: float
+    calls: int
+    access_kinds: list[str]
+    filter_columns: list[str]
+
+
+class WorkloadTableIndex(BaseModel):
+    name: str
+    definition: str
+    is_primary: bool
+    is_unique: bool
+    size_bytes: int | None
+    idx_scan: int | None
+
+
+class WorkloadTableFinding(BaseModel):
+    id: str
+    title: str | None
+    severity: str | None
+    category: str
+
+
+class WorkloadTableDetailResponse(BaseModel):
+    schema_: str = Field(alias="schema")
+    table: str
+    weight_basis: str
+    queries: list[WorkloadTableQuery]
+    query_count: int
+    indexes: list[WorkloadTableIndex]
+    index_usage_partial: bool  # TimescaleDB hypertable: chunk index scans not counted
+    findings: list[WorkloadTableFinding]
+
+    model_config = {"populate_by_name": True}

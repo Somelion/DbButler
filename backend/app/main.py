@@ -42,6 +42,7 @@ from app.routers.security_advisor import router as security_advisor_router
 from app.routers.table_health import router as table_health_router
 from app.routers.targets import router as targets_router
 from app.routers.wait_events import router as wait_events_router
+from app.routers.workload_graph import router as workload_graph_router
 from app.scheduler import start_scheduler
 from app.version import APP_VERSION
 
@@ -120,6 +121,7 @@ app.include_router(query_history_router, dependencies=_AUTH)
 app.include_router(plan_regressions_router, dependencies=_AUTH)
 app.include_router(pgbouncer_router, dependencies=_AUTH)
 app.include_router(wait_events_router, dependencies=_AUTH)
+app.include_router(workload_graph_router, dependencies=_AUTH)
 
 app.add_middleware(
     CORSMiddleware,

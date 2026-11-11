@@ -313,8 +313,12 @@ def test_every_store_table_is_pruned_or_explicitly_kept():
     for path in _store_sql_files():
         created |= set(re.findall(r"CREATE TABLE IF NOT EXISTS (\w+)", path.read_text(encoding="utf-8")))
     pruned = {table for table, _sql, _days in scheduler.RETENTION_RULES}
+    cascaded = set(scheduler.RETENTION_CASCADE_TABLES)
     assert not pruned & scheduler.RETENTION_EXEMPT_TABLES
-    assert created == pruned | scheduler.RETENTION_EXEMPT_TABLES
+    assert not cascaded & (pruned | scheduler.RETENTION_EXEMPT_TABLES)
+    # A cascaded table's parent must itself be pruned.
+    assert set(scheduler.RETENTION_CASCADE_TABLES.values()) <= pruned
+    assert created == pruned | scheduler.RETENTION_EXEMPT_TABLES | cascaded
 
 
 def test_data_quality_migration_is_additive():

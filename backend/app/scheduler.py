@@ -35,6 +35,8 @@ from app.routers.wait_events import WAIT_EVENT_SNAPSHOT_QUERY
 from app.schemas import IndexFinding
 from app.target_backoff import TargetBackoff
 from app.target_conn import open_target_connection
+from app.workload_catalog import fetch_parent_map
+from app.workload_extract import EXTRACTOR_VERSION, extract_workload
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +172,15 @@ RETENTION_RULES: list[tuple[str, str, int]] = [
         "DELETE FROM tracked_queries WHERE last_seen_at < now() - (%(days)s * interval '1 day')",
         RETENTION_DAYS,
     ),
+    # The Workload Map's per-query extraction: checked_at moves on every plan
+    # capture, so only a query nobody has planned for RETENTION_DAYS (plan
+    # capture switched off, say) ages out. Its relation and join rows go
+    # with it (RETENTION_CASCADE_TABLES).
+    (
+        "query_workload_extracts",
+        "DELETE FROM query_workload_extracts WHERE checked_at < now() - (%(days)s * interval '1 day')",
+        RETENTION_DAYS,
+    ),
     (
         "collector_runs",
         "DELETE FROM collector_runs WHERE finished_at < now() - (%(days)s * interval '1 day')",
@@ -228,6 +239,13 @@ RETENTION_EXEMPT_TABLES = frozenset(
         "schema_migrations",
     }
 )
+
+# Child tables with no age of their own: replaced in place and deleted by
+# ON DELETE CASCADE with the parent table named here, which has a rule above.
+RETENTION_CASCADE_TABLES = {
+    "query_relation_access": "query_workload_extracts",
+    "query_join_edges": "query_workload_extracts",
+}
 
 # Every job's cadence now lives in the scheduler_jobs table (editable from the
 # Settings screen, hot-swapped in below via reconcile()) rather than as a
@@ -556,7 +574,13 @@ def _capture_query_plans(target_row):
     EXPLAIN work, same shape as _collect_query_history's target-then-store
     ordering. Each EXPLAIN is its own autocommit statement, so the locks it
     takes for planning are released straight away rather than held until all
-    of them are done."""
+    of them are done.
+
+    The same plans feed the Workload Map: app/workload_extract.py reads the
+    tables and joins out of each one (partitions and chunks folded onto
+    their parent via one catalog read per cycle), and
+    _store_workload_extracts records them, plus why a query couldn't be
+    planned, for routers/workload_graph.py's coverage figure."""
     target_id = target_row[0]
     started_at = datetime.now(timezone.utc)
     errors: list[str] = []
@@ -566,6 +590,10 @@ def _capture_query_plans(target_row):
         tracked = cur.fetchall()
 
     captures = []
+    # (tracked_id, status, error, plan root or None)
+    outcomes: list[tuple] = []
+    parent_map: dict = {}
+    parent_map_ok = False
 
     try:
         with _target_session(target_row) as target_conn, target_conn.cursor() as cur:
@@ -575,12 +603,13 @@ def _capture_query_plans(target_row):
             for tracked_id, query_text in tracked:
                 explain_sql = build_explain_sql(query_text, version_num)
                 if explain_sql is None:
+                    outcomes.append((tracked_id, "needs_generic_plan", None, None))
                     continue
 
                 try:
                     cur.execute(explain_sql)
                     plan_payload = cur.fetchone()[0]
-                except psycopg.Error:
+                except psycopg.Error as exc:
                     # Not every pg_stat_statements entry is EXPLAIN-able (a
                     # utility statement, or query text that no longer parses
                     # standalone) — skip it. Autocommit means the failure
@@ -588,16 +617,46 @@ def _capture_query_plans(target_row):
                     # itself is gone.
                     if target_conn.broken:
                         raise
+                    outcomes.append((tracked_id, "explain_failed", _first_line(exc), None))
                     continue
 
                 plan_list = plan_payload if isinstance(plan_payload, list) else json.loads(plan_payload)
-                fingerprint = build_fingerprint(plan_list[0]["Plan"])
+                plan_root = plan_list[0]["Plan"]
+                fingerprint = build_fingerprint(plan_root)
                 captures.append(
                     (tracked_id, hash_fingerprint(fingerprint), summarize_fingerprint(fingerprint), fingerprint)
                 )
+                outcomes.append((tracked_id, "ok", None, plan_root))
+
+            if any(plan is not None for *_rest, plan in outcomes):
+                # The Workload Map's own catalog read: a failure here is
+                # logged, not recorded against the plan regression run, whose
+                # plans were all captured fine.
+                try:
+                    parent_map = fetch_parent_map(cur)
+                    parent_map_ok = True
+                except psycopg.Error as exc:
+                    if target_conn.broken:
+                        raise
+                    logger.warning("workload parent map failed for target %s: %s", target_id, exc)
     except Exception as exc:
         errors.append(str(exc))
         logger.warning("plan regression collector failed for target %s: %s", target_id, exc)
+
+    # Without the parent map, partitions and chunks can't be folded onto
+    # their tables, and storing that would replace good extractions with a
+    # map of chunk names. Only the queries that couldn't be planned are
+    # recorded then; everything else keeps its last extraction.
+    extracts = []
+    try:
+        for tracked_id, status, error, plan in outcomes:
+            if plan is None:
+                extracts.append((tracked_id, status, error, None))
+            elif parent_map_ok:
+                extracts.append((tracked_id, status, error, extract_workload(plan, parent_map)))
+    except Exception:
+        logger.exception("workload extraction failed for target %s", target_id)
+        extracts = []
 
     with store_conn() as conn, conn.cursor() as cur:
         for tracked_id, fingerprint_hash, plan_summary, fingerprint in captures:
@@ -618,8 +677,95 @@ def _capture_query_plans(target_row):
                 """,
                 (tracked_id, fingerprint_hash, plan_summary, Jsonb(fingerprint)),
             )
+        # In its own savepoint: whatever goes wrong storing the Workload Map
+        # (a tracked query deleted by retention mid-cycle, say) must not roll
+        # back the plan snapshots above.
+        try:
+            with conn.transaction():
+                _store_workload_extracts(cur, extracts)
+        except Exception:
+            logger.exception("storing workload extracts failed for target %s", target_id)
         _record_collector_run(cur, target_id, "plan_regression", started_at, errors)
         conn.commit()
+
+
+def _first_line(exc: Exception, limit: int = 300) -> str:
+    text = str(exc).strip().splitlines()
+    return text[0][:limit] if text else type(exc).__name__
+
+
+def _store_workload_extracts(cur, extracts) -> None:
+    """Upserts one query_workload_extracts row per planned (or unplannable)
+    query. Child rows are only rewritten when the extraction's hash changed,
+    so a steady workload costs one UPDATE per query per cycle. An EXPLAIN
+    that fails after an earlier success (a lock timeout, say) keeps the last
+    good extraction — the map shouldn't lose an edge to one bad cycle — and
+    just records the error."""
+    for tracked_id, status, error, extract in extracts:
+        digest = extract.digest() if extract is not None else None
+        cur.execute(
+            "SELECT status, extract_hash FROM query_workload_extracts WHERE tracked_query_id = %s",
+            (tracked_id,),
+        )
+        existing = cur.fetchone()
+        keep_previous = existing is not None and existing[0] == "ok" and status == "explain_failed"
+        if existing is not None and (keep_previous or (existing[0] == status and existing[1] == digest)):
+            cur.execute(
+                "UPDATE query_workload_extracts SET checked_at = now(), error = %s WHERE tracked_query_id = %s",
+                (error, tracked_id),
+            )
+            continue
+
+        cur.execute(
+            """
+            INSERT INTO query_workload_extracts (tracked_query_id, status, error, extract_hash, extractor_version)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (tracked_query_id) DO UPDATE SET
+                status = EXCLUDED.status,
+                error = EXCLUDED.error,
+                extract_hash = EXCLUDED.extract_hash,
+                extractor_version = EXCLUDED.extractor_version,
+                checked_at = now(),
+                changed_at = now()
+            """,
+            (tracked_id, status, error, digest, EXTRACTOR_VERSION),
+        )
+        cur.execute("DELETE FROM query_relation_access WHERE tracked_query_id = %s", (tracked_id,))
+        cur.execute("DELETE FROM query_join_edges WHERE tracked_query_id = %s", (tracked_id,))
+        if extract is None:
+            continue
+        cur.executemany(
+            """
+            INSERT INTO query_relation_access (tracked_query_id, schema_name, table_name, access_kinds, filter_columns)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            [
+                (tracked_id, r.table.schema, r.table.name, sorted(r.access_kinds), sorted(r.filter_columns))
+                for r in extract.relations
+            ],
+        )
+        cur.executemany(
+            """
+            INSERT INTO query_join_edges (
+                tracked_query_id, left_schema, left_table, right_schema, right_table,
+                left_columns, right_columns, join_type, join_strategy
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            [
+                (
+                    tracked_id,
+                    j.left.schema,
+                    j.left.name,
+                    j.right.schema,
+                    j.right.name,
+                    j.left_columns,
+                    j.right_columns,
+                    j.join_type,
+                    j.join_strategy,
+                )
+                for j in extract.joins
+            ],
+        )
 
 
 def _run_guarded(fn: Callable, target_row) -> None:

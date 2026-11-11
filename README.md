@@ -20,6 +20,9 @@ every screen without connecting anything real.
 - **Diagnose Now** — one button that runs the full health runbook and surfaces the top problem
   first.
 - **Activity** — live session view with blocking-lock detection and cancel/terminate.
+- **Workload Map** — a graph of the tables your queries really join, built from their plans and
+  weighted by DB time. It shows joins with no foreign key behind them, foreign keys nobody joins on,
+  and unindexed foreign keys.
 - **Table Health** — per-table dead-tuple %, vacuum staleness, last analyze, wraparound age, and
   cache hit %, with one-click Analyze / Vacuum / reset-stats actions.
 - **Query Intelligence & Explain** — `pg_stat_statements` browser, paste-a-query plan analysis

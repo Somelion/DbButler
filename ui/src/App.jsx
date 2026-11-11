@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useNavigate, useOutletContext, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "./App.module.css";
@@ -23,6 +23,18 @@ import ArchiveScreen from "./ArchiveScreen";
 import ConfigTuningScreen from "./ConfigTuningScreen";
 import TrendsScreen from "./TrendsScreen";
 import Settings from "./Settings";
+
+// The graph library (cytoscape + fcose) is the biggest dependency in the
+// app; it loads only when someone opens the Workload Map.
+const WorkloadMapScreen = lazy(() => import("./WorkloadMapScreen"));
+
+function LazyWorkloadMap(props) {
+  return (
+    <Suspense fallback={<Skeleton height={420} label="Loading the Workload Map…" />}>
+      <WorkloadMapScreen {...props} />
+    </Suspense>
+  );
+}
 
 const AI_ANALYSIS_POLL_MS = 8000;
 
@@ -80,6 +92,7 @@ export default function App() {
           <Route path="dashboard" element={<TargetScreen component={DashboardScreen} />} />
           <Route path="activity" element={<TargetScreen component={ActivityScreen} />} />
           <Route path="trends" element={<TargetScreen component={TrendsScreen} />} />
+          <Route path="workload-map" element={<TargetScreen component={LazyWorkloadMap} />} />
           <Route path="table-health" element={<TargetScreen component={TableHealthScreen} />} />
           <Route path="query-intelligence" element={<TargetScreen component={QueryIntelligenceScreen} />} />
           <Route path="query-history" element={<TargetScreen component={QueryHistoryScreen} />} />

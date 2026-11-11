@@ -200,4 +200,11 @@ export const api = {
     return request(`/api/targets/${targetId}/query-history?hours=${hours}&${idParams}`, opts);
   },
   getPlanRegressions: (targetId, opts) => request(`/api/targets/${targetId}/plan-regressions`, opts),
+  getWorkloadGraph: (targetId, hours, opts) =>
+    request(`/api/targets/${targetId}/workload-graph?hours=${hours}`, opts),
+  getWorkloadTable: (targetId, schemaName, tableName, hours, opts) =>
+    request(
+      `/api/targets/${targetId}/workload-graph/tables/${encodeURIComponent(schemaName)}/${encodeURIComponent(tableName)}?hours=${hours}`,
+      opts
+    ),
 };

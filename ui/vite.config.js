@@ -15,6 +15,12 @@ const allowedHosts = (process.env.UI_ALLOWED_HOSTS ?? "")
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // The Workload Map's chunk (cytoscape + fcose, ~590 kB) is lazy-loaded
+    // only when that screen opens, so it doesn't weigh on first load; the
+    // main bundle stays well under this.
+    chunkSizeWarningLimit: 700,
+  },
   server: {
     host: true,
     port: 5173,

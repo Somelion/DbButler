@@ -145,3 +145,21 @@ SELECT device_id, avg(temperature) FROM sensor_readings GROUP BY device_id;
 SELECT * FROM sensor_hourly ORDER BY bucket DESC LIMIT 100;
 SELECT event_type, count(*) FROM app_events WHERE device_id = 7 GROUP BY event_type;
 SELECT * FROM maintenance_orders WHERE device_id = 12;
+
+-- Joins for the Workload Map: sensor_readings' chunks fold onto the
+-- hypertable (FK to devices, used); app_events joins devices with no FK at
+-- all; maintenance_orders joins through its unindexed FK. ('1 day'::interval
+-- rather than interval '1 day': pg_stat_statements normalizes the latter to
+-- "interval $1", which can't be planned.)
+SELECT d.name, avg(r.temperature) AS avg_temp
+FROM sensor_readings r JOIN devices d ON d.device_id = r.device_id
+WHERE r.ts > now() - '1 day'::interval
+GROUP BY d.name;
+SELECT d.location, count(*) AS errors
+FROM app_events e JOIN devices d ON d.device_id = e.device_id
+WHERE e.event_type = 'error'
+GROUP BY d.location;
+SELECT d.name, sum(m.cost) AS open_cost
+FROM maintenance_orders m JOIN devices d ON d.device_id = m.device_id
+WHERE m.status = 'open'
+GROUP BY d.name;
