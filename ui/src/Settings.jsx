@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import { formatRelativeTime } from "./format";
-import { Alert, Card, Checkbox, Field, Skeleton } from "./components";
+import { Alert, Badge, Card, Checkbox, CopyButton, Field, Skeleton } from "./components";
 import styles from "./Settings.module.css";
 
 const SCHEDULER_JOBS_KEY = ["scheduler-jobs"];
@@ -37,6 +37,10 @@ const JOB_META = {
       "Runs Index Advisor, Schema Lint, and Configuration Advisor against every active target and " +
       "records what's still open, since when.",
   },
+  weekly_report: {
+    label: "Weekly report",
+    description: "Builds each database's weekly health report (Monitor → Weekly Reports) and, if switched on below, posts its summary to the webhook.",
+  },
 };
 
 export default function Settings() {
@@ -45,7 +49,92 @@ export default function Settings() {
       <SchedulerSettings />
       <AiProviderSettings />
       <AlertSettings />
+      <IntegrationSettings />
     </div>
+  );
+}
+
+function hostOf(url) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return window.location.host;
+  }
+}
+
+// How to connect an AI agent (MCP) and Prometheus. The tokens live in the
+// server's .env and are never shown here — only whether each one is set.
+function IntegrationSettings() {
+  const { data, error, isPending } = useQuery({
+    queryKey: ["settings", "integrations"],
+    queryFn: ({ signal }) => api.getIntegrations({ signal }),
+  });
+  const base = data?.public_url ?? window.location.origin;
+  const mcpCommand = `claude mcp add --transport http dbbutler ${base}/api/mcp --header "Authorization: Bearer $DBBUTLER_MCP_TOKEN"`;
+  const scrapeConfig = [
+    "scrape_configs:",
+    "  - job_name: dbbutler",
+    "    metrics_path: /api/metrics",
+    ...(base.startsWith("https:") ? ["    scheme: https"] : []),
+    "    authorization:",
+    "      credentials_file: /etc/prometheus/dbbutler_metrics_token",
+    "    static_configs:",
+    `      - targets: ["${hostOf(base)}"]`,
+  ].join("\n");
+
+  return (
+    <Card
+      title="Integrations"
+      description="Read-only access for machines, each with its own token set in the server's .env (APP_MCP_TOKEN, APP_METRICS_TOKEN) — neither can use the rest of the API."
+    >
+      {error && (
+        <Alert tone="critical" compact>
+          {error.message}
+        </Alert>
+      )}
+      {isPending && <Skeleton lines={4} label="Loading integrations…" />}
+      {data && (
+        <div className={styles.integrations}>
+          <section aria-labelledby="mcp-heading">
+            <h3 id="mcp-heading" className={styles.integrationTitle}>
+              AI agents (MCP) <Badge tone={data.mcp_enabled ? "healthy" : "neutral"}>{data.mcp_enabled ? "on" : "off"}</Badge>
+            </h3>
+            <p className={styles.integrationText}>
+              Lets Claude Code, Cursor or any MCP client ask &quot;what&apos;s wrong with this database?&quot; through{" "}
+              {data.mcp_tools.length} preset read-only tools. No tool runs SQL it&apos;s given, and query text goes out
+              with literal values masked.
+              {!data.mcp_enabled && " Set APP_MCP_TOKEN in .env and restart the backend to switch it on."}
+            </p>
+            <div className={styles.snippet}>
+              <code>{mcpCommand}</code>
+              <CopyButton text={mcpCommand} />
+            </div>
+            <p className={styles.integrationText}>Tools: {data.mcp_tools.join(", ")}.</p>
+          </section>
+          <section aria-labelledby="prometheus-heading">
+            <h3 id="prometheus-heading" className={styles.integrationTitle}>
+              Prometheus{" "}
+              <Badge tone={data.metrics_enabled ? "healthy" : "neutral"}>{data.metrics_enabled ? "on" : "off"}</Badge>
+            </h3>
+            <p className={styles.integrationText}>
+              Collected metrics, open-finding counts and lock waits per database, for Grafana and Alertmanager. Also
+              served at /metrics on the backend&apos;s own port.
+              {!data.metrics_enabled && " Set APP_METRICS_TOKEN in .env and restart the backend to switch it on."}
+            </p>
+            <div className={styles.snippet}>
+              <pre>{scrapeConfig}</pre>
+              <CopyButton text={scrapeConfig} />
+            </div>
+          </section>
+          {!data.public_url && (
+            <Alert tone="info" compact>
+              Set APP_PUBLIC_URL in .env to the address people open DbButler at: the weekly report&apos;s webhook
+              message then links to the report, and the snippets above use it.
+            </Alert>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -356,6 +445,7 @@ function AlertForm({ settings }) {
   const [enabled, setEnabled] = useState(settings.enabled);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [minSeverity, setMinSeverity] = useState(settings.min_severity);
+  const [reportWebhook, setReportWebhook] = useState(settings.report_webhook_enabled ?? false);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -377,6 +467,7 @@ function AlertForm({ settings }) {
         enabled,
         webhook_url: webhookUrl === "" ? null : webhookUrl,
         min_severity: minSeverity,
+        report_webhook_enabled: reportWebhook,
       })
       .then((updated) => {
         queryClient.setQueryData(ALERT_SETTINGS_KEY, updated);
@@ -437,6 +528,10 @@ function AlertForm({ settings }) {
           <option value="attention">Attention and critical</option>
         </select>
       </Field>
+
+      <Checkbox checked={reportWebhook} onChange={(e) => setReportWebhook(e.target.checked)}>
+        Also post each weekly report&apos;s summary to this webhook (independent of the Enabled switch above)
+      </Checkbox>
 
       <div className={styles.actions}>
         <button type="submit" className="button-primary button-sm" disabled={saving}>

@@ -39,8 +39,14 @@ def test_non_ascii_auth_header_is_a_401_not_a_500():
 
 def test_every_api_route_is_protected():
     open_paths = {"/api/version"}
+    # The machine integrations carry their own narrower token instead.
+    integration_guards = {"/api/mcp": "require_mcp_token", "/api/metrics": "require_metrics_token", "/metrics": "require_metrics_token"}
     for route in app.routes:
         path = getattr(route, "path", "")
+        if path in integration_guards:
+            names = [dep.call.__name__ for dep in route.dependant.dependencies]
+            assert names == [integration_guards[path]], path
+            continue
         if not path.startswith("/api/") or path in open_paths:
             continue
         dependencies = [dep.call for dep in route.dependant.dependencies]

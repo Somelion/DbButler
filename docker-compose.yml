@@ -35,6 +35,10 @@ services:
       SECRET_KEY: ${APP_SECRET_KEY:-dev-only-insecure-key-change-me}
       ALLOW_INSECURE_SECRET_KEY: ${APP_ALLOW_INSECURE_SECRET_KEY:-false}
       AUTH_TOKEN: ${APP_AUTH_TOKEN:-}
+      # Optional machine integrations, each off until its token is set.
+      MCP_TOKEN: ${APP_MCP_TOKEN:-}
+      METRICS_TOKEN: ${APP_METRICS_TOKEN:-}
+      PUBLIC_URL: ${APP_PUBLIC_URL:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${UI_PORT:-5173}}
       LOG_TO_FILE: ${LOG_TO_FILE:-false}
       LOG_DIR: /logs

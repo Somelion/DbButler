@@ -5,6 +5,8 @@ import {
   Calculator,
   ChartLine,
   Database,
+  FileCode,
+  FileText,
   FlaskConical,
   GitCompare,
   HeartPulse,
@@ -27,6 +29,7 @@ export const SCREENS = [
   { key: "activity", label: "Activity", group: "monitor", icon: Activity, scope: "target", showMode: true },
   { key: "trends", label: "Trends", group: "monitor", icon: ChartLine, scope: "target", showMode: false },
   { key: "time-machine", label: "Time Machine", group: "monitor", icon: Rewind, scope: "target", showMode: false },
+  { key: "reports", label: "Weekly Reports", group: "monitor", icon: FileText, scope: "target", showMode: false },
   { key: "workload-map", label: "Workload Map", group: "analyze", icon: Network, scope: "target", showMode: false },
   { key: "table-health", label: "Table Health", group: "analyze", icon: HeartPulse, scope: "target", showMode: true },
   {
@@ -49,6 +52,14 @@ export const SCREENS = [
   { key: "ai-analysis", label: "AI Analysis", group: "analyze", icon: Sparkles, scope: "target", showMode: false },
   { key: "advisor", label: "Advisor", group: "advise", icon: Lightbulb, scope: "target", showMode: true },
   { key: "what-if", label: "What-if Indexes", group: "advise", icon: Calculator, scope: "target", showMode: false },
+  {
+    key: "migration-lint",
+    label: "Migration Linter",
+    group: "advise",
+    icon: FileCode,
+    scope: "target",
+    showMode: false,
+  },
   {
     key: "config-tuning",
     label: "Config Tuning",

@@ -183,6 +183,56 @@ def maybe_send_alert(target_id, target_label: str, newly_open_findings: list[dic
     _post_webhook(webhook_url, payload, target_id)
 
 
+def format_report_payload(kind: str, title: str, lines: list[str], link: str | None, severity: str, extra: dict) -> dict:
+    """The weekly report's summary message (app/health_report.py), shaped
+    for the receiving platform like the finding alerts above."""
+    body = [f"• {line}" for line in lines]
+    if link:
+        body.append(f"Full report: {link}")
+    if kind == "slack":
+        return {"text": "\n".join([f"*{title}*", *body])}
+    if kind == "discord":
+        content = "\n".join([f"**{title}**", *body])
+        if len(content) > DISCORD_CONTENT_MAX_LENGTH:
+            content = content[: DISCORD_CONTENT_MAX_LENGTH - 1] + "…"
+        return {"content": content}
+    if kind == "teams":
+        card = {
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "summary": title,
+            "themeColor": TEAMS_THEME_COLOR.get(severity, TEAMS_DEFAULT_THEME_COLOR),
+            "title": title,
+            "text": "\n\n".join(lines),
+        }
+        if link:
+            card["potentialAction"] = [{"@type": "OpenUri", "name": "Open the report", "targets": [{"os": "default", "uri": link}]}]
+        return card
+    return {"text": "\n".join([title, *body]), "report": {**extra, "lines": lines, "link": link, "severity": severity}}
+
+
+def send_report_summary(title: str, lines: list[str], link: str | None, severity: str, extra: dict) -> bool:
+    """Posts the weekly report summary when Settings has it switched on and
+    a webhook URL is saved. Independent of the finding alerts' own on/off
+    switch and minimum severity. Never raises; True when it was sent."""
+    with store_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT report_webhook_enabled, encrypted_webhook_url FROM alert_settings WHERE id = 1")
+        row = cur.fetchone()
+    if row is None or not row[0] or not row[1]:
+        return False
+    webhook_url = _decrypt_webhook_url(row[1])
+    if webhook_url is None:
+        return False
+    payload = format_report_payload(detect_webhook_kind(webhook_url), title, lines, link, severity, extra)
+    try:
+        response = requests.post(webhook_url, json=payload, timeout=WEBHOOK_TIMEOUT_SECONDS)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logger.warning("weekly report webhook delivery failed: %s", redact_secret(str(exc), webhook_url))
+        return False
+    return True
+
+
 def send_test_webhook() -> dict:
     """Explicit user action from Settings' "Send test alert" button —
     bypasses the enabled/min_severity gating maybe_send_alert applies,

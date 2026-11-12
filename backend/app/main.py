@@ -20,6 +20,7 @@ from app.routers.config_advisor import router as config_advisor_router
 from app.routers.config_tuning import router as config_tuning_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.dashboard_settings import router as dashboard_settings_router
+from app.routers.ddl_lint import router as ddl_lint_router
 from app.routers.diagnose import router as diagnose_router
 from app.routers.explain import router as explain_router
 from app.routers.extension_advisor import router as extension_advisor_router
@@ -27,16 +28,20 @@ from app.routers.hardware_profile import router as hardware_profile_router
 from app.routers.index_advisor import router as index_advisor_router
 from app.routers.index_coverage_analysis import router as index_coverage_analysis_router
 from app.routers.index_testing import router as index_testing_router
+from app.routers.integrations import router as integrations_router
 from app.routers.maintenance import router as maintenance_router
+from app.routers.mcp import router as mcp_router
 from app.routers.metrics import router as metrics_router
 from app.routers.pgbouncer import router as pgbouncer_router
 from app.routers.plan_regressions import router as plan_regressions_router
 from app.routers.pre_upgrade_advisor import router as pre_upgrade_advisor_router
+from app.routers.prometheus import router as prometheus_router
 from app.routers.query_analysis import router as query_analysis_router
 from app.routers.query_history import router as query_history_router
 from app.routers.query_stats import router as query_stats_router
 from app.routers.refactoring_advisor import router as refactoring_advisor_router
 from app.routers.replication_advisor import router as replication_advisor_router
+from app.routers.reports import router as reports_router
 from app.routers.scheduler_settings import router as scheduler_settings_router
 from app.routers.schema_lint import router as schema_lint_router
 from app.routers.security_advisor import router as security_advisor_router
@@ -128,6 +133,15 @@ app.include_router(workload_graph_router, dependencies=_AUTH)
 app.include_router(refactoring_advisor_router, dependencies=_AUTH)
 app.include_router(what_if_router, dependencies=_AUTH)
 app.include_router(timeline_router, dependencies=_AUTH)
+app.include_router(ddl_lint_router, dependencies=_AUTH)
+app.include_router(reports_router, dependencies=_AUTH)
+app.include_router(integrations_router, dependencies=_AUTH)
+
+# The machine integrations carry their own, narrower tokens instead of
+# AUTH_TOKEN (app/auth.py): MCP_TOKEN for the AI agent endpoint,
+# METRICS_TOKEN for Prometheus. Each is off (404) until its token is set.
+app.include_router(mcp_router)
+app.include_router(prometheus_router)
 
 app.add_middleware(
     CORSMiddleware,

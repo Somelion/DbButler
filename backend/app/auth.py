@@ -24,8 +24,32 @@ def require_auth(authorization: str | None = Header(default=None)) -> None:
             detail="Server auth token is not configured. Set AUTH_TOKEN and restart the backend.",
         )
 
+    if not _bearer_matches(authorization, settings.auth_token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing auth token.")
+
+
+def _bearer_matches(authorization: str | None, token: str) -> bool:
     # Compared as bytes: compare_digest raises TypeError (a 500) on a str
     # holding non-ASCII characters, which any client can send in a header.
-    expected = f"Bearer {settings.auth_token}".encode()
-    if not authorization or not secrets.compare_digest(authorization.encode("utf-8", "surrogateescape"), expected):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing auth token.")
+    expected = f"Bearer {token}".encode()
+    return bool(authorization) and secrets.compare_digest(authorization.encode("utf-8", "surrogateescape"), expected)
+
+
+def _require_integration_token(token: str, authorization: str | None) -> None:
+    """An integration endpoint whose token isn't configured doesn't exist
+    (404) — it's opt-in, unlike the main API whose missing token is a
+    misconfiguration (503 above)."""
+    if not token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+    if not _bearer_matches(authorization, token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing token.")
+
+
+def require_mcp_token(authorization: str | None = Header(default=None)) -> None:
+    """MCP_TOKEN, for the read-only MCP endpoint only (routers/mcp.py)."""
+    _require_integration_token(settings.mcp_token, authorization)
+
+
+def require_metrics_token(authorization: str | None = Header(default=None)) -> None:
+    """METRICS_TOKEN, for the Prometheus endpoint only (routers/prometheus.py)."""
+    _require_integration_token(settings.metrics_token, authorization)

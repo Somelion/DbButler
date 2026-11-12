@@ -9,11 +9,11 @@ from app.url_safety import validate_http_url
 
 router = APIRouter(prefix="/api/alerts", tags=["alert-settings"])
 
-_COLUMNS = "enabled, encrypted_webhook_url, min_severity, updated_at"
+_COLUMNS = "enabled, encrypted_webhook_url, min_severity, report_webhook_enabled, updated_at"
 
 
 def _row_to_out(row) -> AlertSettingsOut:
-    enabled, encrypted_webhook_url, min_severity, updated_at = row
+    enabled, encrypted_webhook_url, min_severity, report_webhook_enabled, updated_at = row
     webhook_kind = None
     if encrypted_webhook_url:
         try:
@@ -28,6 +28,7 @@ def _row_to_out(row) -> AlertSettingsOut:
         has_webhook_url=bool(encrypted_webhook_url),
         webhook_kind=webhook_kind,
         min_severity=min_severity,
+        report_webhook_enabled=report_webhook_enabled,
         updated_at=updated_at,
     )
 
@@ -64,6 +65,11 @@ def update_alert_settings(payload: AlertSettingsUpdate):
                 WHERE id = 1
                 """,
                 (payload.enabled, payload.min_severity, encrypted),
+            )
+        if payload.report_webhook_enabled is not None:
+            cur.execute(
+                "UPDATE alert_settings SET report_webhook_enabled = %s WHERE id = 1",
+                (payload.report_webhook_enabled,),
             )
         conn.commit()
 

@@ -52,6 +52,15 @@ every screen without connecting anything real.
 - **Index Testing** — after you build an index for real, check whether it actually helped.
 - **Trends** — cache hit rate, connections, worst-table bloat, and database size over 24h/7d/30d,
   plus per-table history for up to 6 selected tables at once.
+- **Migration Linter** — paste a migration and see what each statement locks, for how long, and
+  what's risky: a non-concurrent index, a table rewrite, validation under lock, a missing
+  `lock_timeout`. It uses PostgreSQL's own parser (pglast) and never runs the SQL. Against a
+  connected database it also predicts the impact right now: table size, traffic, and the sessions a
+  lock would queue behind.
+- **Weekly Reports** — every Monday, one page per database: findings opened and resolved, metric
+  ranges, the heaviest queries, lock incidents, plan changes, table growth and server events. You
+  can print it to PDF, download it as HTML, and optionally post a summary to the alert webhook.
+- **MCP server and Prometheus** — read-only integrations, each with its own token (see below).
 
 ## Tech stack
 
@@ -172,6 +181,31 @@ docker compose -f docker-compose.yml -f docker-compose.timescaledb.yml up
 In the Connect screen use host `pgdba-timescale-target`, port `5432`, user/password/database
 `tsdemo` (host port `5434` is only for external tools). To re-seed from scratch, run the same
 command with `down -v`.
+
+### Optional: AI agents (MCP) and Prometheus
+
+Both are off until you set their token in `.env`. Each token is separate from `APP_AUTH_TOKEN` and
+opens only its own endpoint, never the rest of the API.
+
+- **MCP server** (`APP_MCP_TOKEN`) — lets Claude Code, Cursor or any other MCP client ask "what's
+  wrong with this database?" through 12 preset, read-only tools. These cover findings, a live
+  diagnosis, top queries, plan regressions, lock incidents, metric history, the Workload Map,
+  refactoring suggestions, the migration linter and the weekly report. No tool runs SQL it's given,
+  and query text goes out with literal values masked. The endpoint speaks the current stateless MCP
+  protocol (2026-07-28) and the older initialize-based one (2025-03-26 to 2025-11-25):
+
+  ```
+  claude mcp add --transport http dbbutler http://localhost:5173/api/mcp \
+    --header "Authorization: Bearer <APP_MCP_TOKEN>"
+  ```
+
+- **Prometheus** (`APP_METRICS_TOKEN`) — collected metrics, open-finding counts, lock waits and
+  collector health per database. Scrape `/api/metrics` through the UI, or `/metrics` on the backend
+  port, with the token as a bearer credential. Settings → Integrations shows a ready-made scrape
+  config.
+
+Set `APP_PUBLIC_URL` to the address people use to open DbButler. The weekly report's webhook
+message then links to the report.
 
 ### Optional: logging to files
 

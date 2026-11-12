@@ -83,3 +83,43 @@
 .detected {
   color: var(--text);
 }
+
+.integrations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.integrationTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0 0 var(--space-6);
+  font-size: var(--font-size-sm);
+}
+
+.integrationText {
+  margin: 0 0 var(--space-8);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.snippet {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-10);
+  margin-bottom: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  font-size: var(--font-size-xs);
+  background: var(--row-bg);
+  border-radius: var(--radius-md);
+}
+
+.snippet code,
+.snippet pre {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

@@ -616,6 +616,8 @@ class AlertSettingsOut(BaseModel):
     # changes.
     webhook_kind: str | None
     min_severity: str
+    # Whether the weekly report job posts its summary to the same webhook.
+    report_webhook_enabled: bool = False
     updated_at: datetime
 
 
@@ -624,6 +626,8 @@ class AlertSettingsUpdate(BaseModel):
     # None = leave the stored webhook URL unchanged; "" = clear it; anything else = replace it.
     webhook_url: str | None = None
     min_severity: str = "critical"
+    # None = leave unchanged (a client that predates the weekly report).
+    report_webhook_enabled: bool | None = None
 
 
 class AlertTestResult(BaseModel):
@@ -1101,3 +1105,114 @@ class WhatIfResponse(BaseModel):
     queries_considered: int
     queries_skipped: int  # couldn't be planned (utility statements, $N on PostgreSQL < 16)
     candidates: list[WhatIfCandidateResult]
+
+
+# --- Migration linter (routers/ddl_lint.py) ------------------------------------
+
+
+class MigrationLintRequest(BaseModel):
+    sql: str
+    # Optional: with a target, the lint also predicts the impact from its
+    # live state (sizes, sessions holding locks, traffic).
+    target_id: uuid.UUID | None = None
+
+
+class MigrationLock(BaseModel):
+    relation: str
+    schema_name: str | None = Field(default=None, alias="schema")
+    name: str
+    mode: str
+    blocks: str  # "reads and writes" | "writes" | "nothing"
+    via_index: bool
+
+    model_config = {"populate_by_name": True}
+
+
+class MigrationImpact(BaseModel):
+    relation: str
+    severity: str  # healthy | info | attention | critical
+    text: str
+    conflicting_sessions: int
+    oldest_conflict_seconds: int | None = None
+    total_bytes: int | None = None
+    scans_per_second: float | None = None
+    writes_per_second: float | None = None
+
+
+class MigrationStatement(BaseModel):
+    index: int
+    line: int
+    sql: str
+    kind: str
+    locks: list[MigrationLock]
+    effect: str | None  # instant | rows | scan | index_build | rewrite
+    effect_label: str | None
+    in_transaction: bool
+    notes: list[str]
+    impacts: list[MigrationImpact]
+
+
+class MigrationLintFinding(IndexFinding):
+    rule: str
+    statement_index: int
+    line: int
+
+
+class MigrationParseError(BaseModel):
+    message: str
+    line: int
+    column: int
+
+
+class MigrationLive(BaseModel):
+    target_id: uuid.UUID
+    server_version: int | None
+    oldest_transaction_seconds: int | None
+    checked_at: datetime
+
+
+class MigrationLintResponse(BaseModel):
+    overall_severity: str  # healthy | info | attention | critical
+    statements: list[MigrationStatement]
+    findings: list[MigrationLintFinding]
+    parse_error: MigrationParseError | None
+    live: MigrationLive | None
+
+
+# --- Weekly health reports (routers/reports.py) --------------------------------
+
+
+class HealthReportSummary(BaseModel):
+    id: uuid.UUID
+    target_id: uuid.UUID
+    period_start: datetime
+    period_end: datetime
+    generated_at: datetime
+    trigger: str  # "scheduled" | "manual"
+    overall_severity: str
+    open_critical: int
+    open_attention: int
+    opened: int
+    resolved: int
+    lock_incidents: int
+
+
+class HealthReportsResponse(BaseModel):
+    reports: list[HealthReportSummary]
+
+
+class HealthReportOut(HealthReportSummary):
+    title: str
+    summary_lines: list[str]
+    # The stored report content (app/health_report.py::build_report_data).
+    data: dict
+
+
+# --- Integrations (routers/integrations.py) ------------------------------------
+
+
+class IntegrationsStatus(BaseModel):
+    mcp_enabled: bool
+    metrics_enabled: bool
+    public_url: str | None
+    mcp_tools: list[str]

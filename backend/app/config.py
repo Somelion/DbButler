@@ -47,6 +47,19 @@ class Settings(BaseSettings):
     # instead of silently serving every request unauthenticated.
     auth_token: str = ""
 
+    # Separate, narrower tokens for the machine integrations (app/auth.py):
+    # MCP_TOKEN opens only the read-only MCP endpoint (/api/mcp) an AI agent
+    # talks to, METRICS_TOKEN only the Prometheus scrape endpoint. Neither
+    # can reach the rest of the API (Apply DDL, settings, ...). Unset = that
+    # endpoint is off (404).
+    mcp_token: str = ""
+    metrics_token: str = ""
+
+    # The address people open DbButler at (e.g. https://dbbutler.example.com),
+    # used for links in the weekly report's webhook message. Optional: the
+    # message simply has no link without it.
+    public_url: str = ""
+
     # Comma-separated list of origins the UI is allowed to call the API from.
     cors_allowed_origins: str = "http://localhost:5173"
 
@@ -80,4 +93,27 @@ if settings.auth_token and (
         "only thing protecting the API, so it must be a long random value. Set APP_AUTH_TOKEN in .env, "
         "e.g.:\n"
         "    openssl rand -hex 32"
+    )
+
+# The integration tokens get the same rule, and must not repeat AUTH_TOKEN:
+# the point of a separate token is that leaking it (it sits in an AI agent's
+# or Prometheus' config) can't unlock the rest of the API.
+for _name, _token in (("MCP_TOKEN", settings.mcp_token), ("METRICS_TOKEN", settings.metrics_token)):
+    if not _token:
+        continue
+    if _token in KNOWN_INSECURE_AUTH_TOKENS or len(_token) < MIN_AUTH_TOKEN_LENGTH:
+        raise RuntimeError(
+            f"{_name} is a well-known default or shorter than {MIN_AUTH_TOKEN_LENGTH} characters. Set "
+            f"APP_{_name} in .env to a long random value (openssl rand -hex 32), or leave it empty to "
+            "keep that endpoint off."
+        )
+    if _token == settings.auth_token:
+        raise RuntimeError(
+            f"{_name} is the same as AUTH_TOKEN. It must be a different value, so whoever holds it "
+            "(an AI agent, a Prometheus server) can't use the rest of the API."
+        )
+if settings.mcp_token and settings.mcp_token == settings.metrics_token:
+    raise RuntimeError(
+        "MCP_TOKEN and METRICS_TOKEN are the same value. Give each its own, so a Prometheus "
+        "server's token can't also query the MCP endpoint."
     )

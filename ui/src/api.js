@@ -38,7 +38,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, options = {}) {
+async function send(path, options = {}) {
   const { headers: extraHeaders, ...rest } = options;
   const headers = {
     "Content-Type": "application/json",
@@ -58,7 +58,19 @@ async function request(path, options = {}) {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(body.detail || `Request failed (${res.status})`, res.status);
   }
+  return res;
+}
+
+async function request(path, options = {}) {
+  const res = await send(path, options);
   return res.status === 204 ? null : res.json();
+}
+
+// For the few endpoints that answer with a document rather than JSON (the
+// weekly report's HTML).
+async function requestText(path, options = {}) {
+  const res = await send(path, options);
+  return res.text();
 }
 
 // Every read takes an optional trailing `opts` ({ signal }) — TanStack
@@ -230,6 +242,16 @@ export const api = {
     request(`/api/targets/${targetId}/timeline/explain`, { method: "POST", body: JSON.stringify({ start, end }) }),
   getTimelineExplanation: (targetId, jobId, opts) =>
     request(`/api/targets/${targetId}/timeline/explain/${encodeURIComponent(jobId)}`, opts),
+  // Nothing in `sql` is executed: the backend parses it with PostgreSQL's
+  // grammar. With a targetId it also reads that database's live lock and
+  // size information to predict the impact.
+  lintMigration: (sql, targetId) =>
+    request("/api/migration-lint", { method: "POST", body: JSON.stringify({ sql, target_id: targetId ?? null }) }),
+  getReports: (targetId, opts) => request(`/api/targets/${targetId}/reports`, opts),
+  createReport: (targetId) => request(`/api/targets/${targetId}/reports`, { method: "POST" }),
+  getReport: (reportId, opts) => request(`/api/reports/${encodeURIComponent(reportId)}`, opts),
+  getReportHtml: (reportId, opts) => requestText(`/api/reports/${encodeURIComponent(reportId)}/html`, opts),
+  getIntegrations: (opts) => request("/api/integrations", opts),
   getWorkloadTable: (targetId, schemaName, tableName, hours, opts, until) =>
     request(
       `/api/targets/${targetId}/workload-graph/tables/${encodeURIComponent(schemaName)}/${encodeURIComponent(tableName)}?hours=${hours}${until ? `&until=${encodeURIComponent(until)}` : ""}`,

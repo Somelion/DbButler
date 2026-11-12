@@ -12,12 +12,13 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from psycopg.types.json import Jsonb
 
-from app.alerting import maybe_send_alert
+from app.alerting import maybe_send_alert, send_report_summary
 from app.cache_hit import BLOCK_COUNTERS_QUERY, BlockCounters, interval_hit_ratio
 from app.collectors import COLLECTORS
 from app.config import settings
 from app.crypto import decrypt
 from app.db.store import store_conn
+from app.health_report import report_summary_lines
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.plan_fingerprint import build_explain_sql, build_fingerprint, hash_fingerprint, summarize_fingerprint
 from app.query_history_delta import Baseline, QueryCounters, compute_interval
@@ -28,6 +29,7 @@ from app.routers.extension_advisor import compute_extension_advisor_findings
 from app.routers.index_advisor import compute_index_advisor_findings
 from app.routers.pre_upgrade_advisor import compute_pre_upgrade_advisor_findings
 from app.routers.replication_advisor import compute_replication_advisor_findings
+from app.routers.reports import generate_report, report_link
 from app.routers.schema_lint import compute_schema_lint_findings
 from app.routers.security_advisor import compute_security_advisor_findings
 from app.routers.table_health import compute_all_table_health_findings
@@ -130,6 +132,9 @@ COLLECTOR_RUNS_RETENTION_DAYS = 7
 # screen; the newest one per target is "current", a few older ones are kept
 # as history.
 HARDWARE_PROFILES_KEEP = 20
+# Weekly health reports are small and are the long view the 30-day history
+# can't give, so a year of them is kept.
+REPORT_RETENTION_DAYS = 366
 
 # Every store table run_retention_cycle prunes, in the order it runs them.
 # %(days)s is the table's retention; a statement with %(target_id)s runs once
@@ -229,6 +234,11 @@ RETENTION_RULES: list[tuple[str, str, int]] = [
         "index_coverage_analyses",
         "DELETE FROM index_coverage_analyses WHERE created_at < now() - (%(days)s * interval '1 day')",
         RETENTION_DAYS,
+    ),
+    (
+        "health_reports",
+        "DELETE FROM health_reports WHERE generated_at < now() - (%(days)s * interval '1 day')",
+        REPORT_RETENTION_DAYS,
     ),
     (
         "hardware_profiles",
@@ -1230,6 +1240,26 @@ def run_events_cycle():
     _for_each_target(_capture_target_events)
 
 
+def _weekly_report(target_row) -> None:
+    """Store-only: builds and saves the week's report, then posts the
+    summary to the webhook when Settings has that switched on."""
+    target_id = target_row[0]
+    summary, data = generate_report(target_id, "scheduled")
+    send_report_summary(
+        f"DbButler weekly report — {data['target']['name']}",
+        report_summary_lines(data),
+        report_link(target_id, summary["id"]),
+        data["overall_severity"],
+        {"report_id": str(summary["id"]), "target_id": str(target_id), "target": data["target"]["name"]},
+    )
+
+
+def run_weekly_report_cycle():
+    # The store is all it reads, so a target that's unreachable right now
+    # still gets its report (which will show the collection failures).
+    _for_each_target(_weekly_report, respect_backoff=False)
+
+
 _JOB_FUNCS = {
     "collection_cycle": run_collection_cycle,
     "table_metrics_cycle": run_table_metrics_cycle,
@@ -1240,6 +1270,7 @@ _JOB_FUNCS = {
     "events_cycle": run_events_cycle,
     "retention_cycle": run_retention_cycle,
     "deep_scan": run_deep_scan_cycle,
+    "weekly_report": run_weekly_report_cycle,
 }
 
 # Public so routers/scheduler_settings.py can validate a job_name without

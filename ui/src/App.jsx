@@ -24,6 +24,8 @@ import ConfigTuningScreen from "./ConfigTuningScreen";
 import TrendsScreen from "./TrendsScreen";
 import TimeMachineScreen from "./TimeMachineScreen";
 import WhatIfScreen from "./WhatIfScreen";
+import MigrationLintScreen from "./MigrationLintScreen";
+import ReportsScreen from "./ReportsScreen";
 import Settings from "./Settings";
 
 // The graph library (cytoscape + fcose) is the biggest dependency in the
@@ -95,6 +97,7 @@ export default function App() {
           <Route path="activity" element={<TargetScreen component={ActivityScreen} />} />
           <Route path="trends" element={<TargetScreen component={TrendsScreen} />} />
           <Route path="time-machine" element={<TargetScreen component={TimeMachineScreen} />} />
+          <Route path="reports" element={<TargetScreen component={ReportsScreen} />} />
           <Route path="workload-map" element={<TargetScreen component={LazyWorkloadMap} />} />
           <Route path="table-health" element={<TargetScreen component={TableHealthScreen} />} />
           <Route path="query-intelligence" element={<TargetScreen component={QueryIntelligenceScreen} />} />
@@ -105,6 +108,7 @@ export default function App() {
           <Route path="config-tuning" element={<TargetScreen component={ConfigTuningScreen} />} />
           <Route path="index-testing" element={<TargetScreen component={IndexTestingScreen} />} />
           <Route path="what-if" element={<TargetScreen component={WhatIfScreen} />} />
+          <Route path="migration-lint" element={<TargetScreen component={MigrationLintScreen} />} />
           <Route path="archive" element={<TargetScreen component={ArchiveScreen} />} />
           <Route path="*" element={<TargetFallback />} />
         </Route>
@@ -281,7 +285,7 @@ function TargetFallback() {
 // database remounts it with fresh local state.
 function TargetScreen({ component: Screen }) {
   const { target } = useOutletContext();
-  return <Screen key={target.id} targetId={target.id} />;
+  return <Screen key={target.id} targetId={target.id} target={target} />;
 }
 
 // Connections keeps its callback props; they now write straight into the
