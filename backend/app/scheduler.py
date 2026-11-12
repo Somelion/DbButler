@@ -4,7 +4,7 @@ import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import psycopg
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -35,6 +35,7 @@ from app.routers.wait_events import WAIT_EVENT_SNAPSHOT_QUERY
 from app.schemas import IndexFinding
 from app.target_backoff import TargetBackoff
 from app.target_conn import open_target_connection
+from app.time_machine import build_lock_snapshot, diff_settings, setting_value
 from app.workload_catalog import fetch_parent_map
 from app.workload_extract import EXTRACTOR_VERSION, extract_workload
 
@@ -181,6 +182,19 @@ RETENTION_RULES: list[tuple[str, str, int]] = [
         "DELETE FROM query_workload_extracts WHERE checked_at < now() - (%(days)s * interval '1 day')",
         RETENTION_DAYS,
     ),
+    # Incident Time Machine history: lock trees (only written while someone
+    # is blocked) and server events.
+    (
+        "lock_snapshots",
+        "DELETE FROM lock_snapshots WHERE target_id = %(target_id)s "
+        "AND collected_at < now() - (%(days)s * interval '1 day')",
+        RETENTION_DAYS,
+    ),
+    (
+        "target_events",
+        "DELETE FROM target_events WHERE occurred_at < now() - (%(days)s * interval '1 day')",
+        RETENTION_DAYS,
+    ),
     (
         "collector_runs",
         "DELETE FROM collector_runs WHERE finished_at < now() - (%(days)s * interval '1 day')",
@@ -237,6 +251,9 @@ RETENTION_EXEMPT_TABLES = frozenset(
         "alert_settings",
         "dashboard_settings",
         "schema_migrations",
+        # One row per target, overwritten on every read: the baseline the
+        # next configuration diff compares against.
+        "settings_snapshots",
     }
 )
 
@@ -1040,12 +1057,187 @@ def run_live_findings_cycle():
     _for_each_target(_collect_live_findings)
 
 
+# --- Incident Time Machine: lock snapshots and target events ----------------
+
+# The cheap check first: pg_stat_activity only, no lock-manager locks.
+# pg_locks and pg_blocking_pids() take the lock manager's partition locks,
+# so they only run while some session is waiting on a lock at all.
+LOCK_WAITERS_QUERY = """
+    SELECT count(*) FILTER (WHERE wait_event_type = 'Lock'), current_setting('server_version_num')::int
+    FROM pg_stat_activity
+    WHERE datname = current_database() AND pid <> pg_backend_pid()
+"""
+
+# What each waiting backend waits for, and for how long (pg_locks.waitstart,
+# PostgreSQL 14+). Sub-second waits are an OLTP server's normal row-lock
+# churn — only a wait of LOCK_SNAPSHOT_MIN_WAIT_SECONDS or more is recorded,
+# or a busy database would show one endless "incident".
+_WAITING_ON = """
+    CASE
+        WHEN l.locktype = 'relation' THEN COALESCE(n.nspname || '.' || c.relname, 'a relation')
+        WHEN l.locktype = 'tuple' THEN COALESCE(n.nspname || '.' || c.relname, 'a table') || ' row'
+        WHEN l.locktype = 'transactionid' THEN 'transaction ' || l.transactionid::text
+        ELSE l.locktype
+    END
+"""
+LOCK_WAITS_QUERY = f"""
+    SELECT DISTINCT ON (l.pid) l.pid, l.mode, {_WAITING_ON},
+           EXTRACT(EPOCH FROM now() - l.waitstart)::bigint
+    FROM pg_locks l
+    LEFT JOIN pg_class c ON c.oid = l.relation
+    LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE NOT l.granted
+    ORDER BY l.pid
+"""
+LOCK_WAITS_QUERY_PRE14 = f"""
+    SELECT DISTINCT ON (l.pid) l.pid, l.mode, {_WAITING_ON}, NULL::bigint
+    FROM pg_locks l
+    LEFT JOIN pg_class c ON c.oid = l.relation
+    LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE NOT l.granted
+    ORDER BY l.pid
+"""
+LOCK_SNAPSHOT_MIN_WAIT_SECONDS = 1
+
+# The waiting sessions, and whoever blocks them (columns in the order of
+# app/time_machine.py::LOCK_TREE_COLUMNS). A blocker in another database or
+# a prepared transaction (pid 0) has no pg_stat_activity row here; it shows
+# up only in blocked_by.
+LOCK_TREE_QUERY = """
+    WITH waiting AS (
+        SELECT pid, pg_blocking_pids(pid) AS blocked_by
+        FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()
+    ),
+    involved AS (
+        SELECT pid FROM waiting
+        UNION
+        SELECT unnest(blocked_by) FROM waiting
+    )
+    SELECT a.pid, coalesce(w.blocked_by, '{}'::int[]), a.usename, a.application_name, a.backend_type,
+           a.state, a.wait_event_type, a.wait_event, a.query,
+           EXTRACT(EPOCH FROM now() - a.query_start)::bigint,
+           EXTRACT(EPOCH FROM now() - a.xact_start)::bigint,
+           EXTRACT(EPOCH FROM now() - a.state_change)::bigint
+    FROM involved i
+    JOIN pg_stat_activity a ON a.pid = i.pid
+    LEFT JOIN waiting w ON w.pid = a.pid
+"""
+
+
+def _capture_lock_snapshot(target_row):
+    """While anyone is waiting on a lock, stores who blocks whom
+    (lock_snapshots) — the history the live Activity view can't keep. No
+    collector_runs row per cycle: at a 15s cadence that log would dwarf
+    everything else; failures are logged instead."""
+    target_id = target_row[0]
+    with _target_session(target_row) as target_conn, target_conn.cursor() as cur:
+        cur.execute(LOCK_WAITERS_QUERY)
+        waiting, version_num = cur.fetchone()
+        if waiting == 0:
+            return
+        cur.execute(LOCK_WAITS_QUERY if version_num >= 140000 else LOCK_WAITS_QUERY_PRE14)
+        waits = {pid: (f"{mode} on {resource}", seconds) for pid, mode, resource, seconds in cur.fetchall()}
+        if version_num >= 140000 and not any(
+            seconds is not None and seconds >= LOCK_SNAPSHOT_MIN_WAIT_SECONDS for _desc, seconds in waits.values()
+        ):
+            return
+        cur.execute(LOCK_TREE_QUERY)
+        rows = cur.fetchall()
+
+    snapshot = build_lock_snapshot(rows, waits)
+    if snapshot is None:
+        return
+    with store_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO lock_snapshots (target_id, blocked_count, max_wait_seconds, sessions)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (target_id, snapshot["blocked_count"], snapshot["max_wait_seconds"], Jsonb(snapshot["sessions"])),
+        )
+        conn.commit()
+
+
+def run_lock_snapshot_cycle():
+    _for_each_target(_capture_lock_snapshot)
+
+
+TARGET_EVENTS_QUERY = """
+    SELECT pg_postmaster_start_time(),
+           (SELECT stats_reset FROM pg_stat_database WHERE datname = current_database())
+"""
+
+# Settings set by configuration — not defaults, and not this monitoring
+# session's own (client/session/override) values.
+CONFIGURED_SETTINGS_QUERY = """
+    SELECT name, setting, unit FROM pg_settings
+    WHERE source NOT IN ('default', 'client', 'session', 'override')
+"""
+
+
+def _capture_target_events(target_row):
+    """Restarts, statistics resets and configuration changes, as timeline
+    markers (target_events). Restart and reset times come from the server
+    itself, so re-reading them is a no-op (ON CONFLICT); a configuration
+    change is noticed by diffing against the last read (settings_snapshots)."""
+    target_id = target_row[0]
+    started_at = datetime.now(timezone.utc)
+    errors: list[str] = []
+    with _target_session(target_row) as target_conn, target_conn.cursor() as cur:
+        cur.execute(TARGET_EVENTS_QUERY)
+        postmaster_start, stats_reset = cur.fetchone()
+        settings_rows = _run_query(target_conn, cur, "configured settings", errors, CONFIGURED_SETTINGS_QUERY)
+
+    # Older than the retention window: the retention job would delete it
+    # again within the hour, and this would re-insert it every minute.
+    oldest_kept = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
+    with store_conn() as conn, conn.cursor() as cur:
+        for kind, at in (("restart", postmaster_start), ("stats_reset", stats_reset)):
+            if at is not None and at > oldest_kept:
+                cur.execute(
+                    """
+                    INSERT INTO target_events (target_id, kind, occurred_at) VALUES (%s, %s, %s)
+                    ON CONFLICT (target_id, kind, occurred_at) DO NOTHING
+                    """,
+                    (target_id, kind, at),
+                )
+        if settings_rows is not None:
+            current = {name: setting_value(setting, unit) for name, setting, unit in settings_rows}
+            cur.execute("SELECT settings FROM settings_snapshots WHERE target_id = %s", (target_id,))
+            row = cur.fetchone()
+            changes = diff_settings(row[0] if row else None, current)
+            if changes:
+                cur.execute(
+                    """
+                    INSERT INTO target_events (target_id, kind, occurred_at, detail) VALUES (%s, 'config_change', now(), %s)
+                    ON CONFLICT (target_id, kind, occurred_at) DO NOTHING
+                    """,
+                    (target_id, Jsonb({"changes": changes})),
+                )
+            cur.execute(
+                """
+                INSERT INTO settings_snapshots (target_id, settings, captured_at) VALUES (%s, %s, now())
+                ON CONFLICT (target_id) DO UPDATE SET settings = EXCLUDED.settings, captured_at = now()
+                """,
+                (target_id, Jsonb(current)),
+            )
+        _record_collector_run(cur, target_id, "events", started_at, errors)
+        conn.commit()
+
+
+def run_events_cycle():
+    _for_each_target(_capture_target_events)
+
+
 _JOB_FUNCS = {
     "collection_cycle": run_collection_cycle,
     "table_metrics_cycle": run_table_metrics_cycle,
     "query_history_cycle": run_query_history_cycle,
     "plan_regression_cycle": run_plan_regression_cycle,
     "live_findings_cycle": run_live_findings_cycle,
+    "lock_snapshot_cycle": run_lock_snapshot_cycle,
+    "events_cycle": run_events_cycle,
     "retention_cycle": run_retention_cycle,
     "deep_scan": run_deep_scan_cycle,
 }

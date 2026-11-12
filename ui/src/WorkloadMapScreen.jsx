@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { Network, Search } from "lucide-react";
@@ -8,6 +8,9 @@ import { formatRelativeTime } from "./format";
 import { targetKey } from "./queryClient";
 import { Alert, Card, Checkbox, EmptyState, SegmentedControl, Skeleton, Tabs, TabPanel } from "./components";
 import WorkloadGraph from "./WorkloadGraph";
+
+// three.js is big; it loads only when someone switches to 3D.
+const WorkloadGraph3D = lazy(() => import("./WorkloadGraph3D"));
 import WorkloadRelationsTable from "./WorkloadRelationsTable";
 import WorkloadSidePanel from "./WorkloadSidePanel";
 import { COLOR_MODES, COLOR_MODE_DESCRIPTIONS, EDGE_KINDS, EDGE_KIND_KEYS } from "./workloadKinds";
@@ -20,13 +23,16 @@ const RANGE_OPTIONS = [
 const DEFAULT_HOURS = 168;
 const VIEW_ITEMS = [
   { key: "map", label: "Map" },
+  { key: "3d", label: "3D" },
   { key: "list", label: "Relationships" },
 ];
 const RANGE_LABEL = { 24: "24 hours", 168: "7 days", 720: "30 days" };
+const MAX_HISTORY_HOURS = 720; // the store keeps 30 days
 
 // View state lives in the URL so a map can be shared or reloaded as-is:
 //   ?hours=24|168|720    window the weights come from (7 days by default)
-//   ?view=list           the Relationships table instead of the picture
+//   ?until=<ISO>         window end, from the time slider (absent = now)
+//   ?view=list|3d        the Relationships table, or the 3D view
 //   ?color=seq|writes    node colouring (health by default)
 //   ?hide=fk_unused,…    edge kinds hidden
 //   ?table=schema.table  or ?edge=<id> — what the side panel shows
@@ -48,9 +54,13 @@ function useMapParams(searchParams) {
     () => (table ? { type: "table", id: table } : edge ? { type: "edge", id: edge } : null),
     [table, edge]
   );
+  const viewParam = searchParams.get("view");
+  const untilParam = searchParams.get("until");
+  const untilDate = untilParam ? new Date(untilParam) : null;
   return {
     hours: RANGE_OPTIONS.some((o) => o.value === hours) ? hours : DEFAULT_HOURS,
-    view: searchParams.get("view") === "list" ? "list" : "map",
+    until: untilDate && !Number.isNaN(untilDate.getTime()) ? untilDate : null,
+    view: viewParam === "list" || viewParam === "3d" ? viewParam : "map",
     colorBy: COLOR_MODES.some((m) => m.value === color) ? color : "health",
     visibleKinds,
     selection,
@@ -145,15 +155,61 @@ function Legend({ visibleKinds, onToggleKind, colorBy, counts }) {
   );
 }
 
+// "How did the map look last week?": slides the window's end back in time,
+// up to the store's 30-day retention. Left is the past, right is now. The
+// URL only changes when the slider is released (or on keyboard input), so
+// dragging doesn't fire a request per step.
+function TimeSlider({ hours, until, onCommit }) {
+  const [now] = useState(() => Date.now());
+  const maxBack = MAX_HISTORY_HOURS - hours;
+  const committed = until ? Math.min(maxBack, Math.max(0, Math.round((now - until.getTime()) / 3_600_000))) : 0;
+  const [draft, setDraft] = useState(null);
+  const hoursAgo = draft ?? committed;
+  const label =
+    hoursAgo === 0
+      ? "now"
+      : `${hoursAgo >= 48 ? `${Math.round(hoursAgo / 24)} days` : `${hoursAgo} hours`} ago (${new Date(
+          now - hoursAgo * 3_600_000
+        ).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })})`;
+
+  const commit = () => {
+    if (draft == null) return;
+    onCommit(draft === 0 ? null : new Date(now - draft * 3_600_000).toISOString());
+    setDraft(null);
+  };
+
+  return (
+    <div className={styles.timeSlider}>
+      <label htmlFor="workload-until" className={styles.sliderLabel}>
+        Window ends: <span className={styles.sliderValue}>{label}</span>
+      </label>
+      <input
+        id="workload-until"
+        type="range"
+        min={0}
+        max={maxBack}
+        step={1}
+        value={maxBack - hoursAgo}
+        aria-valuetext={`Window ends ${label}`}
+        onChange={(e) => setDraft(maxBack - Number(e.target.value))}
+        onPointerUp={commit}
+        onKeyUp={commit}
+        onBlur={commit}
+      />
+    </div>
+  );
+}
+
 export default function WorkloadMapScreen({ targetId }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { hours, view, colorBy, visibleKinds, selection } = useMapParams(searchParams);
+  const { hours, until, view, colorBy, visibleKinds, selection } = useMapParams(searchParams);
   const [search, setSearch] = useState("");
   const [searchMiss, setSearchMiss] = useState(null);
+  const untilIso = until ? until.toISOString() : null;
 
   const graphQuery = useQuery({
-    queryKey: targetKey(targetId, "workload-graph", hours),
-    queryFn: ({ signal }) => api.getWorkloadGraph(targetId, hours, { signal }),
+    queryKey: targetKey(targetId, "workload-graph", hours, ...(untilIso ? [untilIso] : [])),
+    queryFn: ({ signal }) => api.getWorkloadGraph(targetId, hours, { signal }, untilIso),
     placeholderData: keepPreviousData,
   });
   const graph = graphQuery.data;
@@ -216,7 +272,7 @@ export default function WorkloadMapScreen({ targetId }) {
         value={view}
         onChange={(key) => updateParams({ view: key === "map" ? null : key })}
       />
-      {view === "map" && (
+      {view !== "list" && (
         <SegmentedControl
           label="Colour tables by"
           size="sm"
@@ -287,6 +343,18 @@ export default function WorkloadMapScreen({ targetId }) {
           </Alert>
         )}
         {graphQuery.error && <Alert tone="critical">{graphQuery.error.message}</Alert>}
+        <TimeSlider
+          key={untilIso ?? "now"}
+          hours={hours}
+          until={until}
+          onCommit={(iso) => updateParams({ until: iso })}
+        />
+        {until && (
+          <Alert tone="info" compact>
+            Showing the {RANGE_LABEL[hours]} up to {until.toLocaleString()}: the queries tracked then, weighted by the
+            time they took in that window. Join columns come from each query's current plan.
+          </Alert>
+        )}
         <CoverageMeter meta={meta} />
         {meta.weight_basis === "lifetime" && (
           <Alert tone="info" compact>
@@ -311,17 +379,37 @@ export default function WorkloadMapScreen({ targetId }) {
       ) : (
         <div className={`${styles.body} ${selection ? styles.withPanel : ""}`}>
           <TabPanel idPrefix="workload-view" value={view} className={styles.main}>
-            {view === "map" ? (
+            {view === "map" || view === "3d" ? (
               <Card flush className={styles.graphCard}>
-                <WorkloadGraph
-                  nodes={graph.nodes}
-                  edges={graph.edges}
-                  colorBy={colorBy}
-                  visibleKinds={visibleKinds}
-                  selection={selection}
-                  onSelect={select}
-                  label={`Workload map: ${graph.nodes.length} tables and ${graph.edges.length} relationships. The Relationships view lists the same information as a table.`}
-                />
+                {view === "map" ? (
+                  <WorkloadGraph
+                    nodes={graph.nodes}
+                    edges={graph.edges}
+                    colorBy={colorBy}
+                    visibleKinds={visibleKinds}
+                    selection={selection}
+                    onSelect={select}
+                    label={`Workload map: ${graph.nodes.length} tables and ${graph.edges.length} relationships. The Relationships view lists the same information as a table.`}
+                  />
+                ) : (
+                  <Suspense fallback={<Skeleton height={480} label="Loading the 3D view…" />}>
+                    <WorkloadGraph3D
+                      nodes={graph.nodes}
+                      edges={graph.edges}
+                      colorBy={colorBy}
+                      visibleKinds={visibleKinds}
+                      selection={selection}
+                      onSelect={select}
+                      label={`3D workload map: ${graph.nodes.length} tables, higher means more DB time. Drag to rotate, scroll to zoom. The Relationships view lists the same information as a table.`}
+                    />
+                  </Suspense>
+                )}
+                {view === "3d" && (
+                  <p className={styles.note}>
+                    3D: height is the table's share of DB time, each schema is its own cluster, and relationships are
+                    told apart by colour only. Drag to rotate, scroll to zoom.
+                  </p>
+                )}
                 <Legend
                   visibleKinds={visibleKinds}
                   onToggleKind={toggleKind}
@@ -349,6 +437,7 @@ export default function WorkloadMapScreen({ targetId }) {
             <WorkloadSidePanel
               targetId={targetId}
               hours={hours}
+              until={untilIso}
               graph={graph}
               selection={selection}
               onSelect={select}

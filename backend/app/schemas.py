@@ -881,6 +881,7 @@ class WorkloadEdgeCounts(BaseModel):
 
 class WorkloadGraphMeta(BaseModel):
     hours: int
+    until: datetime | None = None  # window end; None = now
     weight_basis: str  # "window" | "lifetime" (nothing ran in the window)
     tracked_queries: int
     query_status_counts: WorkloadQueryStatusCounts
@@ -943,6 +944,114 @@ class WorkloadTableDetailResponse(BaseModel):
 class RefactoringAdvisorResponse(BaseModel):
     findings: list[IndexFinding]
     meta: WorkloadGraphMeta  # the workload the findings were computed from
+
+
+# --- Incident Time Machine (routers/timeline.py, app/time_machine.py) ---------
+
+
+class TimelinePoint(BaseModel):
+    ts: datetime
+    value: float
+
+
+class TimelineSeries(BaseModel):
+    metric: str
+    label: str
+    unit: str
+    points: list[TimelinePoint]
+
+
+class LockIncident(BaseModel):
+    start: datetime
+    end: datetime
+    snapshots: int
+    max_blocked: int
+    max_wait_seconds: int | None
+
+
+class TimelineMarker(BaseModel):
+    at: datetime
+    # plan_change | finding_opened | finding_resolved | restart | stats_reset | config_change
+    kind: str
+    title: str
+    detail: str | None
+    severity: str | None
+    ref: str | None  # queryid (as text — 64-bit) or finding id
+
+
+class TimelineResponse(BaseModel):
+    start: datetime
+    end: datetime
+    series: list[TimelineSeries]
+    incidents: list[LockIncident]
+    markers: list[TimelineMarker]
+
+
+class LockSession(BaseModel):
+    pid: int
+    blocked_by: list[int]  # 0 = a prepared transaction
+    usename: str | None
+    application_name: str | None
+    backend_type: str | None
+    state: str | None
+    wait_event_type: str | None
+    wait_event: str | None
+    waiting_on: str | None
+    # Seconds spent waiting for the lock (pg_locks.waitstart); before
+    # PostgreSQL 14 the time since the last state change, an upper bound.
+    wait_seconds: int | None = None
+    query: str | None  # literals and comments removed
+    query_seconds: int | None
+    xact_seconds: int | None
+    state_seconds: int | None
+
+
+class LockTree(BaseModel):
+    collected_at: datetime
+    blocked_count: int
+    max_wait_seconds: int | None
+    root_pids: list[int]
+    sessions: list[LockSession]
+
+
+class MomentQuery(BaseModel):
+    queryid: str
+    query: str
+    calls: int
+    mean_exec_ms: float
+    db_time_ms: float
+
+
+class MomentFinding(BaseModel):
+    id: str
+    category: str
+    title: str
+    severity: str | None
+    since: datetime
+
+
+class TimelineMomentResponse(BaseModel):
+    at: datetime
+    lock_tree: LockTree | None
+    previous_snapshot_at: datetime | None
+    next_snapshot_at: datetime | None
+    query_interval_end: datetime | None
+    top_queries: list[MomentQuery]
+    nearby: list[TimelineMarker]
+    open_findings: list[MomentFinding]
+
+
+class TimelineExplainRequest(BaseModel):
+    start: datetime
+    end: datetime
+
+
+class TimelineExplainResponse(BaseModel):
+    job_id: str
+    status: str  # "pending" | "done" | "error"
+    narrative: str | None = None
+    facts: str | None = None  # exactly what was sent to the AI provider
+    error: str | None = None
 
 
 # --- What-if indexes (routers/what_if.py, app/what_if.py) --------------------

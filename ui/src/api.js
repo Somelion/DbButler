@@ -209,11 +209,30 @@ export const api = {
   // number — a 64-bit queryid would be rounded.
   getPlanHistory: (targetId, queryidText, opts) =>
     request(`/api/targets/${targetId}/plan-regressions/${encodeURIComponent(queryidText)}/plans`, opts),
-  getWorkloadGraph: (targetId, hours, opts) =>
-    request(`/api/targets/${targetId}/workload-graph?hours=${hours}`, opts),
-  getWorkloadTable: (targetId, schemaName, tableName, hours, opts) =>
+  // `until` (ISO string, optional) ends the window in the past — the map's
+  // time slider.
+  getWorkloadGraph: (targetId, hours, opts, until) =>
     request(
-      `/api/targets/${targetId}/workload-graph/tables/${encodeURIComponent(schemaName)}/${encodeURIComponent(tableName)}?hours=${hours}`,
+      `/api/targets/${targetId}/workload-graph?hours=${hours}${until ? `&until=${encodeURIComponent(until)}` : ""}`,
+      opts
+    ),
+  getTimeline: (targetId, hours, until, opts) =>
+    request(
+      `/api/targets/${targetId}/timeline?hours=${hours}${until ? `&until=${encodeURIComponent(until)}` : ""}`,
+      opts
+    ),
+  getTimelineMoment: (targetId, at, opts) =>
+    request(`/api/targets/${targetId}/timeline/moment?at=${encodeURIComponent(at)}`, opts),
+  // Sends facts (counts, table/lock names, finding titles) — never query
+  // text — to the configured AI provider. Starts a background job; poll
+  // getTimelineExplanation until its status isn't "pending".
+  explainTimeline: (targetId, start, end) =>
+    request(`/api/targets/${targetId}/timeline/explain`, { method: "POST", body: JSON.stringify({ start, end }) }),
+  getTimelineExplanation: (targetId, jobId, opts) =>
+    request(`/api/targets/${targetId}/timeline/explain/${encodeURIComponent(jobId)}`, opts),
+  getWorkloadTable: (targetId, schemaName, tableName, hours, opts, until) =>
+    request(
+      `/api/targets/${targetId}/workload-graph/tables/${encodeURIComponent(schemaName)}/${encodeURIComponent(tableName)}?hours=${hours}${until ? `&until=${encodeURIComponent(until)}` : ""}`,
       opts
     ),
 };

@@ -8,6 +8,7 @@ app/workload_graph.py.
 """
 
 import uuid
+from datetime import datetime, timezone
 
 import psycopg
 from fastapi import APIRouter, HTTPException, Query
@@ -58,33 +59,47 @@ TABLE_INDEXES_SQL = """
 
 
 @router.get("/{target_id}/workload-graph", response_model=WorkloadGraphResponse)
-def get_workload_graph(target_id: uuid.UUID, hours: int = Query(168)):
+def get_workload_graph(target_id: uuid.UUID, hours: int = Query(168), until: datetime | None = Query(None)):
     """The map: tables as nodes (sized by bytes, coloured by open findings),
     join edges weighted by the DB time of the queries behind them, and FKs
     nobody joins on. meta.coverage_pct says how much of the tracked DB time
-    the map could actually see."""
-    return collect_workload(target_id, hours).graph
+    the map could actually see. `until` ends the window in the past (the
+    time slider)."""
+    if until is not None and until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+    return collect_workload(target_id, hours, until=until).graph
 
 
 @router.get(
     "/{target_id}/workload-graph/tables/{schema_name}/{table_name}",
     response_model=WorkloadTableDetailResponse,
 )
-def get_workload_table_detail(target_id: uuid.UUID, schema_name: str, table_name: str, hours: int = Query(168)):
+def get_workload_table_detail(
+    target_id: uuid.UUID,
+    schema_name: str,
+    table_name: str,
+    hours: int = Query(168),
+    until: datetime | None = Query(None),
+):
     """The map's side panel for one table: the tracked queries that touch
-    it (and how), its indexes with usage, and its open findings."""
+    it (and how), its indexes with usage, and its open findings. `until`
+    matches the map's time slider, so a past map gets that window's
+    queries; indexes and findings are always current."""
     hours = validate_hours(hours)
+    if until is not None and until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
     table = Table(schema_name, table_name)
     if not table_filter(target_id)(table):
         raise HTTPException(status_code=404, detail="Table is outside this connection's schema filter.")
 
     with store_conn() as conn, conn.cursor() as cur:
-        queries = {q.tracked_id: q for q in load_queries(cur, target_id, hours)}
+        queries = {q.tracked_id: q for q in load_queries(cur, target_id, hours, until)}
         accesses = load_relations(cur, target_id, " AND a.schema_name = %s AND a.table_name = %s", (schema_name, table_name))
         cur.execute(OPEN_TABLE_FINDINGS_SQL, (target_id,))
         findings = cur.fetchall()
 
-    basis = "window" if any(q.window_db_time_ms > 0 for q in queries.values()) else "lifetime"
+    has_window_time = any(q.window_db_time_ms > 0 for q in queries.values())
+    basis = "window" if has_window_time or until is not None else "lifetime"
     query_rows = []
     for access in accesses:
         query = queries.get(access.tracked_id)

@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Lightbulb,
   Network,
+  Rewind,
   SearchCode,
   Settings,
   SlidersHorizontal,
@@ -25,6 +26,7 @@ export const SCREENS = [
   { key: "dashboard", label: "Dashboard", group: "monitor", icon: LayoutDashboard, scope: "target", showMode: true },
   { key: "activity", label: "Activity", group: "monitor", icon: Activity, scope: "target", showMode: true },
   { key: "trends", label: "Trends", group: "monitor", icon: ChartLine, scope: "target", showMode: false },
+  { key: "time-machine", label: "Time Machine", group: "monitor", icon: Rewind, scope: "target", showMode: false },
   { key: "workload-map", label: "Workload Map", group: "analyze", icon: Network, scope: "target", showMode: false },
   { key: "table-health", label: "Table Health", group: "analyze", icon: HeartPulse, scope: "target", showMode: true },
   {

@@ -42,6 +42,7 @@ from app.routers.schema_lint import router as schema_lint_router
 from app.routers.security_advisor import router as security_advisor_router
 from app.routers.table_health import router as table_health_router
 from app.routers.targets import router as targets_router
+from app.routers.timeline import router as timeline_router
 from app.routers.wait_events import router as wait_events_router
 from app.routers.what_if import router as what_if_router
 from app.routers.workload_graph import router as workload_graph_router
@@ -126,6 +127,7 @@ app.include_router(wait_events_router, dependencies=_AUTH)
 app.include_router(workload_graph_router, dependencies=_AUTH)
 app.include_router(refactoring_advisor_router, dependencies=_AUTH)
 app.include_router(what_if_router, dependencies=_AUTH)
+app.include_router(timeline_router, dependencies=_AUTH)
 
 app.add_middleware(
     CORSMiddleware,

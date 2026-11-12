@@ -17,10 +17,10 @@ const allowedHosts = (process.env.UI_ALLOWED_HOSTS ?? "")
 export default defineConfig({
   plugins: [react()],
   build: {
-    // The Workload Map's chunk (cytoscape + fcose, ~590 kB) is lazy-loaded
-    // only when that screen opens, so it doesn't weigh on first load; the
-    // main bundle stays well under this.
-    chunkSizeWarningLimit: 700,
+    // Two lazy chunks are big on purpose, and load only when used: the
+    // Workload Map (cytoscape + fcose, ~590 kB) and its 3D view (three.js,
+    // ~1.4 MB / ~390 kB gzipped). The main bundle stays near 500 kB.
+    chunkSizeWarningLimit: 1500,
     rolldownOptions: {
       // Two pages: the app, and the pev2 plan viewer it shows in an iframe
       // (src/planViewer/main.js) — kept apart so Vue and Bootstrap's global

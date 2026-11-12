@@ -3,8 +3,9 @@ import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import { Maximize, ZoomIn, ZoomOut } from "lucide-react";
 import styles from "./WorkloadGraph.module.css";
-import { mixRgb, readColorTokens, readToken, useThemeSnapshot } from "./cssColors";
-import { EDGE_KINDS, HEAT_METRIC, isUnindexedFkEdge } from "./workloadKinds";
+import { readColorTokens, readToken, useThemeSnapshot } from "./cssColors";
+import { COLOR_TOKENS, nodeColors } from "./workloadColors";
+import { EDGE_KINDS, isUnindexedFkEdge } from "./workloadKinds";
 
 cytoscape.use(fcose);
 
@@ -12,31 +13,6 @@ const MIN_NODE_SIZE = 22;
 const MAX_NODE_SIZE = 72;
 const MIN_EDGE_WIDTH = 1.5;
 const MAX_EDGE_WIDTH = 10;
-
-const COLOR_TOKENS = [
-  "bg",
-  "card",
-  "row-bg",
-  "border",
-  "text",
-  "text-secondary",
-  "text-muted",
-  "accent",
-  "critical-solid",
-  "attention-solid",
-  "attention-text",
-  "healthy-solid",
-  "unknown-solid",
-  "info-solid",
-  "chart-4",
-];
-
-const SEVERITY_TOKEN = {
-  critical: "critical-solid",
-  attention: "attention-solid",
-  healthy: "healthy-solid",
-  unknown: "unknown-solid",
-};
 
 const schemaNodeId = (schema) => `schema:${schema}`;
 
@@ -94,27 +70,6 @@ function buildElements(nodes, edges) {
     });
   }
   return elements;
-}
-
-// Fill colour per node for the active colouring mode.
-function nodeColors(nodes, colorBy, palette) {
-  const colors = new Map();
-  if (colorBy === "health") {
-    for (const node of nodes) {
-      const token = SEVERITY_TOKEN[node.severity] ?? "healthy-solid";
-      colors.set(node.id, palette[token]);
-    }
-    return colors;
-  }
-  const metric = HEAT_METRIC[colorBy];
-  const max = Math.max(0, ...nodes.map((n) => n[metric] ?? 0));
-  const hot = colorBy === "seq" ? palette["critical-solid"] : palette["chart-4"];
-  const cold = mixRgb(palette["unknown-solid"], palette.card, 0.35);
-  for (const node of nodes) {
-    const value = node[metric];
-    colors.set(node.id, value == null || max === 0 ? cold : mixRgb(cold, hot, Math.sqrt(value / max)));
-  }
-  return colors;
 }
 
 function buildStylesheet(palette, fontFamily) {

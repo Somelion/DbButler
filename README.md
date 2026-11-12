@@ -22,7 +22,17 @@ every screen without connecting anything real.
 - **Activity** — live session view with blocking-lock detection and cancel/terminate.
 - **Workload Map** — a graph of the tables your queries really join, built from their plans and
   weighted by DB time. It shows joins with no foreign key behind them, foreign keys nobody joins on,
-  and unindexed foreign keys.
+  and unindexed foreign keys. It has an optional 3D view, where height is DB time and each schema
+  forms its own cluster, and a time slider for looking at last week's workload.
+- **Time Machine** — one correlated timeline per database:
+  - metric lines;
+  - lock incidents, from lock trees recorded every 15 s while anyone is blocked;
+  - plan changes;
+  - findings opening and resolving;
+  - restarts, stats resets and configuration changes.
+
+  Pick any moment to see who blocked whom, which queries ran and what had just changed, or replay
+  an incident snapshot by snapshot. An optional AI post-mortem sends facts only, never query text.
 - **Table Health** — per-table dead-tuple %, vacuum staleness, last analyze, wraparound age, and
   cache hit %, with one-click Analyze / Vacuum / reset-stats actions.
 - **Query Intelligence & Explain** — `pg_stat_statements` browser, paste-a-query plan analysis
@@ -144,6 +154,10 @@ demo volume was created by the earlier `postgres:16-alpine` image, re-seed it as
 libc's sort text differently, so the old volume's text indexes don't carry over. The Refactoring
 Advisor's partitioning rule ignores tables under 1 GB by default. To see it on the demo's
 `audit_log`, set `REFACTOR_PARTITION_MIN_TABLE_MB=5` in `.env`.
+
+To give the Time Machine something to replay, `sh demo/stage-lock-incident.sh` (from the repository
+root, while the demo is up) stages a 90-second lock incident: three sessions queue behind one row
+lock. Within a minute it shows up under Monitor → Time Machine.
 
 ### Optional: TimescaleDB test target
 

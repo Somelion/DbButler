@@ -53,10 +53,12 @@ function PanelHeader({ title, onClose, children }) {
   );
 }
 
-function TablePanel({ targetId, hours, node, edges, onSelect, onClose }) {
+function TablePanel({ targetId, hours, until, node, edges, onSelect, onClose }) {
+  // `until` follows the map's time slider, so a past map lists that
+  // window's queries, not today's.
   const detailQuery = useQuery({
-    queryKey: targetKey(targetId, "workload-table", node.schema, node.table, hours),
-    queryFn: ({ signal }) => api.getWorkloadTable(targetId, node.schema, node.table, hours, { signal }),
+    queryKey: targetKey(targetId, "workload-table", node.schema, node.table, hours, until ?? "now"),
+    queryFn: ({ signal }) => api.getWorkloadTable(targetId, node.schema, node.table, hours, { signal }, until),
   });
   const detail = detailQuery.data;
   const related = edges.filter((e) => e.source === node.id || e.target === node.id);
@@ -353,7 +355,7 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
 }
 
 // Details for whatever is selected on the map — a table or a relationship.
-export default function WorkloadSidePanel({ targetId, hours, graph, selection, onSelect, onClose }) {
+export default function WorkloadSidePanel({ targetId, hours, until, graph, selection, onSelect, onClose }) {
   const node = selection.type === "table" ? graph.nodes.find((n) => n.id === selection.id) : null;
   const edge = selection.type === "edge" ? graph.edges.find((e) => e.id === selection.id) : null;
 
@@ -364,6 +366,7 @@ export default function WorkloadSidePanel({ targetId, hours, graph, selection, o
           key={node.id}
           targetId={targetId}
           hours={hours}
+          until={until}
           node={node}
           edges={graph.edges}
           onSelect={onSelect}

@@ -1,0 +1,112 @@
+.wrap {
+  position: relative;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+  touch-action: none;
+  border-radius: var(--radius-md);
+}
+
+.svg:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.lane {
+  fill: var(--row-bg);
+}
+
+.laneLabel {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  fill: var(--text-secondary);
+}
+
+.line {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.line1 {
+  stroke: var(--chart-1);
+}
+
+.line2 {
+  stroke: var(--chart-3);
+}
+
+.line3 {
+  stroke: var(--chart-6);
+}
+
+.line4 {
+  stroke: var(--chart-2);
+}
+
+.incident {
+  fill: var(--critical-solid);
+  opacity: 0.16;
+}
+
+.markerAxis {
+  stroke: var(--border);
+}
+
+.markerPlan {
+  fill: var(--chart-1);
+}
+
+.markerOpened {
+  fill: var(--attention-solid);
+}
+
+.markerResolved {
+  fill: var(--healthy-solid);
+}
+
+.markerRestart {
+  fill: var(--critical-solid);
+}
+
+.markerReset {
+  fill: var(--unknown-solid);
+}
+
+.markerConfig {
+  fill: var(--info-solid);
+}
+
+.tick {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  fill: var(--text-muted);
+}
+
+.hover {
+  stroke: var(--text-muted);
+  stroke-dasharray: 3 3;
+}
+
+.cursor {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.hoverLabel {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-8);
+  padding: var(--space-2) var(--space-6);
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}

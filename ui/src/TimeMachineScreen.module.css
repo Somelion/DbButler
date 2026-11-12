@@ -1,0 +1,212 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-10) var(--space-14);
+}
+
+.pan {
+  display: inline-flex;
+  gap: var(--space-4);
+}
+
+.muted {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6) var(--space-14);
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.legendBand {
+  width: 14px;
+  height: 10px;
+  margin-right: calc(var(--space-4) * -1 + 4px);
+  background: var(--critical-solid);
+  opacity: 0.25;
+  border-radius: 2px;
+}
+
+.legendDot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.dot_plan_change {
+  background: var(--chart-1);
+}
+
+.dot_finding_opened {
+  background: var(--attention-solid);
+}
+
+.dot_finding_resolved {
+  background: var(--healthy-solid);
+  border-radius: 50%;
+}
+
+.dot_restart {
+  background: var(--critical-solid);
+}
+
+.dot_stats_reset {
+  background: var(--unknown-solid);
+}
+
+.dot_config_change {
+  background: var(--info-solid);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  gap: var(--space-16);
+  align-items: start;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  font-size: var(--font-size-xs);
+}
+
+.incident {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-10);
+  background: var(--critical-bg);
+  border: 1px solid var(--critical-border);
+  border-radius: var(--radius-md);
+}
+
+.incidentTitle {
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--critical-text);
+}
+
+.incidentActions {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.markerButton {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  width: 100%;
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-regular);
+  text-align: left;
+  border-radius: var(--radius-sm);
+}
+
+.markerButton:hover {
+  background: var(--row-bg);
+}
+
+.markerButton .legendDot {
+  margin-top: 4px;
+}
+
+.markerText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.markerTime {
+  font-weight: var(--weight-semibold);
+}
+
+.replay {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--border);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-bold);
+}
+
+.queryCell {
+  max-width: 420px;
+  overflow-wrap: anywhere;
+}
+
+.narrative {
+  font-size: var(--font-size-md);
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+}
+
+.factsSummary {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.facts {
+  max-height: 260px;
+  overflow: auto;
+  padding: var(--space-8) var(--space-10);
+  font-size: var(--font-size-2xs);
+  background: var(--row-bg);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 1100px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

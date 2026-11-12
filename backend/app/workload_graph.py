@@ -196,9 +196,12 @@ def build_workload_graph(
     severities: dict[Table, str],
     include_table,
     max_nodes: int = MAX_NODES,
+    allow_lifetime_fallback: bool = True,
+    until: datetime | None = None,
 ) -> dict:
     by_id = {q.tracked_id: q for q in queries}
-    basis = "window" if any(q.window_db_time_ms > 0 for q in queries) else "lifetime"
+    has_window_time = any(q.window_db_time_ms > 0 for q in queries)
+    basis = "window" if has_window_time or not allow_lifetime_fallback else "lifetime"
     total_db_time = sum(query_weight(q, basis) for q in queries)
     mapped_db_time = sum(query_weight(q, basis) for q in queries if q.status == "ok")
 
@@ -403,6 +406,7 @@ def build_workload_graph(
         "edges": edge_payloads,
         "meta": {
             "hours": hours,
+            "until": until,
             "weight_basis": basis,
             "tracked_queries": len(queries),
             "query_status_counts": status_counts,

@@ -12,6 +12,7 @@ so a request never opens two connections.
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 import psycopg
 from fastapi import HTTPException
@@ -38,7 +39,17 @@ from app.workload_graph import (
 
 MAX_HOURS = 24 * 30  # the store's retention window
 
-TRACKED_QUERIES_SQL = """
+# The window ends at %(until)s (now when NULL) — the Workload Map's time
+# slider. A past window only includes queries already tracked by its end
+# (first_seen_at) and still seen within it (last_seen_at): that's how a join
+# "appears after Tuesday's deploy". The join structure itself is each
+# query's current extraction; plan history isn't kept per column.
+#
+# The window end is an inline stable expression (not a CTE): the planner
+# then uses it as an index bound on query_stat_snapshots directly, as it did
+# with plain now() before the slider existed.
+_WINDOW_END = "coalesce(%(until)s::timestamptz, now())"
+TRACKED_QUERIES_SQL = f"""
     SELECT
         tq.id, tq.queryid, tq.query_text,
         coalesce(w.db_time_ms, 0), coalesce(w.calls, 0),
@@ -50,12 +61,14 @@ TRACKED_QUERIES_SQL = """
         FROM query_stat_snapshots s
         JOIN tracked_queries t ON t.id = s.tracked_query_id
         WHERE t.target_id = %(target_id)s
-          AND s.collected_at >= now() - (%(hours)s * interval '1 hour')
+          AND s.collected_at > {_WINDOW_END} - (%(hours)s * interval '1 hour')
+          AND s.collected_at <= {_WINDOW_END}
         GROUP BY s.tracked_query_id
     ) w ON w.tracked_query_id = tq.id
     LEFT JOIN query_workload_extracts e ON e.tracked_query_id = tq.id
     WHERE tq.target_id = %(target_id)s
-      AND tq.last_seen_at >= now() - (%(hours)s * interval '1 hour')
+      AND tq.last_seen_at >= {_WINDOW_END} - (%(hours)s * interval '1 hour')
+      AND tq.first_seen_at <= {_WINDOW_END}
 """
 
 RELATIONS_SQL = """
@@ -84,7 +97,9 @@ TABLE_STATS_AT_SQL = """
     WHERE target_id = %(target_id)s
       AND collected_at = (
           SELECT {agg}(collected_at) FROM table_stat_snapshots
-          WHERE target_id = %(target_id)s AND collected_at >= now() - (%(hours)s * interval '1 hour')
+          WHERE target_id = %(target_id)s
+            AND collected_at >= coalesce(%(until)s::timestamptz, now()) - (%(hours)s * interval '1 hour')
+            AND collected_at <= coalesce(%(until)s::timestamptz, now())
       )
 """
 
@@ -127,8 +142,8 @@ def table_filter(target_id: uuid.UUID) -> Callable[[Table], bool]:
     return include
 
 
-def load_queries(cur, target_id, hours) -> list[QueryInfo]:
-    cur.execute(TRACKED_QUERIES_SQL, {"target_id": target_id, "hours": hours})
+def load_queries(cur, target_id, hours, until=None) -> list[QueryInfo]:
+    cur.execute(TRACKED_QUERIES_SQL, {"target_id": target_id, "hours": hours, "until": until})
     return [
         QueryInfo(
             tracked_id=row[0],
@@ -153,8 +168,8 @@ def load_relations(cur, target_id, extra_where: str = "", params: tuple = ()) ->
     ]
 
 
-def _load_stats(cur, target_id, hours, agg: str) -> dict[Table, StatRow]:
-    cur.execute(TABLE_STATS_AT_SQL.format(agg=agg), {"target_id": target_id, "hours": hours})
+def _load_stats(cur, target_id, hours, agg: str, until=None) -> dict[Table, StatRow]:
+    cur.execute(TABLE_STATS_AT_SQL.format(agg=agg), {"target_id": target_id, "hours": hours, "until": until})
     return {Table(row[0], row[1]): StatRow(*row[2:]) for row in cur.fetchall()}
 
 
@@ -162,24 +177,27 @@ def target_unreachable(exc: psycopg.Error) -> HTTPException:
     return HTTPException(status_code=502, detail=f"Could not reach target: {exc}")
 
 
-def collect_workload(target_id: uuid.UUID, hours: int, target_reads: Callable | None = None) -> WorkloadContext:
+def collect_workload(
+    target_id: uuid.UUID, hours: int, target_reads: Callable | None = None, until: datetime | None = None
+) -> WorkloadContext:
     """Everything the map needs, and the map itself. target_reads(cur,
     parent_map, relations, foreign_keys) runs on the same autocommit target
     connection afterwards; its return value lands in
-    WorkloadContext.target_extra."""
+    WorkloadContext.target_extra. `until` ends the window in the past (the
+    map's time slider); None means now."""
     hours = validate_hours(hours)
     include_table = table_filter(target_id)
 
     with store_conn() as conn, conn.cursor() as cur:
-        queries = load_queries(cur, target_id, hours)
+        queries = load_queries(cur, target_id, hours, until)
         relations = load_relations(cur, target_id)
         cur.execute(JOINS_SQL, (target_id,))
         joins = [
             JoinRow(r[0], Table(r[1], r[2]), Table(r[3], r[4]), list(r[5]), list(r[6]), r[7], r[8])
             for r in cur.fetchall()
         ]
-        latest = _load_stats(cur, target_id, hours, "max")
-        earliest = _load_stats(cur, target_id, hours, "min")
+        latest = _load_stats(cur, target_id, hours, "max", until)
+        earliest = _load_stats(cur, target_id, hours, "min", until)
         cur.execute(OPEN_TABLE_FINDINGS_SQL, (target_id,))
         findings = cur.fetchall()
 
@@ -212,6 +230,10 @@ def collect_workload(target_id: uuid.UUID, hours: int, target_reads: Callable | 
         stats_window_hours=span_hours,
         severities=severities,
         include_table=include_table,
+        # Lifetime totals only describe "now": a past window that saw no
+        # traffic stays empty rather than borrowing today's weights.
+        allow_lifetime_fallback=until is None,
+        until=until,
     )
     return WorkloadContext(
         hours=hours,

@@ -22,6 +22,7 @@ import IndexTestingScreen from "./IndexTestingScreen";
 import ArchiveScreen from "./ArchiveScreen";
 import ConfigTuningScreen from "./ConfigTuningScreen";
 import TrendsScreen from "./TrendsScreen";
+import TimeMachineScreen from "./TimeMachineScreen";
 import WhatIfScreen from "./WhatIfScreen";
 import Settings from "./Settings";
 
@@ -93,6 +94,7 @@ export default function App() {
           <Route path="dashboard" element={<TargetScreen component={DashboardScreen} />} />
           <Route path="activity" element={<TargetScreen component={ActivityScreen} />} />
           <Route path="trends" element={<TargetScreen component={TrendsScreen} />} />
+          <Route path="time-machine" element={<TargetScreen component={TimeMachineScreen} />} />
           <Route path="workload-map" element={<TargetScreen component={LazyWorkloadMap} />} />
           <Route path="table-health" element={<TargetScreen component={TableHealthScreen} />} />
           <Route path="query-intelligence" element={<TargetScreen component={QueryIntelligenceScreen} />} />
