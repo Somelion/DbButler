@@ -40,6 +40,7 @@ class QueryInfo:
     lifetime_calls: int
     status: str | None  # query_workload_extracts.status, None = not planned yet
     checked_at: datetime | None = None
+    extractor_version: int | None = None
 
 
 @dataclass
@@ -48,6 +49,7 @@ class RelationRow:
     table: Table
     access_kinds: list[str]
     filter_columns: list[str]
+    referenced_columns: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -96,6 +98,11 @@ class _EdgeAcc:
     join_types: set = field(default_factory=set)
     strategies: set = field(default_factory=set)
     fks: list = field(default_factory=list)
+    # One join condition's column pairs -> the queries using exactly that
+    # condition. Two different joins between the same tables (sender_id and
+    # recipient_id, both to users.id) stay two groups, never one composite.
+    groups: dict = field(default_factory=dict)
+    fk_by_group: dict = field(default_factory=dict)
 
 
 def _truncate(text: str, limit: int = QUERY_TEXT_LIMIT) -> str:
@@ -155,22 +162,22 @@ def fold_table_stats(
     return folded, span_hours
 
 
-def _query_weight(query: QueryInfo, basis: str) -> float:
+def query_weight(query: QueryInfo, basis: str) -> float:
     return query.window_db_time_ms if basis == "window" else query.lifetime_db_time_ms
 
 
-def _query_calls(query: QueryInfo, basis: str) -> int:
+def query_calls(query: QueryInfo, basis: str) -> int:
     return query.window_calls if basis == "window" else query.lifetime_calls
 
 
 def _top_queries(query_ids, queries: dict, basis: str) -> list[dict]:
-    ranked = sorted((queries[q] for q in query_ids), key=lambda q: _query_weight(q, basis), reverse=True)
+    ranked = sorted((queries[q] for q in query_ids), key=lambda q: query_weight(q, basis), reverse=True)
     return [
         {
             "queryid": q.queryid,
             "query": _truncate(q.text),
-            "db_time_ms": round(_query_weight(q, basis), 3),
-            "calls": _query_calls(q, basis),
+            "db_time_ms": round(query_weight(q, basis), 3),
+            "calls": query_calls(q, basis),
         }
         for q in ranked[:TOP_QUERIES_PER_ITEM]
     ]
@@ -192,8 +199,8 @@ def build_workload_graph(
 ) -> dict:
     by_id = {q.tracked_id: q for q in queries}
     basis = "window" if any(q.window_db_time_ms > 0 for q in queries) else "lifetime"
-    total_db_time = sum(_query_weight(q, basis) for q in queries)
-    mapped_db_time = sum(_query_weight(q, basis) for q in queries if q.status == "ok")
+    total_db_time = sum(query_weight(q, basis) for q in queries)
+    mapped_db_time = sum(query_weight(q, basis) for q in queries if q.status == "ok")
 
     status_counts = {"ok": 0, "needs_generic_plan": 0, "explain_failed": 0, "not_planned_yet": 0}
     for q in queries:
@@ -216,7 +223,9 @@ def build_workload_graph(
             continue
         acc = edges.setdefault((row.left, row.right), _EdgeAcc(row.left, row.right))
         acc.queries.add(row.tracked_id)
-        for pair in zip(row.left_columns, row.right_columns, strict=False):
+        group = tuple(zip(row.left_columns, row.right_columns, strict=False))
+        acc.groups.setdefault(group, set()).add(row.tracked_id)
+        for pair in group:
             if pair not in acc.column_pairs:
                 acc.column_pairs.append(pair)
         if row.join_type:
@@ -234,9 +243,14 @@ def build_workload_graph(
         key = (child, parent) if child <= parent else (parent, child)
         pairs = list(zip(fk["child_columns"], fk["parent_columns"], strict=False))
         oriented = set(pairs) if key[0] == child else {(p, c) for c, p in pairs}
+        # An FK backs a join when one join condition covers all its columns
+        # (a condition may add more, e.g. a tenant column).
         workload_edge = edges.get(key)
-        if workload_edge is not None and oriented <= set(workload_edge.column_pairs):
+        covered = [g for g in workload_edge.groups if oriented <= set(g)] if workload_edge else []
+        if covered:
             workload_edge.fks.append(fk)
+            for group in covered:
+                workload_edge.fk_by_group.setdefault(group, fk)
         else:
             unused_fks.append((key, fk))
         nodes.setdefault(child, _NodeAcc(child))
@@ -246,7 +260,7 @@ def build_workload_graph(
     # DB time, then the biggest.
     def node_weight(acc: _NodeAcc) -> tuple:
         return (
-            sum(_query_weight(by_id[q], basis) for q in acc.queries),
+            sum(query_weight(by_id[q], basis) for q in acc.queries),
             table_stats.get(acc.table, {}).get("total_bytes") or 0,
         )
 
@@ -273,22 +287,48 @@ def build_workload_graph(
     for (left, right), acc in edges.items():
         if left not in nodes or right not in nodes:
             continue
-        db_time = sum(_query_weight(by_id[q], basis) for q in acc.queries)
+        db_time = sum(query_weight(by_id[q], basis) for q in acc.queries)
+        groups = []
+        for group, group_queries in acc.groups.items():
+            group_time = sum(query_weight(by_id[q], basis) for q in group_queries)
+            fk = acc.fk_by_group.get(group)
+            groups.append(
+                {
+                    "pairs": [list(pair) for pair in group],
+                    "query_count": len(group_queries),
+                    "db_time_ms": round(group_time, 3),
+                    "share_pct": round(100.0 * group_time / total_db_time, 2) if total_db_time else 0.0,
+                    "foreign_key": fk["name"] if fk else None,
+                    "source_indexed": side_indexed(left, [p[0] for p in group]),
+                    "target_indexed": side_indexed(right, [p[1] for p in group]),
+                    "nested_loop": any(
+                        r.join_strategy == "Nested Loop"
+                        for r in joins
+                        if r.tracked_id in group_queries
+                        and (r.left, r.right) == (left, right)
+                        and tuple(zip(r.left_columns, r.right_columns, strict=False)) == group
+                    ),
+                }
+            )
+        groups.sort(key=lambda g: g["db_time_ms"], reverse=True)
         edge_payloads.append(
             {
                 "id": f"join:{left.qualified}|{right.qualified}",
                 "source": left.qualified,
                 "target": right.qualified,
-                "kind": "fk" if acc.fks else "no_fk",
+                # Dashed as soon as one join condition has no FK behind it.
+                "kind": "fk" if groups and all(g["foreign_key"] for g in groups) else "no_fk",
                 "db_time_ms": round(db_time, 3),
                 "share_pct": round(100.0 * db_time / total_db_time, 2) if total_db_time else 0.0,
-                "calls": sum(_query_calls(by_id[q], basis) for q in acc.queries),
+                "calls": sum(query_calls(by_id[q], basis) for q in acc.queries),
                 "query_count": len(acc.queries),
                 "column_pairs": [list(pair) for pair in acc.column_pairs],
                 "join_types": sorted(acc.join_types),
                 "join_strategies": sorted(acc.strategies),
-                "source_indexed": side_indexed(left, [p[0] for p in acc.column_pairs]),
-                "target_indexed": side_indexed(right, [p[1] for p in acc.column_pairs]),
+                # Indexed only when every join condition's side is.
+                "source_indexed": all(g["source_indexed"] for g in groups),
+                "target_indexed": all(g["target_indexed"] for g in groups),
+                "column_groups": groups,
                 "foreign_keys": [fk_payload(fk) for fk in acc.fks],
                 "top_queries": _top_queries(acc.queries, by_id, basis),
             }
@@ -315,6 +355,7 @@ def build_workload_graph(
                 "join_strategies": [],
                 "source_indexed": fk["indexed"] if child_is_left else True,
                 "target_indexed": True if child_is_left else fk["indexed"],
+                "column_groups": [],
                 "foreign_keys": [fk_payload(fk)],
                 "top_queries": [],
             }
@@ -324,7 +365,7 @@ def build_workload_graph(
     node_payloads = []
     for table, acc in nodes.items():
         stats = table_stats.get(table, {})
-        db_time = sum(_query_weight(by_id[q], basis) for q in acc.queries)
+        db_time = sum(query_weight(by_id[q], basis) for q in acc.queries)
         node_payloads.append(
             {
                 "id": table.qualified,

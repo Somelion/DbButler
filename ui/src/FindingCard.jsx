@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
-import { Link } from "react-router";
+import { Link, useParams } from "react-router";
 import { useMode } from "./ModeContext";
+import { screenPath } from "./routes";
 import { colorForColumn } from "./columnColor";
 import { formatBytes, formatRelativeTime } from "./format";
 import { Alert, Badge, CopyButton, SeverityBadge, useConfirm } from "./components";
@@ -32,9 +33,11 @@ function ColumnChip({ column, className }) {
 }
 
 // `navigateTo` is a router path (e.g. from screenPath()) rendered as an
-// "Open …" link labelled by `navigateLabel`.
+// "Open …" link labelled by `navigateLabel`. `actions` is any extra buttons
+// a screen adds to the card's action row (Plan Regressions' "Compare plans").
 export default function FindingCard({
   finding,
+  actions,
   onArchive,
   onRestore,
   onApply,
@@ -55,6 +58,18 @@ export default function FindingCard({
   const [vacuumError, setVacuumError] = useState(null);
   const canApply = Boolean(onApply && finding.recommended_ddl);
   const canVacuum = Boolean(onVacuum && finding.schema_name && finding.table_name);
+  // A finding that suggests an index can hand it to What-if Indexes, which
+  // costs it against the tracked workload with HypoPG before anyone builds it.
+  const routeTargetId = useParams().targetId;
+  const candidate = finding.index_candidate;
+  const whatIfTarget = targetId ?? routeTargetId;
+  const whatIfPath =
+    candidate && whatIfTarget
+      ? screenPath("what-if", whatIfTarget, null, {
+          table: `${candidate.schema_name}.${candidate.table_name}`,
+          columns: candidate.columns.join(","),
+        })
+      : null;
 
   // DDL runs straight against the target, so it is confirmed first with the
   // exact statement shown.
@@ -123,6 +138,12 @@ export default function FindingCard({
               {navigateLabel || "Open"}
             </Link>
           )}
+          {whatIfPath && (
+            <Link to={whatIfPath} className={`button-secondary button-sm ${styles.linkButton}`}>
+              Cost in What-if
+            </Link>
+          )}
+          {actions}
           {canApply && (
             <button type="button" className="button-secondary button-sm" onClick={handleApply} disabled={applying}>
               {applying ? "Running…" : "Apply"}

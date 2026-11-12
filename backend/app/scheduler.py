@@ -736,11 +736,19 @@ def _store_workload_extracts(cur, extracts) -> None:
             continue
         cur.executemany(
             """
-            INSERT INTO query_relation_access (tracked_query_id, schema_name, table_name, access_kinds, filter_columns)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO query_relation_access (
+                tracked_query_id, schema_name, table_name, access_kinds, filter_columns, referenced_columns
+            ) VALUES (%s, %s, %s, %s, %s, %s)
             """,
             [
-                (tracked_id, r.table.schema, r.table.name, sorted(r.access_kinds), sorted(r.filter_columns))
+                (
+                    tracked_id,
+                    r.table.schema,
+                    r.table.name,
+                    sorted(r.access_kinds),
+                    sorted(r.filter_columns),
+                    sorted(r.referenced_columns),
+                )
                 for r in extract.relations
             ],
         )

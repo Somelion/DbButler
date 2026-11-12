@@ -200,6 +200,15 @@ export const api = {
     return request(`/api/targets/${targetId}/query-history?hours=${hours}&${idParams}`, opts);
   },
   getPlanRegressions: (targetId, opts) => request(`/api/targets/${targetId}/plan-regressions`, opts),
+  getRefactoringAdvisor: (targetId, opts) => request(`/api/targets/${targetId}/refactoring-advisor`, opts),
+  // Read-only: HypoPG plans with hypothetical indexes kept in the session's
+  // memory; nothing is created on the target.
+  runWhatIf: (targetId, candidates, hours) =>
+    request(`/api/targets/${targetId}/what-if`, { method: "POST", body: JSON.stringify({ candidates, hours }) }),
+  // queryidText is the decimal string from the finding's id, never a JSON
+  // number — a 64-bit queryid would be rounded.
+  getPlanHistory: (targetId, queryidText, opts) =>
+    request(`/api/targets/${targetId}/plan-regressions/${encodeURIComponent(queryidText)}/plans`, opts),
   getWorkloadGraph: (targetId, hours, opts) =>
     request(`/api/targets/${targetId}/workload-graph?hours=${hours}`, opts),
   getWorkloadTable: (targetId, schemaName, tableName, hours, opts) =>

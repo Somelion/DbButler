@@ -35,6 +35,7 @@ from app.routers.pre_upgrade_advisor import router as pre_upgrade_advisor_router
 from app.routers.query_analysis import router as query_analysis_router
 from app.routers.query_history import router as query_history_router
 from app.routers.query_stats import router as query_stats_router
+from app.routers.refactoring_advisor import router as refactoring_advisor_router
 from app.routers.replication_advisor import router as replication_advisor_router
 from app.routers.scheduler_settings import router as scheduler_settings_router
 from app.routers.schema_lint import router as schema_lint_router
@@ -42,6 +43,7 @@ from app.routers.security_advisor import router as security_advisor_router
 from app.routers.table_health import router as table_health_router
 from app.routers.targets import router as targets_router
 from app.routers.wait_events import router as wait_events_router
+from app.routers.what_if import router as what_if_router
 from app.routers.workload_graph import router as workload_graph_router
 from app.scheduler import start_scheduler
 from app.version import APP_VERSION
@@ -122,6 +124,8 @@ app.include_router(plan_regressions_router, dependencies=_AUTH)
 app.include_router(pgbouncer_router, dependencies=_AUTH)
 app.include_router(wait_events_router, dependencies=_AUTH)
 app.include_router(workload_graph_router, dependencies=_AUTH)
+app.include_router(refactoring_advisor_router, dependencies=_AUTH)
+app.include_router(what_if_router, dependencies=_AUTH)
 
 app.add_middleware(
     CORSMiddleware,

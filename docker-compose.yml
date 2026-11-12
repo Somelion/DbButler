@@ -39,6 +39,7 @@ services:
       LOG_TO_FILE: ${LOG_TO_FILE:-false}
       LOG_DIR: /logs
       SCHEDULER_MAX_PARALLEL_TARGETS: ${SCHEDULER_MAX_PARALLEL_TARGETS:-4}
+      REFACTOR_PARTITION_MIN_TABLE_MB: ${REFACTOR_PARTITION_MIN_TABLE_MB:-1024}
       STORE_POOL_MAX_SIZE: ${STORE_POOL_MAX_SIZE:-20}
     volumes:
       - ${LOG_HOST_DIR:-./logs}:/logs
@@ -66,7 +67,13 @@ services:
         condition: service_healthy
 
   pgdba-demo-target:
-    image: postgres:16-alpine
+    # postgres:16 (Debian) plus HypoPG for the What-if Indexes screen — see
+    # demo/Dockerfile. A demo volume created by the earlier Alpine image
+    # should be recreated (see README): glibc and musl sort text differently.
+    build: ./demo
+    image: dbbutler-demo-target:16
+    # A local build, never on a registry: don't try to pull it first.
+    pull_policy: build
     profiles: ["demo"]
     # pg_stat_statements must be preloaded before the server starts so the
     # seed script's `CREATE EXTENSION` (and everything Query Intelligence /

@@ -21,6 +21,10 @@
   width: min(820px, calc(100vw - 32px));
 }
 
+.xl {
+  width: min(1320px, calc(100vw - 32px));
+}
+
 .inner {
   display: flex;
   flex-direction: column;

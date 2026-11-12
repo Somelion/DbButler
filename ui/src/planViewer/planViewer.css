@@ -1,0 +1,12 @@
+/* pev2 sizes itself to its container: give it the whole iframe. */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+}

@@ -1,10 +1,10 @@
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.db.store import store_conn
 from app.routers.advisor_archive import get_archived_finding_ids
-from app.schemas import IndexFinding, PlanRegressionsResponse
+from app.schemas import IndexFinding, PlanHistoryResponse, PlanRegressionsResponse
 from app.severity import plan_regression_severity
 
 router = APIRouter(prefix="/api/targets", tags=["plan-regressions"])
@@ -120,3 +120,37 @@ def get_plan_regressions(target_id: uuid.UUID):
     archived_ids = get_archived_finding_ids(target_id)
     findings = [finding for finding in findings if finding["id"] not in archived_ids]
     return PlanRegressionsResponse(findings=[IndexFinding(**finding) for finding in findings])
+
+
+PLAN_HISTORY_LIMIT = 10
+
+
+@router.get("/{target_id}/plan-regressions/{queryid}/plans", response_model=PlanHistoryResponse)
+def get_plan_history(target_id: uuid.UUID, queryid: int):
+    """The recorded plan shapes of one tracked query, newest first — what
+    the Plan Regressions screen's side-by-side diff compares. The UI takes
+    queryid from the finding's id string, never from a JSON number, so a
+    64-bit queryid arrives exact."""
+    with store_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, query_text FROM tracked_queries WHERE target_id = %s AND queryid = %s",
+            (target_id, queryid),
+        )
+        tracked = cur.fetchone()
+        if tracked is None:
+            raise HTTPException(status_code=404, detail="This query isn't tracked (any more).")
+        cur.execute(
+            """
+            SELECT collected_at, fingerprint_hash, plan_summary, plan_json
+            FROM query_plan_snapshots
+            WHERE tracked_query_id = %s
+            ORDER BY collected_at DESC
+            LIMIT %s
+            """,
+            (tracked[0], PLAN_HISTORY_LIMIT),
+        )
+        plans = [
+            {"collected_at": at, "fingerprint_hash": digest, "plan_summary": summary, "plan": plan}
+            for at, digest, summary, plan in cur.fetchall()
+        ]
+    return {"queryid": queryid, "query": tracked[1], "plans": plans}

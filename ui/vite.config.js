@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -20,6 +21,15 @@ export default defineConfig({
     // only when that screen opens, so it doesn't weigh on first load; the
     // main bundle stays well under this.
     chunkSizeWarningLimit: 700,
+    rolldownOptions: {
+      // Two pages: the app, and the pev2 plan viewer it shows in an iframe
+      // (src/planViewer/main.js) — kept apart so Vue and Bootstrap's global
+      // CSS never load into the app itself.
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        planViewer: fileURLToPath(new URL("./plan-viewer.html", import.meta.url)),
+      },
+    },
   },
   server: {
     host: true,

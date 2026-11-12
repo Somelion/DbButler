@@ -2,6 +2,7 @@ import { useMatch } from "react-router";
 import {
   Activity,
   Archive,
+  Calculator,
   ChartLine,
   Database,
   FlaskConical,
@@ -45,6 +46,7 @@ export const SCREENS = [
   },
   { key: "ai-analysis", label: "AI Analysis", group: "analyze", icon: Sparkles, scope: "target", showMode: false },
   { key: "advisor", label: "Advisor", group: "advise", icon: Lightbulb, scope: "target", showMode: true },
+  { key: "what-if", label: "What-if Indexes", group: "advise", icon: Calculator, scope: "target", showMode: false },
   {
     key: "config-tuning",
     label: "Config Tuning",

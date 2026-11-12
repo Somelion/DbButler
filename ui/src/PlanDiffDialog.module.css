@@ -1,0 +1,79 @@
+.query {
+  display: block;
+  max-height: 96px;
+  overflow: auto;
+  padding: var(--space-8) var(--space-10);
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+  background: var(--row-bg);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pickers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-12);
+}
+
+.summary {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.tableWrap {
+  max-height: 55vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  padding: var(--space-6) var(--space-10);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-bold);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  width: 50%;
+  padding: var(--space-4) var(--space-10) var(--space-4) calc(var(--space-10) + var(--depth) * 16px);
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.node {
+  overflow-wrap: anywhere;
+}
+
+.badge {
+  margin-left: var(--space-6);
+}
+
+.changed td {
+  background: var(--attention-bg);
+}
+
+.removed td:first-child {
+  background: var(--critical-bg);
+}
+
+.added td:last-child {
+  background: var(--healthy-bg);
+}

@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     # up every other target's collection.
     scheduler_max_parallel_targets: int = 4
 
+    # Refactoring Advisor's partitioning rule (app/refactoring_advisor.py):
+    # a table smaller than this is never suggested for partitioning — below
+    # roughly a gigabyte, partition management usually costs more than it
+    # saves. Lower it to try the rule on the small demo tables.
+    refactor_partition_min_table_mb: int = 1024
+
     # Encrypts stored target credentials (and AI provider keys, webhook
     # URLs) at rest. The insecure default below is only ever accepted if
     # allow_insecure_secret_key is also set — see the check below.

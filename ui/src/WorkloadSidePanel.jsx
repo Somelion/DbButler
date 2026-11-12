@@ -297,16 +297,42 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
       {edge.kind === "no_fk" && (
         <section className={styles.section} aria-labelledby="workload-nofk">
           <h3 id="workload-nofk" className={styles.sectionTitle}>
-            Indexes on the join columns
+            Join conditions without a foreign key
           </h3>
-          <ul className={styles.columnList}>
-            <li>
-              {edge.source}: {edge.source_indexed ? "indexed" : <strong>no index leads with the join column</strong>}
-            </li>
-            <li>
-              {edge.target}: {edge.target_indexed ? "indexed" : <strong>no index leads with the join column</strong>}
-            </li>
-          </ul>
+          {/* One block per join condition: two different joins between the
+              same tables (sender_id and recipient_id, say) are separate. */}
+          {edge.column_groups
+            .filter((group) => !group.foreign_key)
+            .map((group) => (
+              <div key={group.pairs.map((pair) => pair.join("=")).join(",")} className={styles.groupBlock}>
+                <code>{group.pairs.map(([a, b]) => `${edge.source}.${a} = ${edge.target}.${b}`).join(" AND ")}</code>
+                <ul className={styles.columnList}>
+                  {[
+                    [edge.source, group.source_indexed, 0],
+                    [edge.target, group.target_indexed, 1],
+                  ].map(([table, indexed, side]) => (
+                    <li key={table}>
+                      {table}:{" "}
+                      {indexed ? (
+                        "indexed"
+                      ) : (
+                        <>
+                          <strong>no index leads with the join column</strong> —{" "}
+                          <Link
+                            to={screenPath("what-if", targetId, null, {
+                              table,
+                              columns: [...new Set(group.pairs.map((pair) => pair[side]))].join(","),
+                            })}
+                          >
+                            cost an index in What-if
+                          </Link>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           <p className={styles.muted}>
             If one side is meant to reference the other, declaring the foreign key documents it and lets PostgreSQL
             enforce it. A side without an index is scanned on every join.

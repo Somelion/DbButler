@@ -28,9 +28,18 @@ every screen without connecting anything real.
 - **Query Intelligence & Explain** — `pg_stat_statements` browser, paste-a-query plan analysis
   with plain-language red-flag findings, and optional AI-assisted query/index analysis.
 - **Advisor** — Index Advisor, Schema Lint, Configuration Advisor, Replication Advisor, Backup &
-  WAL Health, Pre-Upgrade Scan, Security & Compliance, and Extensions, each with concrete findings
-  and copyable fixes.
-- **Index Testing** — try a candidate index's effect before committing to it.
+  WAL Health, Pre-Upgrade Scan, Security & Compliance, Extensions, and **Refactoring**. Each has
+  concrete findings and copyable fixes. Refactoring gives schema advice from the workload:
+  - hot joins with no foreign key, and join columns with no index;
+  - partitioning candidates;
+  - write amplification and index consolidation;
+  - skewed filter columns, cold columns and wide rows.
+- **What-if Indexes** — estimates what a candidate index would do for the tracked queries using
+  HypoPG hypothetical indexes, without building anything. It shows the cost change per query, the
+  size, and the plans before and after.
+- **Plan viewer** — Explain results and What-if plans open in pev2 (Dalibo), and Plan Regressions
+  compare two captured plan shapes side by side.
+- **Index Testing** — after you build an index for real, check whether it actually helped.
 - **Trends** — cache hit rate, connections, worst-table bloat, and database size over 24h/7d/30d,
   plus per-table history for up to 6 selected tables at once.
 
@@ -128,6 +137,13 @@ seeded — the Dashboard's Vacuum Horizon tile shows it, with the fix
 an existing demo database remove just its volume: `docker compose --profile demo rm -sf
 pgdba-demo-target`, then `docker volume rm` the volume ending in `_pgdba_demo_data` (see
 `docker volume ls`). Don't use `down -v` for this — it also deletes the store's history.
+
+The demo image is built from `demo/Dockerfile`, which is `postgres:16` (Debian) plus the HypoPG
+extension that What-if Indexes needs. `docker compose --profile demo up --build` builds it. If your
+demo volume was created by the earlier `postgres:16-alpine` image, re-seed it as above. The two
+libc's sort text differently, so the old volume's text indexes don't carry over. The Refactoring
+Advisor's partitioning rule ignores tables under 1 GB by default. To see it on the demo's
+`audit_log`, set `REFACTOR_PARTITION_MIN_TABLE_MB=5` in `.env`.
 
 ### Optional: TimescaleDB test target
 

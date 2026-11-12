@@ -61,6 +61,7 @@ const TABS = [
   { key: "pre-upgrade", label: "Pre-Upgrade Scan" },
   { key: "security", label: "Security & Compliance" },
   { key: "extensions", label: "Extensions" },
+  { key: "refactoring", label: "Refactoring" },
 ];
 
 const DEFAULT_TAB = "index";
@@ -77,6 +78,7 @@ const FETCH_BY_TAB = {
   "pre-upgrade": api.getPreUpgradeAdvisor,
   security: api.getSecurityAdvisor,
   extensions: api.getExtensionAdvisor,
+  refactoring: api.getRefactoringAdvisor,
 };
 
 const advisorKey = (targetId, tab) => targetKey(targetId, "advisor", tab);
@@ -168,6 +170,21 @@ const EXTENSION_GROUPS = [
   { prefix: "recommended-extension-", label: "Recommended Extensions" },
 ];
 
+// Refactoring Advisor (backend/app/refactoring_advisor.py): workload-driven
+// schema suggestions, one group per rule.
+const REFACTORING_GROUPS = [
+  { prefix: "missing-fk-join-", label: "Hot Joins Without a Foreign Key" },
+  { prefix: "missing-join-index-", label: "Join Columns Without an Index" },
+  { prefix: "partition-candidate-", label: "Partitioning Candidates" },
+  { prefix: "write-amplification-", label: "Write Amplification" },
+  { prefix: "consolidate-index-", label: "Index Consolidation" },
+  { prefix: "unused-fk-index-", label: "Unused FK Indexes" },
+  { prefix: "value-skew-", label: "Skewed Filter Columns" },
+  { prefix: "denormalize-", label: "Denormalization Hints" },
+  { prefix: "wide-row-", label: "Wide Rows" },
+  { prefix: "cold-columns-", label: "Columns Not Seen in the Workload" },
+];
+
 const GROUPS_BY_TAB = {
   index: INDEX_GROUPS,
   schema: SCHEMA_GROUPS,
@@ -177,6 +194,7 @@ const GROUPS_BY_TAB = {
   "pre-upgrade": PRE_UPGRADE_GROUPS,
   security: SECURITY_GROUPS,
   extensions: EXTENSION_GROUPS,
+  refactoring: REFACTORING_GROUPS,
 };
 
 const EMPTY_MESSAGE_BY_TAB = {
@@ -191,6 +209,8 @@ const EMPTY_MESSAGE_BY_TAB = {
     "No audit logging, encryption, least-privilege, PUBLIC grant, row-level security, or SECURITY DEFINER search_path gaps detected on this target.",
   extensions:
     "No TimescaleDB, pgvector, or PostGIS extensions detected on this target, or no issues found in the ones that are installed.",
+  refactoring:
+    "No workload-driven suggestions. These come from the tracked queries' plans (see the Workload Map), so a freshly connected target may need a few minutes — or more traffic — before there's anything to say.",
 };
 
 function groupFindings(findings, groupDefs) {

@@ -5,6 +5,9 @@
 -- findings once you connect to this target for what it flags here and why.
 
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+-- Hypothetical indexes for the What-if Indexes screen (installed by
+-- demo/Dockerfile; needs no preload).
+CREATE EXTENSION IF NOT EXISTS hypopg;
 
 CREATE TABLE customers (
     id         BIGSERIAL PRIMARY KEY,
@@ -134,6 +137,32 @@ SELECT o.customer_id, sum(r.amount) AS refunded
 FROM refunds r JOIN orders o ON o.id = r.order_ref
 WHERE r.created_at > now() - '30 days'::interval
 GROUP BY o.customer_id ORDER BY refunded DESC LIMIT 10;
+
+-- Refactoring Advisor: an append-mostly log that every query filters by time
+-- and a retention job trims — the textbook range-partitioning candidate.
+-- ~30 MB; the rule's size floor defaults to 1 GB, so set
+-- REFACTOR_PARTITION_MIN_TABLE_MB=5 in .env to see it fire here.
+CREATE TABLE audit_log (
+    id         BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL,
+    actor      TEXT NOT NULL,
+    action     TEXT NOT NULL,
+    detail     TEXT
+);
+INSERT INTO audit_log (created_at, actor, action, detail)
+SELECT now() - (random() * interval '180 days'),
+       'user-' || (random() * 200)::int,
+       (ARRAY['login', 'view', 'update', 'export', 'delete'])[1 + floor(random() * 5)::int],
+       md5(random()::text) || md5(random()::text)
+FROM generate_series(1, 250000);
+CREATE INDEX idx_audit_log_created_at ON audit_log(created_at);
+ANALYZE audit_log;
+
+SELECT action, count(*) FROM audit_log WHERE created_at > now() - '1 day'::interval GROUP BY action;
+SELECT id, actor, action FROM audit_log
+WHERE created_at > now() - '7 days'::interval AND action = 'export'
+ORDER BY created_at DESC LIMIT 50;
+DELETE FROM audit_log WHERE created_at < now() - '175 days'::interval;
 
 -- A forgotten two-phase transaction: prepared, then never committed or rolled
 -- back — what a crashed transaction manager leaves behind. It holds back the

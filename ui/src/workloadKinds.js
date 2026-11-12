@@ -46,5 +46,6 @@ export const SEVERITY_LABELS = {
   none: "No open findings",
 };
 
-export const isUnindexedFkEdge = (edge) =>
-  edge.kind !== "no_fk" && edge.foreign_keys.some((fk) => !fk.indexed);
+// Any FK behind the edge without an index — also on an edge that is dashed
+// because a different join condition between the same tables has no FK.
+export const isUnindexedFkEdge = (edge) => edge.foreign_keys.some((fk) => !fk.indexed);

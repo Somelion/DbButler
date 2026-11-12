@@ -29,7 +29,13 @@ from dataclasses import dataclass, field
 
 # Bumped when extraction logic changes in a way that should re-extract
 # every query on the next capture even though its plan is unchanged.
-EXTRACTOR_VERSION = 1
+#   2: referenced_columns (each scan's "Output" columns) for the Refactoring
+#      Advisor's cold-column and wide-row rules.
+#   3: also unqualified Output columns — EXPLAIN VERBOSE only prefixes them
+#      with the alias when the query has more than one range-table entry.
+EXTRACTOR_VERSION = 3
+# The oldest extraction whose referenced_columns can be trusted.
+REFERENCED_COLUMNS_MIN_VERSION = 3
 
 JOIN_NODE_TYPES = frozenset({"Hash Join", "Merge Join", "Nested Loop"})
 
@@ -54,6 +60,12 @@ _IDENT = r'(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*)'
 # schema-qualified function call such as pg_catalog.lower(...)).
 _COLUMN_REF = rf'(?<![\w."$])(?<!::)({_IDENT})\.({_IDENT})(?!\s*\()(?![\w."$])'
 _COLUMN_REF_RE = re.compile(_COLUMN_REF)
+# A bare identifier: a column of the scan itself when it appears in that
+# scan's Output of a single-table query ("id", "(total * 2)"). Not part of
+# a qualified name, not a function name, not a type after "::". Keywords
+# and other non-columns it picks up ("CASE", "true") are dropped by the
+# consumer, which intersects with the table's real columns.
+_BARE_IDENT_RE = re.compile(rf'(?<![\w."$])(?<!::)(?<!::\s)({_IDENT})(?![\w."$])(?!\s*\()')
 # A cast's type: plain, multi-word ("character varying"), schema-qualified
 # or quoted, with an optional typmod and array suffix.
 _CAST = rf'::\s*{_IDENT}(?:\.{_IDENT})?(?:\s+[A-Za-z_]\w*)*(?:\(\d+(?:,\s*\d+)?\))?(?:\[\])?'
@@ -85,6 +97,9 @@ class RelationAccess:
     table: Table
     access_kinds: set[str] = field(default_factory=set)
     filter_columns: set[str] = field(default_factory=set)
+    # Columns the scans hand upward (EXPLAIN VERBOSE "Output") — what the
+    # query actually reads from the table. SELECT * lists every column.
+    referenced_columns: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -108,7 +123,7 @@ class WorkloadExtract:
         payload = {
             "v": EXTRACTOR_VERSION,
             "relations": [
-                [r.table.qualified, sorted(r.access_kinds), sorted(r.filter_columns)]
+                [r.table.qualified, sorted(r.access_kinds), sorted(r.filter_columns), sorted(r.referenced_columns)]
                 for r in sorted(self.relations, key=lambda r: r.table)
             ],
             # Sorted by their JSON text: join_type/strategy can be None next to
@@ -209,6 +224,20 @@ def extract_workload(plan_root: dict, parent_of: dict[Table, Table] | None = Non
     grouped: dict[tuple, list[tuple[str, str]]] = {}
 
     for node, join_node in _walk(plan_root):
+        # Only scans' Output: upper nodes repeat the same columns. Qualified
+        # references resolve through their alias; unqualified ones belong to
+        # the scan itself (single-table queries print them bare).
+        if node.get("Relation Name") and node.get("Schema"):
+            own = logical[Table(node["Schema"], node["Relation Name"])]
+            for expression in node.get("Output") or []:
+                text = _STRING_LITERAL_RE.sub("''", expression)
+                for match in _COLUMN_REF_RE.finditer(text):
+                    table = resolve(unquote_identifier(match.group(1)))
+                    if table is not None and table in relations:
+                        relations[table].referenced_columns.add(unquote_identifier(match.group(2)))
+                for match in _BARE_IDENT_RE.finditer(text):
+                    relations[own].referenced_columns.add(unquote_identifier(match.group(1)))
+
         for key in JOIN_CONDITION_KEYS:
             condition = node.get(key)
             if not condition:

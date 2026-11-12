@@ -270,6 +270,14 @@ class ExtensionInfo(BaseModel):
     version: str
 
 
+class IndexCandidate(BaseModel):
+    # An index a finding suggests, in a form the What-if workbench
+    # (routers/what_if.py) can cost with HypoPG — "Cost this index" on the card.
+    schema_name: str
+    table_name: str
+    columns: list[str]
+
+
 class IndexFinding(BaseModel):
     id: str
     category: str
@@ -290,6 +298,7 @@ class IndexFinding(BaseModel):
     # check spanning multiple tables) — those are unaffected by the filter.
     schema_name: str | None = None
     table_name: str | None = None
+    index_candidate: IndexCandidate | None = None
 
 
 class IndexAdvisorResponse(BaseModel):
@@ -326,6 +335,21 @@ class ConfigAdvisorResponse(BaseModel):
 class PlanRegressionsResponse(BaseModel):
     # Same reasoning as SchemaLintResponse — identical shape, no new type.
     findings: list[IndexFinding]
+
+
+class PlanSnapshot(BaseModel):
+    collected_at: datetime
+    fingerprint_hash: str
+    plan_summary: str
+    # The structural fingerprint tree (Node Type / Relation Name / Index
+    # Name / Join Type / Strategy, recursively) — no costs.
+    plan: dict
+
+
+class PlanHistoryResponse(BaseModel):
+    queryid: int
+    query: str
+    plans: list[PlanSnapshot]
 
 
 class ReplicationAdvisorResponse(BaseModel):
@@ -810,6 +834,19 @@ class WorkloadNode(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class WorkloadColumnGroup(BaseModel):
+    # One join condition between the edge's two tables. Different conditions
+    # (sender_id and recipient_id, both to users.id) are separate groups.
+    pairs: list[list[str]]  # [source column, target column]
+    query_count: int
+    db_time_ms: float
+    share_pct: float
+    foreign_key: str | None  # the FK covering this condition, if any
+    source_indexed: bool
+    target_indexed: bool
+    nested_loop: bool
+
+
 class WorkloadEdge(BaseModel):
     id: str
     source: str
@@ -824,6 +861,7 @@ class WorkloadEdge(BaseModel):
     join_strategies: list[str]
     source_indexed: bool
     target_indexed: bool
+    column_groups: list[WorkloadColumnGroup]
     foreign_keys: list[WorkloadForeignKey]
     top_queries: list[WorkloadTopQuery]
 
@@ -897,3 +935,60 @@ class WorkloadTableDetailResponse(BaseModel):
     findings: list[WorkloadTableFinding]
 
     model_config = {"populate_by_name": True}
+
+
+# --- Refactoring Advisor (routers/refactoring_advisor.py) --------------------
+
+
+class RefactoringAdvisorResponse(BaseModel):
+    findings: list[IndexFinding]
+    meta: WorkloadGraphMeta  # the workload the findings were computed from
+
+
+# --- What-if indexes (routers/what_if.py, app/what_if.py) --------------------
+
+
+class WhatIfRequest(BaseModel):
+    candidates: list[IndexCandidate]
+    hours: int = 168
+
+
+class WhatIfQueryResult(BaseModel):
+    queryid: int
+    query: str
+    db_time_ms: float
+    base_cost: float
+    new_cost: float
+    change_pct: float  # negative = cheaper with the index
+    uses_index: bool
+    # Full EXPLAIN (FORMAT JSON) before/after, for the plan viewer — only on
+    # the queries whose plan picked the hypothetical index.
+    plan_before: list | None = None
+    plan_after: list | None = None
+
+
+class WhatIfCandidateResult(BaseModel):
+    schema_name: str
+    table_name: str
+    columns: list[str]
+    ddl: str
+    estimated_size_bytes: int | None
+    error: str | None
+    # "recommended": some query ≥ 20% cheaper and none ≥ 10% dearer;
+    # "mixed": gains and regressions; "no_gain": used, but too little;
+    # "unused": no plan picked it.
+    verdict: str
+    improved: int
+    regressed: int
+    unchanged: int
+    weighted_improvement_pct: float  # DB-time-weighted cost reduction over the queries costed
+    queries: list[WhatIfQueryResult]
+
+
+class WhatIfResponse(BaseModel):
+    hypopg_installed: bool
+    hypopg_available: bool  # packaged on the server, so CREATE EXTENSION hypopg would work
+    message: str | None
+    queries_considered: int
+    queries_skipped: int  # couldn't be planned (utility statements, $N on PostgreSQL < 16)
+    candidates: list[WhatIfCandidateResult]

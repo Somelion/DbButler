@@ -22,6 +22,7 @@ import IndexTestingScreen from "./IndexTestingScreen";
 import ArchiveScreen from "./ArchiveScreen";
 import ConfigTuningScreen from "./ConfigTuningScreen";
 import TrendsScreen from "./TrendsScreen";
+import WhatIfScreen from "./WhatIfScreen";
 import Settings from "./Settings";
 
 // The graph library (cytoscape + fcose) is the biggest dependency in the
@@ -101,6 +102,7 @@ export default function App() {
           <Route path="advisor/:tab?" element={<TargetScreen component={AdvisorScreen} />} />
           <Route path="config-tuning" element={<TargetScreen component={ConfigTuningScreen} />} />
           <Route path="index-testing" element={<TargetScreen component={IndexTestingScreen} />} />
+          <Route path="what-if" element={<TargetScreen component={WhatIfScreen} />} />
           <Route path="archive" element={<TargetScreen component={ArchiveScreen} />} />
           <Route path="*" element={<TargetFallback />} />
         </Route>

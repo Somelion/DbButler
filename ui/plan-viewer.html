@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Plan viewer</title>
+  </head>
+  <body>
+    <!-- pev2 (Vue + Bootstrap) lives on this separate page, shown in an iframe,
+         so Bootstrap's global CSS never touches the app. See src/planViewer/main.js. -->
+    <div id="app"></div>
+    <script type="module" src="/src/planViewer/main.js"></script>
+  </body>
+</html>

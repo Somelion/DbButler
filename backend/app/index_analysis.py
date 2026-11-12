@@ -124,6 +124,12 @@ def find_missing_fk_indexes(fk_rows: list[tuple], index_rows: list[tuple]) -> li
                 "recommended_ddl": recommended_ddl,
                 "schema_name": fk_info["schema"],
                 "table_name": fk_info["table_relname"],
+                # Lets the card offer "Cost this index" in What-if Indexes.
+                "index_candidate": {
+                    "schema_name": fk_info["schema"],
+                    "table_name": fk_info["table_relname"],
+                    "columns": list(columns),
+                },
             }
         )
     return findings

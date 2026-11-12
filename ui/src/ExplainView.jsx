@@ -5,12 +5,14 @@ import { formatMs } from "./format";
 import FindingCard from "./FindingCard";
 import QueryParamsForm from "./QueryParamsForm";
 import { applyPlaceholderValues, extractPlaceholders } from "./queryParams";
-import { Alert, Card, Field } from "./components";
+import { Workflow } from "lucide-react";
+import { Alert, Card, Dialog, Field, PlanViewerFrame } from "./components";
 import styles from "./ExplainView.module.css";
 
 export default function ExplainView({ targetId, seedQuery, onSeedConsumed }) {
   const [queryText, setQueryText] = useState("");
   const [paramValues, setParamValues] = useState({});
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   // A query handed over from the Query Intelligence table replaces whatever
   // is in the editor. Taken into local state while rendering (React's
@@ -94,12 +96,29 @@ export default function ExplainView({ targetId, seedQuery, onSeedConsumed }) {
             </div>
           )}
 
+          <div className={styles.actions}>
+            <button type="button" className="button-secondary button-sm" onClick={() => setViewerOpen(true)}>
+              <Workflow size={13} aria-hidden="true" />
+              Open in plan viewer
+            </button>
+          </div>
+
           <details>
             <summary className={styles.rawSummary}>Raw plan</summary>
             <pre className={styles.rawPlan}>{result.plan_text}</pre>
           </details>
         </div>
       )}
+
+      <Dialog
+        open={viewerOpen && Boolean(result)}
+        onClose={() => setViewerOpen(false)}
+        size="xl"
+        title="Plan viewer"
+        description="pev2 by Dalibo — node timings, buffers and the critical path of this EXPLAIN ANALYZE run."
+      >
+        {result && <PlanViewerFrame plan={result.plan_text} query={explain.variables ?? ""} />}
+      </Dialog>
     </Card>
   );
 }

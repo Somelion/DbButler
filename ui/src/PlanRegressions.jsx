@@ -6,12 +6,17 @@ import { api } from "./api";
 import { targetKey } from "./queryClient";
 import { Alert, Card, EmptyState, Skeleton } from "./components";
 import FindingCard from "./FindingCard";
+import PlanDiffDialog from "./PlanDiffDialog";
 
 const POLL_INTERVAL_MS = 15000;
+const FINDING_ID_PREFIX = "plan-regression-";
 
 export default function PlanRegressions({ targetId }) {
   const queryClient = useQueryClient();
   const [archiveError, setArchiveError] = useState(null);
+  // The queryid as the decimal text from the finding's id ("plan-regression-
+  // <queryid>"), so a 64-bit id reaches the API unrounded.
+  const [compareQueryId, setCompareQueryId] = useState(null);
   const regressionsKey = targetKey(targetId, "plan-regressions");
 
   const { data, error, isPending } = useQuery({
@@ -61,10 +66,30 @@ export default function PlanRegressions({ targetId }) {
       {findings && findings.length > 0 && (
         <div className={styles.list}>
           {findings.map((finding) => (
-            <FindingCard key={finding.id} finding={finding} onArchive={() => handleArchive(finding)} />
+            <FindingCard
+              key={finding.id}
+              finding={finding}
+              onArchive={() => handleArchive(finding)}
+              actions={
+                <button
+                  type="button"
+                  className="button-secondary button-sm"
+                  onClick={() => setCompareQueryId(finding.id.replace(FINDING_ID_PREFIX, ""))}
+                >
+                  Compare plans
+                </button>
+              }
+            />
           ))}
         </div>
       )}
+
+      <PlanDiffDialog
+        key={compareQueryId ?? "closed"}
+        targetId={targetId}
+        queryidText={compareQueryId}
+        onClose={() => setCompareQueryId(null)}
+      />
     </Card>
   );
 }
