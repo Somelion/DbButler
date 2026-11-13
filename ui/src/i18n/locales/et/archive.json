@@ -1,0 +1,8 @@
+{
+  "title": "Arhiveeritud leiud",
+  "count_one": "{{count}} arhiveeritud",
+  "count_other": "{{count}} arhiveeritud",
+  "loading": "Arhiveeritud leidude laadimine…",
+  "emptyTitle": "Arhiiv on veel tühi",
+  "emptyBody": "Arhiveeri mõni leid ekraanil „Nõustaja“ ja see ilmub siia."
+}

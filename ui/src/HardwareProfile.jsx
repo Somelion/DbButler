@@ -1,17 +1,16 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
 import { configTuningKey } from "./ConfigTuning";
 import { Alert, Card, Field, SegmentedControl, Skeleton, Stat, fieldStyles } from "./components";
 import styles from "./HardwareProfile.module.css";
 
-const WORKLOAD_OPTIONS = [
-  { value: "mixed", label: "Mixed / general use" },
-  { value: "oltp", label: "Many small transactions" },
-  { value: "analytics", label: "Analytics / reporting" },
-  { value: "home", label: "Small home project" },
-];
+// Labels are translated at render from hardware.workloads.<value>.
+const WORKLOAD_VALUES = ["mixed", "oltp", "analytics", "home"];
+const workloadOptions = (t) =>
+  WORKLOAD_VALUES.map((value) => ({ value, label: t(`hardware.workloads.${value}`) }));
 
 const STORAGE_OPTIONS = [
   { value: "ssd", label: "SSD" },
@@ -21,6 +20,7 @@ const STORAGE_OPTIONS = [
 // `onSaved` is optional — ConfigTuning no longer needs it, since saving
 // invalidates its query directly.
 export default function HardwareProfile({ targetId, onSaved }) {
+  const { t } = useTranslation("configTuning");
   const queryClient = useQueryClient();
   const profileKey = targetKey(targetId, "hardware-profile");
   const [editing, setEditing] = useState(false);
@@ -44,12 +44,12 @@ export default function HardwareProfile({ targetId, onSaved }) {
 
   return (
     <Card
-      title="Hardware Profile"
+      title={t("hardware.title")}
       actions={
         !showForm &&
         profile && (
           <button type="button" className="button-link" onClick={() => setEditing(true)}>
-            Edit
+            {t("hardware.edit")}
           </button>
         )
       }
@@ -60,16 +60,18 @@ export default function HardwareProfile({ targetId, onSaved }) {
         </Alert>
       )}
 
-      {profileQuery.isPending && <Skeleton lines={2} label="Loading hardware profile…" />}
+      {profileQuery.isPending && <Skeleton lines={2} label={t("hardware.loading")} />}
 
       {!showForm && profile && (
         <div className={styles.stats}>
-          <Stat label="Memory" value={`${(profile.confirmed_ram_mb / 1024).toFixed(1)} GB`} />
-          <Stat label="CPU" value={`${profile.confirmed_cpu_cores} cores`} />
-          <Stat label="Storage" value={profile.storage_type.toUpperCase()} />
+          <Stat label={t("hardware.memory")} value={`${(profile.confirmed_ram_mb / 1024).toFixed(1)} GB`} />
+          <Stat label={t("hardware.cpu")} value={t("hardware.cores", { count: profile.confirmed_cpu_cores })} />
+          <Stat label={t("hardware.storage")} value={profile.storage_type.toUpperCase()} />
           <Stat
-            label="Workload"
-            value={WORKLOAD_OPTIONS.find((o) => o.value === profile.workload_type)?.label ?? profile.workload_type}
+            label={t("hardware.workload")}
+            value={
+              workloadOptions(t).find((o) => o.value === profile.workload_type)?.label ?? profile.workload_type
+            }
           />
         </div>
       )}
@@ -91,6 +93,7 @@ export default function HardwareProfile({ targetId, onSaved }) {
 // (as before), and staleTime Infinity keeps a background refetch from
 // changing the pre-fill under the user while the form is open.
 function HardwareEditor({ targetId, base, onSaved, onCancel }) {
+  const { t } = useTranslation("configTuning");
   const detectionQuery = useQuery({
     queryKey: targetKey(targetId, "hardware-detect"),
     queryFn: ({ signal }) => api.detectHardware(targetId, { signal }),
@@ -107,14 +110,14 @@ function HardwareEditor({ targetId, base, onSaved, onCancel }) {
         {onCancel && (
           <div className={styles.actions}>
             <button type="button" className="button-secondary" onClick={onCancel}>
-              Cancel
+              {t("common:actions.cancel")}
             </button>
           </div>
         )}
       </>
     );
   }
-  if (detectionQuery.isPending) return <Skeleton lines={3} label="Detecting hardware…" />;
+  if (detectionQuery.isPending) return <Skeleton lines={3} label={t("hardware.detecting")} />;
 
   return (
     <HardwareForm
@@ -128,6 +131,7 @@ function HardwareEditor({ targetId, base, onSaved, onCancel }) {
 }
 
 function HardwareForm({ targetId, base, detection, onSaved, onCancel }) {
+  const { t } = useTranslation("configTuning");
   const [form, setForm] = useState(() => ({
     confirmed_ram_mb: base?.confirmed_ram_mb ?? detection.detected_ram_mb,
     confirmed_cpu_cores: base?.confirmed_cpu_cores ?? detection.detected_cpu_cores,
@@ -164,14 +168,14 @@ function HardwareForm({ targetId, base, detection, onSaved, onCancel }) {
       )}
 
       <div className={styles.twoColumns}>
-        <Field label="Memory (MB)">
+        <Field label={t("hardware.memoryMb")}>
           <input
             inputMode="numeric"
             value={form.confirmed_ram_mb}
             onChange={(e) => setForm({ ...form, confirmed_ram_mb: parseInt(e.target.value, 10) || 0 })}
           />
         </Field>
-        <Field label="CPU cores">
+        <Field label={t("hardware.cpuCores")}>
           <input
             inputMode="numeric"
             value={form.confirmed_cpu_cores}
@@ -182,10 +186,10 @@ function HardwareForm({ targetId, base, detection, onSaved, onCancel }) {
 
       <div className={styles.group}>
         <span className={fieldStyles.label} aria-hidden="true">
-          Storage type
+          {t("hardware.storageType")}
         </span>
         <SegmentedControl
-          label="Storage type"
+          label={t("hardware.storageType")}
           options={STORAGE_OPTIONS}
           value={form.storage_type}
           onChange={(storage_type) => setForm({ ...form, storage_type })}
@@ -194,11 +198,11 @@ function HardwareForm({ targetId, base, detection, onSaved, onCancel }) {
 
       <div className={styles.group}>
         <span className={fieldStyles.label} aria-hidden="true">
-          Workload type
+          {t("hardware.workloadType")}
         </span>
         <SegmentedControl
-          label="Workload type"
-          options={WORKLOAD_OPTIONS}
+          label={t("hardware.workloadType")}
+          options={workloadOptions(t)}
           value={form.workload_type}
           onChange={(workload_type) => setForm({ ...form, workload_type })}
         />
@@ -206,11 +210,11 @@ function HardwareForm({ targetId, base, detection, onSaved, onCancel }) {
 
       <div className={styles.actions}>
         <button type="submit" className="button-primary" disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("common:actions.saving") : t("common:actions.save")}
         </button>
         {onCancel && (
           <button type="button" className="button-secondary" onClick={onCancel} disabled={saving}>
-            Cancel
+            {t("common:actions.cancel")}
           </button>
         )}
       </div>

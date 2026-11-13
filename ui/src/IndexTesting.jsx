@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { FlaskConical } from "lucide-react";
 import styles from "./IndexTesting.module.css";
 import { api } from "./api";
@@ -8,13 +9,15 @@ import { Alert, Badge, Card, EmptyState, Skeleton, useConfirm } from "./componen
 import { formatBytes, formatRelativeTime } from "./format";
 
 // Verdict pill: text label plus tone, so it never relies on colour alone.
+// label is a translation key, translated at render.
 const VERDICT = {
-  being_used: { label: "Being used", tone: "healthy" },
-  not_used_yet: { label: "Not used yet", tone: "attention" },
-  too_early: { label: "Too early to tell", tone: "neutral" },
+  being_used: { label: "verdicts.being_used", tone: "healthy" },
+  not_used_yet: { label: "verdicts.not_used_yet", tone: "attention" },
+  too_early: { label: "verdicts.too_early", tone: "neutral" },
 };
 
 export default function IndexTesting({ targetId }) {
+  const { t } = useTranslation("indexTesting");
   const { data, error, isPending } = useQuery({
     queryKey: targetKey(targetId, "index-testing"),
     queryFn: ({ signal }) => api.getIndexTesting(targetId, { signal }),
@@ -22,17 +25,14 @@ export default function IndexTesting({ targetId }) {
   const indexes = data?.indexes ?? null;
 
   return (
-    <Card
-      title="Tracked indexes"
-      description="Indexes you've added from Index Advisor's Apply button, and whether they're actually earning their keep. Once you're happy with one, add it to your own migration tooling (Liquibase, etc.) — dropping it here only removes it from this database, not from anywhere else."
-    >
+    <Card title={t("title")} description={t("description")}>
       {error && <Alert tone="critical">{error.message}</Alert>}
 
-      {isPending && <Skeleton lines={4} label="Loading tracked indexes…" />}
+      {isPending && <Skeleton lines={4} label={t("loading")} />}
 
       {indexes && indexes.length === 0 && (
-        <EmptyState icon={FlaskConical} title="Nothing here yet">
-          Use Apply on an Index Advisor finding to create an index and start tracking it.
+        <EmptyState icon={FlaskConical} title={t("empty.title")}>
+          {t("empty.body")}
         </EmptyState>
       )}
 
@@ -48,6 +48,7 @@ export default function IndexTesting({ targetId }) {
 }
 
 function TrackedIndexCard({ idx, targetId }) {
+  const { t } = useTranslation("indexTesting");
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [dropping, setDropping] = useState(false);
@@ -57,9 +58,12 @@ function TrackedIndexCard({ idx, targetId }) {
 
   const handleDrop = async () => {
     const confirmed = await confirm({
-      title: `Drop ${idx.index_name}?`,
-      message: `Drop ${idx.index_name} from ${idx.schema_name}.${idx.table_name}? This runs against the target immediately and can't be undone from here.`,
-      confirmLabel: "Drop index",
+      title: t("drop.confirmTitle", { name: idx.index_name }),
+      message: t("drop.confirmMessage", {
+        name: idx.index_name,
+        table: `${idx.schema_name}.${idx.table_name}`,
+      }),
+      confirmLabel: t("drop.confirmLabel"),
       tone: "danger",
     });
     if (!confirmed) return;
@@ -83,21 +87,24 @@ function TrackedIndexCard({ idx, targetId }) {
             {idx.index_name}
           </h3>
           <span className={styles.meta}>
-            on {idx.schema_name}.{idx.table_name} · added {formatRelativeTime(idx.created_at)}
+            {t("meta", {
+              table: `${idx.schema_name}.${idx.table_name}`,
+              time: formatRelativeTime(idx.created_at),
+            })}
           </span>
         </div>
         <Badge tone={verdict.tone} className={styles.verdict}>
-          {verdict.label}
+          {t(verdict.label)}
         </Badge>
       </div>
 
       <dl className={styles.metrics}>
-        <Metric label="Scans since added" value={idx.scans_since_added.toLocaleString()} />
-        <Metric label="Index size" value={formatBytes(idx.index_bytes)} />
+        <Metric label={t("metrics.scans")} value={idx.scans_since_added.toLocaleString()} />
+        <Metric label={t("metrics.size")} value={formatBytes(idx.index_bytes)} />
         <Metric
-          label="Table's seq scans since added"
+          label={t("metrics.seqScans")}
           value={idx.seq_scans_since_added.toLocaleString()}
-          hint="Raw count, not a rate — for a real before/after trend, watch this table's Seq-Scan-Heavy finding over time too."
+          hint={t("metrics.seqScansHint")}
         />
       </dl>
 
@@ -108,7 +115,7 @@ function TrackedIndexCard({ idx, targetId }) {
       )}
 
       <button type="button" className={`button-danger button-sm ${styles.drop}`} onClick={handleDrop} disabled={dropping}>
-        {dropping ? "Dropping…" : "Drop this index"}
+        {dropping ? t("drop.dropping") : t("drop.label")}
       </button>
     </article>
   );

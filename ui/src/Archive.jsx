@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Archive as ArchiveIcon } from "lucide-react";
 import styles from "./Archive.module.css";
 import { api } from "./api";
@@ -8,6 +9,7 @@ import { Alert, Card, EmptyState, Skeleton } from "./components";
 import FindingCard from "./FindingCard";
 
 export default function Archive({ targetId }) {
+  const { t } = useTranslation("archive");
   const queryClient = useQueryClient();
   const [restoreError, setRestoreError] = useState(null);
   const archivedKey = targetKey(targetId, "archived-findings");
@@ -37,15 +39,18 @@ export default function Archive({ targetId }) {
   };
 
   return (
-    <Card title="Archived findings" actions={archived && <span className={styles.count}>{archived.length} archived</span>}>
+    <Card
+      title={t("title")}
+      actions={archived && <span className={styles.count}>{t("count", { count: archived.length })}</span>}
+    >
       {error && <Alert tone="critical">{error.message}</Alert>}
       {restoreError && <Alert tone="critical">{restoreError}</Alert>}
 
-      {isPending && <Skeleton lines={4} label="Loading archived findings…" />}
+      {isPending && <Skeleton lines={4} label={t("loading")} />}
 
       {archived && archived.length === 0 && (
-        <EmptyState icon={ArchiveIcon} title="Nothing archived yet">
-          Archive a finding from the Advisor screen to see it here.
+        <EmptyState icon={ArchiveIcon} title={t("emptyTitle")}>
+          {t("emptyBody")}
         </EmptyState>
       )}
 

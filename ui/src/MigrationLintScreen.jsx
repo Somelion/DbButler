@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { Trans, useTranslation } from "react-i18next";
 import { FileCode } from "lucide-react";
 import styles from "./MigrationLintScreen.module.css";
 import tableStyles from "./components/Table.module.css";
@@ -10,19 +11,22 @@ import { Alert, Badge, Card, Checkbox, EmptyState, Field, SeverityBadge } from "
 
 const DRAFT_KEY = "dbbutler.migrationLint.draft";
 
-const EXAMPLE = `-- Example: three common ways a migration blocks production traffic.
-ALTER TABLE orders ADD COLUMN reference uuid DEFAULT gen_random_uuid();
+// The example's comment line is translated when the example is loaded
+// (exampleSql below); the SQL itself stays as it is.
+const EXAMPLE_SQL = `ALTER TABLE orders ADD COLUMN reference uuid DEFAULT gen_random_uuid();
 CREATE INDEX orders_reference_idx ON orders (reference);
 ALTER TABLE orders ADD CONSTRAINT orders_customer_fk
     FOREIGN KEY (customer_id) REFERENCES customers (id);
 `;
 
+const exampleSql = (comment) => `-- ${comment}\n${EXAMPLE_SQL}`;
+
 // What a lock mode stops, as a badge: the text carries the meaning, the
-// tone repeats it.
+// tone repeats it. label is a translation key, translated at render.
 const BLOCKS = {
-  "reads and writes": { tone: "critical", label: "blocks reads and writes" },
-  writes: { tone: "attention", label: "blocks writes" },
-  nothing: { tone: "healthy", label: "traffic continues" },
+  "reads and writes": { tone: "critical", label: "blocks.readsAndWrites" },
+  writes: { tone: "attention", label: "blocks.writes" },
+  nothing: { tone: "healthy", label: "blocks.nothing" },
 };
 
 function readDraft() {
@@ -42,6 +46,7 @@ function saveDraft(text) {
 }
 
 function LockList({ locks }) {
+  const { t } = useTranslation("migrationLint");
   if (locks.length === 0) return <span className={styles.muted}>—</span>;
   return (
     <ul className={styles.locks}>
@@ -50,9 +55,14 @@ function LockList({ locks }) {
         return (
           // A static, never-reordered list: the position is a stable key.
           <li key={i}>
-            <code>{lock.mode}</code> on <code>{lock.relation}</code>
-            {lock.via_index && <span className={styles.muted}> (index — locks its table)</span>}{" "}
-            <Badge tone={blocks.tone}>{blocks.label}</Badge>
+            <Trans
+              t={t}
+              i18nKey="lockOn"
+              values={{ mode: lock.mode, relation: lock.relation }}
+              components={{ code: <code /> }}
+            />
+            {lock.via_index && <span className={styles.muted}> {t("viaIndex")}</span>}{" "}
+            <Badge tone={blocks.tone}>{t(blocks.label)}</Badge>
           </li>
         );
       })}
@@ -61,17 +71,18 @@ function LockList({ locks }) {
 }
 
 function StatementsTable({ statements, live }) {
+  const { t } = useTranslation("migrationLint");
   return (
     <div className={tableStyles.wrap}>
       <table className={tableStyles.table}>
-        <caption className="sr-only">What each statement locks and for how long</caption>
+        <caption className="sr-only">{t("table.caption")}</caption>
         <thead>
           <tr>
-            <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>Line</th>
-            <th scope="col" className={tableStyles.th}>Statement</th>
-            <th scope="col" className={tableStyles.th}>Locks</th>
-            <th scope="col" className={tableStyles.th}>How long</th>
-            {live && <th scope="col" className={tableStyles.th}>On this database now</th>}
+            <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>{t("table.line")}</th>
+            <th scope="col" className={tableStyles.th}>{t("table.statement")}</th>
+            <th scope="col" className={tableStyles.th}>{t("table.locks")}</th>
+            <th scope="col" className={tableStyles.th}>{t("table.howLong")}</th>
+            {live && <th scope="col" className={tableStyles.th}>{t("table.onDatabaseNow")}</th>}
           </tr>
         </thead>
         <tbody>
@@ -80,7 +91,7 @@ function StatementsTable({ statements, live }) {
               <td className={`${tableStyles.td} ${tableStyles.numeric}`}>{stmt.line}</td>
               <td className={`${tableStyles.td} ${styles.statementCell}`}>
                 <span className={styles.kind}>{stmt.kind}</span>
-                {stmt.in_transaction && <Badge tone="neutral">in transaction</Badge>}
+                {stmt.in_transaction && <Badge tone="neutral">{t("table.inTransaction")}</Badge>}
                 <code className={styles.sql}>{stmt.sql}</code>
                 {stmt.notes.map((note) => (
                   <p key={note} className={styles.note}>
@@ -118,11 +129,13 @@ function StatementsTable({ statements, live }) {
 // how long, what's risky about it and — against the connected database —
 // what it would do there right now. Nothing pasted here is executed.
 export default function MigrationLintScreen({ targetId, target }) {
+  const { t } = useTranslation("migrationLint");
   const [sql, setSql] = useState(readDraft);
   const [useLive, setUseLive] = useState(true);
   const lint = useMutation({ mutationFn: ({ text, live }) => api.lintMigration(text, live ? targetId : null) });
   const result = lint.data;
-  const targetName = target?.name ?? "this database";
+  // Without a name, the "…Unnamed" variants say "this database".
+  const targetName = target?.name ?? null;
 
   const handleChange = (event) => {
     setSql(event.target.value);
@@ -141,23 +154,24 @@ export default function MigrationLintScreen({ targetId, target }) {
   return (
     <div className={styles.screen}>
       <Card
-        title="Migration"
-        description="Paste the SQL of a schema migration. It is parsed with PostgreSQL's own grammar and never executed — not even in a transaction."
+        title={t("form.title")}
+        description={t("form.description")}
         actions={
           <button
             type="button"
             className="button-link"
             onClick={() => {
-              setSql(EXAMPLE);
-              saveDraft(EXAMPLE);
+              const example = exampleSql(t("exampleComment"));
+              setSql(example);
+              saveDraft(example);
             }}
           >
-            Load an example
+            {t("form.loadExample")}
           </button>
         }
       >
         <form className={styles.form} onSubmit={handleSubmit}>
-          <Field label="SQL" hint="Several statements are fine; BEGIN/COMMIT and SET lock_timeout are taken into account.">
+          <Field label="SQL" hint={t("form.sqlHint")}>
             <textarea
               className={styles.editor}
               value={sql}
@@ -169,11 +183,13 @@ export default function MigrationLintScreen({ targetId, target }) {
           </Field>
           <div className={styles.runRow}>
             <Checkbox checked={useLive} onChange={(e) => setUseLive(e.target.checked)}>
-              Predict the impact on {targetName} (table sizes, sessions holding locks now, recent traffic)
+              {targetName
+                ? t("form.predictImpact", { target: targetName })
+                : t("form.predictImpactUnnamed")}
             </Checkbox>
             <button type="submit" className="button-primary" disabled={!sql.trim() || lint.isPending}>
               <FileCode size={14} aria-hidden="true" />
-              {lint.isPending ? "Checking…" : "Check migration"}
+              {lint.isPending ? t("form.checking") : t("form.check")}
             </button>
           </div>
         </form>
@@ -182,7 +198,10 @@ export default function MigrationLintScreen({ targetId, target }) {
       {lint.error && <Alert tone="critical">{lint.error.message}</Alert>}
 
       {result?.parse_error && (
-        <Alert tone="critical" title={`Syntax error on line ${result.parse_error.line}, column ${result.parse_error.column}`}>
+        <Alert
+          tone="critical"
+          title={t("syntaxError", { line: result.parse_error.line, column: result.parse_error.column })}
+        >
           {result.parse_error.message}
         </Alert>
       )}
@@ -192,29 +211,35 @@ export default function MigrationLintScreen({ targetId, target }) {
           <div className={styles.summary} role="status">
             <SeverityBadge severity={result.overall_severity} />
             <span>
-              {result.statements.length} statement{result.statements.length === 1 ? "" : "s"} ·{" "}
+              {t("summary.statements", { count: result.statements.length })} ·{" "}
               {result.findings.length === 0
-                ? "no risky patterns found"
-                : `${counts.critical ?? 0} critical, ${counts.attention ?? 0} attention, ${counts.info ?? 0} info`}
+                ? t("summary.noRiskyPatterns")
+                : t("summary.counts", {
+                    critical: counts.critical ?? 0,
+                    attention: counts.attention ?? 0,
+                    info: counts.info ?? 0,
+                  })}
             </span>
             {result.live && (
               <span className={styles.muted}>
-                Live state of {targetName} read {formatRelativeTime(result.live.checked_at)}
+                {targetName
+                  ? t("summary.liveState", { target: targetName, time: formatRelativeTime(result.live.checked_at) })
+                  : t("summary.liveStateUnnamed", { time: formatRelativeTime(result.live.checked_at) })}
                 {result.live.oldest_transaction_seconds != null &&
-                  ` · oldest open transaction ${result.live.oldest_transaction_seconds}s`}
+                  ` · ${t("summary.oldestTransaction", { seconds: result.live.oldest_transaction_seconds })}`}
               </span>
             )}
           </div>
 
           {result.findings.length > 0 && (
-            <section className={styles.findings} aria-label="Findings">
+            <section className={styles.findings} aria-label={t("findingsLabel")}>
               {result.findings.map((finding) => (
                 <FindingCard key={finding.id} finding={finding} />
               ))}
             </section>
           )}
 
-          <Card title="Statement by statement" flush>
+          <Card title={t("statementsTitle")} flush>
             <StatementsTable statements={result.statements} live={Boolean(result.live)} />
           </Card>
         </>
@@ -222,9 +247,8 @@ export default function MigrationLintScreen({ targetId, target }) {
 
       {!result && !lint.isPending && !lint.error && (
         <Card>
-          <EmptyState icon={FileCode} title="Nothing checked yet">
-            The linter flags non-concurrent index builds, table rewrites, validation under lock, missing lock_timeout
-            and more — and with a database connected, says how many sessions would queue behind each lock right now.
+          <EmptyState icon={FileCode} title={t("empty.title")}>
+            {t("empty.body")}
           </EmptyState>
         </Card>
       )}

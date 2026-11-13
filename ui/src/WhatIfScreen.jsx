@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
+import { useTranslation } from "react-i18next";
 import { Calculator, Plus, X } from "lucide-react";
 import styles from "./WhatIfScreen.module.css";
 import tableStyles from "./components/Table.module.css";
@@ -23,11 +24,12 @@ import {
 const MAX_CANDIDATES = 5;
 const GRAPH_HOURS = 168;
 
+// label is a translation key, translated at render.
 const VERDICTS = {
-  recommended: { label: "Recommended", tone: "healthy" },
-  mixed: { label: "Mixed: helps some, hurts others", tone: "attention" },
-  no_gain: { label: "Used, but little gain", tone: "neutral" },
-  unused: { label: "Not used by any plan", tone: "neutral" },
+  recommended: { label: "verdicts.recommended", tone: "healthy" },
+  mixed: { label: "verdicts.mixed", tone: "attention" },
+  no_gain: { label: "verdicts.no_gain", tone: "neutral" },
+  unused: { label: "verdicts.unused", tone: "neutral" },
 };
 
 function parseCandidate(tableText, columnsText) {
@@ -45,6 +47,7 @@ const candidateLabel = (c) => `${c.schema_name}.${c.table_name} (${c.columns.joi
 
 // Before/after plans of one query, in pev2.
 function PlanCompareDialog({ row, onClose }) {
+  const { t } = useTranslation("whatIf");
   const [side, setSide] = useState("after");
   const plan = row ? JSON.stringify(side === "after" ? row.plan_after : row.plan_before) : "";
   return (
@@ -52,21 +55,25 @@ function PlanCompareDialog({ row, onClose }) {
       open={Boolean(row)}
       onClose={onClose}
       size="xl"
-      title="Plan with and without the index"
-      description="Planner estimates for a generic plan (EXPLAIN without ANALYZE) — nothing was executed."
+      title={t("planDialog.title")}
+      description={t("planDialog.description")}
     >
       {row && (
         <>
           <SegmentedControl
-            label="Which plan"
+            label={t("planDialog.whichPlan")}
             options={[
-              { value: "before", label: `Today (cost ${row.base_cost})` },
-              { value: "after", label: `With the index (cost ${row.new_cost})` },
+              { value: "before", label: t("planDialog.before", { cost: row.base_cost }) },
+              { value: "after", label: t("planDialog.after", { cost: row.new_cost }) },
             ]}
             value={side}
             onChange={setSide}
           />
-          <PlanViewerFrame plan={plan} query={row.query} title={`Query plan, ${side === "after" ? "with" : "without"} the index`} />
+          <PlanViewerFrame
+            plan={plan}
+            query={row.query}
+            title={side === "after" ? t("planDialog.frameTitleWith") : t("planDialog.frameTitleWithout")}
+          />
         </>
       )}
     </Dialog>
@@ -74,27 +81,32 @@ function PlanCompareDialog({ row, onClose }) {
 }
 
 function CandidateResult({ result, onShowPlans }) {
+  const { t } = useTranslation("whatIf");
   const verdict = VERDICTS[result.verdict] ?? VERDICTS.unused;
   return (
     <Card
       title={candidateLabel(result)}
-      actions={<Badge tone={verdict.tone}>{verdict.label}</Badge>}
+      actions={<Badge tone={verdict.tone}>{t(verdict.label)}</Badge>}
     >
       {result.error ? (
         <Alert tone="critical">{result.error}</Alert>
       ) : (
         <>
           <div className={styles.stats}>
-            <Stat label="Estimated size" value={formatBytes(result.estimated_size_bytes)} />
+            <Stat label={t("stats.estimatedSize")} value={formatBytes(result.estimated_size_bytes)} />
             <Stat
-              label="Weighted cost change"
+              label={t("stats.weightedChange")}
               value={`${result.weighted_improvement_pct > 0 ? "−" : "+"}${Math.abs(result.weighted_improvement_pct)}%`}
-              hint="Across the queries costed, weighted by their DB time"
+              hint={t("stats.weightedChangeHint")}
               tone={result.weighted_improvement_pct >= 20 ? "healthy" : undefined}
             />
-            <Stat label="Cheaper by ≥ 20%" value={result.improved} />
-            <Stat label="Dearer by ≥ 10%" value={result.regressed} tone={result.regressed > 0 ? "attention" : undefined} />
-            <Stat label="About the same" value={result.unchanged} />
+            <Stat label={t("stats.improved")} value={result.improved} />
+            <Stat
+              label={t("stats.regressed")}
+              value={result.regressed}
+              tone={result.regressed > 0 ? "attention" : undefined}
+            />
+            <Stat label={t("stats.unchanged")} value={result.unchanged} />
           </div>
 
           <div className={styles.ddl}>
@@ -103,19 +115,23 @@ function CandidateResult({ result, onShowPlans }) {
           </div>
 
           {result.queries.length === 0 ? (
-            <p className={styles.muted}>No tracked query on this table could be costed.</p>
+            <p className={styles.muted}>{t("noQueries")}</p>
           ) : (
             <div className={tableStyles.wrap}>
               <table className={tableStyles.table}>
-                <caption className="sr-only">Estimated cost of each tracked query, without and with the index</caption>
+                <caption className="sr-only">{t("queryTable.caption")}</caption>
                 <thead>
                   <tr>
-                    <th scope="col" className={tableStyles.th}>Query</th>
-                    <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>DB time</th>
-                    <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>Cost today</th>
-                    <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>With index</th>
-                    <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>Change</th>
-                    <th scope="col" className={tableStyles.th}>Plans</th>
+                    <th scope="col" className={tableStyles.th}>{t("queryTable.query")}</th>
+                    <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>{t("queryTable.dbTime")}</th>
+                    <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>
+                      {t("queryTable.costToday")}
+                    </th>
+                    <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>
+                      {t("queryTable.withIndex")}
+                    </th>
+                    <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>{t("queryTable.change")}</th>
+                    <th scope="col" className={tableStyles.th}>{t("queryTable.plans")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -130,15 +146,15 @@ function CandidateResult({ result, onShowPlans }) {
                           {row.change_pct > 0 ? "+" : ""}
                           {row.change_pct}%
                         </Badge>
-                        {row.uses_index && <span className="sr-only"> (plan uses the index)</span>}
+                        {row.uses_index && <span className="sr-only"> {t("queryTable.usesIndex")}</span>}
                       </td>
                       <td className={tableStyles.td}>
                         {row.plan_before && row.plan_after ? (
                           <button type="button" className="button-link" onClick={() => onShowPlans(row)}>
-                            Compare plans
+                            {t("queryTable.comparePlans")}
                           </button>
                         ) : (
-                          <span className={styles.muted}>{row.uses_index ? "—" : "index not used"}</span>
+                          <span className={styles.muted}>{row.uses_index ? "—" : t("queryTable.indexNotUsed")}</span>
                         )}
                       </td>
                     </tr>
@@ -157,6 +173,7 @@ function CandidateResult({ result, onShowPlans }) {
 // HypoPG, without building anything. A finding's "Cost in What-if" link
 // arrives as ?table=schema.table&columns=a,b and becomes the first candidate.
 export default function WhatIfScreen({ targetId }) {
+  const { t } = useTranslation("whatIf");
   const [searchParams] = useSearchParams();
   const [candidates, setCandidates] = useState(() => {
     const seeded = parseCandidate(searchParams.get("table") ?? "", searchParams.get("columns") ?? "");
@@ -164,6 +181,7 @@ export default function WhatIfScreen({ targetId }) {
   });
   const [tableText, setTableText] = useState("");
   const [columnsText, setColumnsText] = useState("");
+  // A translation key, translated at render.
   const [formError, setFormError] = useState(null);
   const [planRow, setPlanRow] = useState(null);
 
@@ -180,11 +198,11 @@ export default function WhatIfScreen({ targetId }) {
     event.preventDefault();
     const candidate = parseCandidate(tableText, columnsText);
     if (!candidate) {
-      setFormError("Enter the table as schema.table and at least one column.");
+      setFormError("form.invalid");
       return;
     }
     if (candidates.some((c) => candidateLabel(c) === candidateLabel(candidate))) {
-      setFormError("That candidate is already in the list.");
+      setFormError("form.duplicate");
       return;
     }
     setFormError(null);
@@ -194,12 +212,9 @@ export default function WhatIfScreen({ targetId }) {
 
   return (
     <div className={styles.screen}>
-      <Card
-        title="Candidate indexes"
-        description="Each candidate is created as a hypothetical index (HypoPG) in a private session, and the tracked queries that touch its table are planned with and without it. Nothing is built or written on the database."
-      >
+      <Card title={t("form.title")} description={t("form.description")}>
         <form className={styles.form} onSubmit={handleAdd}>
-          <Field label="Table" hint="schema.table">
+          <Field label={t("form.table")} hint={t("form.tableHint")}>
             <input
               list="what-if-tables"
               value={tableText}
@@ -212,17 +227,17 @@ export default function WhatIfScreen({ targetId }) {
               <option key={n.id} value={n.id} />
             ))}
           </datalist>
-          <Field label="Columns" hint="In index order, comma-separated">
+          <Field label={t("form.columns")} hint={t("form.columnsHint")}>
             <input value={columnsText} onChange={(e) => setColumnsText(e.target.value)} placeholder="customer_id, created_at" />
           </Field>
           <button type="submit" className="button-secondary" disabled={candidates.length >= MAX_CANDIDATES}>
             <Plus size={14} aria-hidden="true" />
-            Add candidate
+            {t("form.add")}
           </button>
         </form>
         {formError && (
           <Alert tone="attention" compact>
-            {formError}
+            {t(formError)}
           </Alert>
         )}
 
@@ -234,7 +249,7 @@ export default function WhatIfScreen({ targetId }) {
                 <button
                   type="button"
                   className="button-icon"
-                  aria-label={`Remove ${candidateLabel(c)}`}
+                  aria-label={t("form.remove", { name: candidateLabel(c) })}
                   onClick={() => setCandidates((list) => list.filter((x) => x !== c))}
                 >
                   <X size={14} aria-hidden="true" />
@@ -252,16 +267,20 @@ export default function WhatIfScreen({ targetId }) {
             onClick={() => run.mutate(candidates)}
           >
             <Calculator size={14} aria-hidden="true" />
-            {run.isPending ? "Costing…" : `Cost ${candidates.length || ""} candidate${candidates.length === 1 ? "" : "s"}`}
+            {run.isPending
+              ? t("run.costing")
+              : candidates.length === 0
+                ? t("run.labelEmpty")
+                : t("run.label", { count: candidates.length })}
           </button>
-          <span className={styles.muted}>Up to {MAX_CANDIDATES} at a time. Costs are the planner's estimates, not timings.</span>
+          <span className={styles.muted}>{t("run.note", { max: MAX_CANDIDATES })}</span>
         </div>
       </Card>
 
       {run.error && <Alert tone="critical">{run.error.message}</Alert>}
 
       {result && !result.hypopg_installed && (
-        <Alert tone="attention" title="HypoPG isn't installed">
+        <Alert tone="attention" title={t("hypopgMissing")}>
           {result.message}
         </Alert>
       )}
@@ -269,15 +288,11 @@ export default function WhatIfScreen({ targetId }) {
       {result?.hypopg_installed && (
         <>
           <p className={styles.summary} role="status">
-            Costed against {result.queries_considered} tracked quer{result.queries_considered === 1 ? "y" : "ies"}
-            {result.queries_skipped > 0 &&
-              ` (${result.queries_skipped} couldn't be planned — utility statements, or parameterized queries on PostgreSQL < 16)`}
-            .
+            {t("summary", { count: result.queries_considered })}
+            {result.queries_skipped > 0 && ` ${t("summarySkipped", { count: result.queries_skipped })}`}.
           </p>
           <Alert tone="info" compact>
-            Planner cost leaves two things out: the work every write spends keeping the index up to date, and the
-            foreign-key checks a DELETE or key UPDATE on a parent table makes through an index on the child&apos;s FK
-            columns. An index on FK columns can be essential even when no plan here picks it.
+            {t("costNote")}
           </Alert>
           {result.candidates.map((candidate) => (
             <CandidateResult key={candidateLabel(candidate)} result={candidate} onShowPlans={setPlanRow} />
@@ -287,8 +302,8 @@ export default function WhatIfScreen({ targetId }) {
 
       {!result && !run.isPending && candidates.length === 0 && (
         <Card>
-          <EmptyState icon={Calculator} title="No candidates yet">
-            Add an index above, or use "Cost in What-if" on an Index Advisor or Refactoring finding.
+          <EmptyState icon={Calculator} title={t("empty.title")}>
+            {t("empty.body")}
           </EmptyState>
         </Card>
       )}

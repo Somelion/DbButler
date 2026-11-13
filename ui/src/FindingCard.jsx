@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { Link, useParams } from "react-router";
+import { useTranslation } from "react-i18next";
 import { useMode } from "./ModeContext";
 import { screenPath } from "./routes";
 import { colorForColumn } from "./columnColor";
@@ -10,12 +11,13 @@ import IndexCoverageAnalysisPanel from "./IndexCoverageAnalysisPanel";
 import styles from "./FindingCard.module.css";
 
 // Covering-index column verdicts: a tone plus a text label, so the verdict
-// never rests on the chip colour alone.
+// never rests on the chip colour alone. label is a translation key,
+// translated at render.
 const COVERING_VERDICT = {
-  key: { label: "used to filter/sort", tone: "healthy" },
-  include_candidate: { label: "INCLUDE candidate", tone: "attention" },
-  unused_in_sample: { label: "not seen in sample", tone: "unknown" },
-  no_data: { label: "no query data", tone: "unknown" },
+  key: { label: "coveringVerdict.key", tone: "healthy" },
+  include_candidate: { label: "coveringVerdict.include_candidate", tone: "attention" },
+  unused_in_sample: { label: "coveringVerdict.unused_in_sample", tone: "unknown" },
+  no_data: { label: "coveringVerdict.no_data", tone: "unknown" },
 };
 
 // Column-name pill; its colour pair comes from columnColor.js (token values)
@@ -49,6 +51,7 @@ export default function FindingCard({
   archivedAt,
   firstSeenAt,
 }) {
+  const { t } = useTranslation("findings");
   const mode = useMode();
   const confirm = useConfirm();
   const titleId = useId();
@@ -75,14 +78,14 @@ export default function FindingCard({
   // exact statement shown.
   const handleApply = async () => {
     const ok = await confirm({
-      title: "Run this against your database?",
+      title: t("applyConfirm.title"),
       message: (
         <div className={styles.confirmBody}>
-          <p>This changes the target directly.</p>
+          <p>{t("applyConfirm.message")}</p>
           <pre className={styles.code}>{finding.recommended_ddl}</pre>
         </div>
       ),
-      confirmLabel: "Confirm & run",
+      confirmLabel: t("applyConfirm.confirmLabel"),
       tone: "danger",
     });
     if (!ok) return;
@@ -99,9 +102,9 @@ export default function FindingCard({
 
   const handleVacuum = async () => {
     const ok = await confirm({
-      title: "Run VACUUM ANALYZE?",
-      message: `Run VACUUM ANALYZE on ${finding.schema_name}.${finding.table_name}?`,
-      confirmLabel: "Run Vacuum",
+      title: t("vacuumConfirm.title"),
+      message: t("vacuumConfirm.message", { name: `${finding.schema_name}.${finding.table_name}` }),
+      confirmLabel: t("vacuumConfirm.confirmLabel"),
     });
     if (!ok) return;
     setVacuuming(true);
@@ -122,41 +125,41 @@ export default function FindingCard({
           <SeverityBadge severity={finding.severity} />
           <span className={styles.category}>{finding.category}</span>
           {firstSeenAt && (
-            <span className={styles.firstSeen} title="From the deep scan's persisted history">
-              · open since {formatRelativeTime(firstSeenAt)}
+            <span className={styles.firstSeen} title={t("firstSeenTitle")}>
+              {t("openSince", { time: formatRelativeTime(firstSeenAt) })}
             </span>
           )}
         </div>
         <div className={styles.actions}>
           {canVacuum && (
             <button type="button" className="button-secondary button-sm" onClick={handleVacuum} disabled={vacuuming}>
-              {vacuuming ? "Running…" : "Run Vacuum"}
+              {vacuuming ? t("running") : t("runVacuum")}
             </button>
           )}
           {navigateTo && (
             <Link to={navigateTo} className={`button-secondary button-sm ${styles.linkButton}`}>
-              {navigateLabel || "Open"}
+              {navigateLabel || t("open")}
             </Link>
           )}
           {whatIfPath && (
             <Link to={whatIfPath} className={`button-secondary button-sm ${styles.linkButton}`}>
-              Cost in What-if
+              {t("costInWhatIf")}
             </Link>
           )}
           {actions}
           {canApply && (
             <button type="button" className="button-secondary button-sm" onClick={handleApply} disabled={applying}>
-              {applying ? "Running…" : "Apply"}
+              {applying ? t("running") : t("common:actions.apply")}
             </button>
           )}
           {onArchive && (
             <button type="button" className="button-secondary button-sm" onClick={onArchive}>
-              Archive
+              {t("common:actions.archive")}
             </button>
           )}
           {onRestore && (
             <button type="button" className="button-secondary button-sm" onClick={onRestore}>
-              Restore
+              {t("common:actions.restore")}
             </button>
           )}
         </div>
@@ -169,12 +172,12 @@ export default function FindingCard({
         <p className={styles.summary}>{finding.summary}</p>
         {vacuumError && (
           <Alert tone="critical" compact>
-            Vacuum failed: {vacuumError}
+            {t("vacuumFailed", { error: vacuumError })}
           </Alert>
         )}
         {applyError && (
           <Alert tone="critical" compact>
-            Apply failed: {applyError}
+            {t("applyFailed", { error: applyError })}
           </Alert>
         )}
       </div>
@@ -182,7 +185,7 @@ export default function FindingCard({
       {finding.occurrences && finding.occurrences.length > 0 && (
         <details>
           <summary className={styles.summaryToggle}>
-            {finding.occurrences.length} matching quer{finding.occurrences.length === 1 ? "y" : "ies"}
+            {t("matchingQueries", { count: finding.occurrences.length })}
           </summary>
           <ul className={styles.occurrences}>
             {finding.occurrences.map((occ, i) => (
@@ -191,7 +194,8 @@ export default function FindingCard({
                   {occ.query}
                 </div>
                 <div className={styles.occurrenceMeta}>
-                  Called {occ.calls.toLocaleString()} times{occ.note ? ` · ${occ.note}` : ""}
+                  {t("calledTimes", { count: occ.calls, calls: occ.calls.toLocaleString() })}
+                  {occ.note ? ` · ${occ.note}` : ""}
                 </div>
               </li>
             ))}
@@ -202,23 +206,23 @@ export default function FindingCard({
       {finding.index_columns && finding.index_columns.length > 0 && (
         <details>
           <summary className={styles.summaryToggle}>
-            {finding.index_columns.length} index{finding.index_columns.length === 1 ? "" : "es"} on this table
+            {t("indexesOnTable", { count: finding.index_columns.length })}
           </summary>
           <div className={`${tableStyles.wrap} ${styles.detailsBody}`}>
             <table className={tableStyles.table}>
               <thead>
                 <tr>
                   <th scope="col" className={`${tableStyles.th} ${styles.th}`}>
-                    Index
+                    {t("indexTable.index")}
                   </th>
                   <th scope="col" className={`${tableStyles.th} ${styles.th}`}>
-                    Columns
+                    {t("indexTable.columns")}
                   </th>
                   <th scope="col" className={`${tableStyles.th} ${styles.th}`}>
-                    Method
+                    {t("indexTable.method")}
                   </th>
                   <th scope="col" className={`${tableStyles.th} ${styles.th}`}>
-                    Size
+                    {t("indexTable.size")}
                   </th>
                 </tr>
               </thead>
@@ -255,8 +259,10 @@ export default function FindingCard({
       {finding.covering_analysis && (
         <div className={styles.section}>
           <h4 className={styles.sectionLabel}>
-            Column usage ({finding.covering_analysis.matched_query_count.toLocaleString()} matched quer
-            {finding.covering_analysis.matched_query_count === 1 ? "y" : "ies"})
+            {t("columnUsage", {
+              count: finding.covering_analysis.matched_query_count,
+              matched: finding.covering_analysis.matched_query_count.toLocaleString(),
+            })}
           </h4>
           <ul className={styles.verdicts}>
             {finding.covering_analysis.columns.map((v) => {
@@ -265,7 +271,7 @@ export default function FindingCard({
                 <li key={v.column}>
                   <Badge tone={verdict.tone} className={styles.verdict}>
                     <ColumnChip column={v.column} className={styles.verdictChip} />
-                    {verdict.label}
+                    {t(verdict.label)}
                   </Badge>
                 </li>
               );
@@ -291,28 +297,31 @@ export default function FindingCard({
 
       {mode === "advanced" && (
         <details open>
-          <summary className={styles.summaryToggle}>Technical detail</summary>
+          <summary className={styles.summaryToggle}>{t("technicalDetail")}</summary>
           <div className={`${styles.detailsBody} ${styles.technical}`}>
             <span className={styles.technicalText}>{finding.detail}</span>
           </div>
         </details>
       )}
 
-      <p className={styles.suggested}>Suggested: {finding.suggested_action}</p>
+      <p className={styles.suggested}>{t("suggested", { action: finding.suggested_action })}</p>
 
       {finding.recommended_ddl && <DdlBlock ddl={finding.recommended_ddl} applyAvailable={canApply} />}
 
-      {archivedAt && <p className={styles.archived}>Archived {new Date(archivedAt).toLocaleString()}</p>}
+      {archivedAt && (
+        <p className={styles.archived}>{t("archivedAt", { time: new Date(archivedAt).toLocaleString() })}</p>
+      )}
     </article>
   );
 }
 
 function DdlBlock({ ddl, applyAvailable }) {
+  const { t } = useTranslation("findings");
   return (
     <div className={styles.section}>
       <div className={styles.ddlHeader}>
         <h4 className={styles.sectionLabel}>
-          {applyAvailable ? "Suggested DDL — use Apply above, or copy to run yourself" : "Suggested DDL — not applied automatically"}
+          {applyAvailable ? t("ddl.applyAvailable") : t("ddl.manual")}
         </h4>
         <CopyButton text={ddl} />
       </div>

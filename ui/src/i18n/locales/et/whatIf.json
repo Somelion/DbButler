@@ -1,0 +1,67 @@
+{
+  "verdicts": {
+    "recommended": "Soovitatav",
+    "mixed": "Segatulemus: mõnda aitab, mõnda kahjustab",
+    "no_gain": "Kasutatakse, kuid kasu on väike",
+    "unused": "Ükski plaan ei kasuta"
+  },
+  "planDialog": {
+    "title": "Plaan indeksiga ja ilma",
+    "description": "Planeerija hinnangud üldisele plaanile (EXPLAIN ilma ANALYZE'ita) – midagi ei käivitatud.",
+    "whichPlan": "Milline plaan",
+    "before": "Praegu (kulu {{cost}})",
+    "after": "Indeksiga (kulu {{cost}})",
+    "frameTitleWith": "Päringuplaan indeksiga",
+    "frameTitleWithout": "Päringuplaan ilma indeksita"
+  },
+  "stats": {
+    "estimatedSize": "Hinnanguline suurus",
+    "weightedChange": "Kaalutud kulumuutus",
+    "weightedChangeHint": "Hinnatud päringute lõikes, kaalutud nende andmebaasiajaga",
+    "improved": "Odavam ≥ 20%",
+    "regressed": "Kallim ≥ 10%",
+    "unchanged": "Umbes sama"
+  },
+  "noQueries": "Ühegi selle tabeli jälgitava päringu kulu ei õnnestunud hinnata.",
+  "queryTable": {
+    "caption": "Iga jälgitava päringu hinnanguline kulu ilma indeksita ja indeksiga",
+    "query": "Päring",
+    "dbTime": "Andmebaasiaeg",
+    "costToday": "Kulu praegu",
+    "withIndex": "Indeksiga",
+    "change": "Muutus",
+    "plans": "Plaanid",
+    "usesIndex": "(plaan kasutab indeksit)",
+    "comparePlans": "Võrdle plaane",
+    "indexNotUsed": "indeksit ei kasutata"
+  },
+  "form": {
+    "title": "Kandidaatindeksid",
+    "description": "Iga kandidaat luuakse privaatses seansis hüpoteetilise indeksina (HypoPG) ja selle tabelit puudutavad jälgitavad päringud planeeritakse nii sellega kui ka ilma. Andmebaasis ei ehitata ega kirjutata midagi.",
+    "table": "Tabel",
+    "tableHint": "skeem.tabel",
+    "columns": "Veerud",
+    "columnsHint": "Indeksi järjekorras, komadega eraldatud",
+    "add": "Lisa kandidaat",
+    "invalid": "Sisesta tabel kujul skeem.tabel ja vähemalt üks veerg.",
+    "duplicate": "See kandidaat on juba loendis.",
+    "remove": "Eemalda {{name}}"
+  },
+  "run": {
+    "costing": "Hindan…",
+    "labelEmpty": "Hinda kandidaate",
+    "label_one": "Hinda {{count}} kandidaati",
+    "label_other": "Hinda {{count}} kandidaati",
+    "note": "Korraga kuni {{max}}. Kulud on planeerija hinnangud, mitte mõõdetud ajad."
+  },
+  "hypopgMissing": "HypoPG pole paigaldatud",
+  "summary_one": "Hinnatud {{count}} jälgitava päringu põhjal",
+  "summary_other": "Hinnatud {{count}} jälgitava päringu põhjal",
+  "summarySkipped_one": "({{count}} päringut ei õnnestunud planeerida – utiliitlaused või parameetritega päringud PostgreSQL < 16 puhul)",
+  "summarySkipped_other": "({{count}} päringut ei õnnestunud planeerida – utiliitlaused või parameetritega päringud PostgreSQL < 16 puhul)",
+  "costNote": "Planeerija kulu jätab kaks asja arvestamata: töö, mida iga kirjutus teeb indeksi ajakohasena hoidmiseks, ja võõrvõtme kontrollid, mida vanemtabeli DELETE või võtme UPDATE teeb lapstabeli võõrvõtmeveergude indeksi kaudu. Võõrvõtmeveergude indeks võib olla hädavajalik ka siis, kui ükski siinne plaan seda ei vali.",
+  "empty": {
+    "title": "Kandidaate veel pole",
+    "body": "Lisa ülal indeks või kasuta mõne indeksite nõustaja või ümberkujunduse leiu juures nuppu „Hinda What-if'is“."
+  }
+}

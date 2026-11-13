@@ -1,0 +1,28 @@
+{
+  "verdicts": {
+    "being_used": "Kasutusel",
+    "not_used_yet": "Pole veel kasutatud",
+    "too_early": "Veel vara öelda"
+  },
+  "title": "Jälgitavad indeksid",
+  "description": "Indeksid, mille oled lisanud indeksite nõustaja nupuga „Rakenda“, ja kas need end ka ära tasuvad. Kui oled indeksiga rahul, lisa see oma migratsioonitööriista (Liquibase vms) – siin kustutamine eemaldab selle ainult sellest andmebaasist, mitte kusagilt mujalt.",
+  "loading": "Jälgitavate indeksite laadimine…",
+  "empty": {
+    "title": "Siin pole veel midagi",
+    "body": "Kasuta indeksite nõustaja leiu juures nuppu „Rakenda“, et luua indeks ja alustada selle jälgimist."
+  },
+  "drop": {
+    "confirmTitle": "Kustutada indeks {{name}}?",
+    "confirmMessage": "Kustutada indeks {{name}} tabelilt {{table}}? See käivitatakse andmebaasis kohe ja seda ei saa siit tagasi võtta.",
+    "confirmLabel": "Kustuta indeks",
+    "dropping": "Kustutan…",
+    "label": "Kustuta see indeks"
+  },
+  "meta": "tabelil {{table}} · lisatud {{time}}",
+  "metrics": {
+    "scans": "Skannimisi lisamisest saadik",
+    "size": "Indeksi suurus",
+    "seqScans": "Tabeli järjestikskannimisi lisamisest saadik",
+    "seqScansHint": "Toorarv, mitte sagedus – tegeliku enne/pärast trendi nägemiseks jälgi aja jooksul ka selle tabeli leidu „Palju järjestikskannimisi“."
+  }
+}

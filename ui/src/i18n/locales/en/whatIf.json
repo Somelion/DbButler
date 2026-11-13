@@ -1,0 +1,67 @@
+{
+  "verdicts": {
+    "recommended": "Recommended",
+    "mixed": "Mixed: helps some, hurts others",
+    "no_gain": "Used, but little gain",
+    "unused": "Not used by any plan"
+  },
+  "planDialog": {
+    "title": "Plan with and without the index",
+    "description": "Planner estimates for a generic plan (EXPLAIN without ANALYZE) — nothing was executed.",
+    "whichPlan": "Which plan",
+    "before": "Today (cost {{cost}})",
+    "after": "With the index (cost {{cost}})",
+    "frameTitleWith": "Query plan, with the index",
+    "frameTitleWithout": "Query plan, without the index"
+  },
+  "stats": {
+    "estimatedSize": "Estimated size",
+    "weightedChange": "Weighted cost change",
+    "weightedChangeHint": "Across the queries costed, weighted by their DB time",
+    "improved": "Cheaper by ≥ 20%",
+    "regressed": "Dearer by ≥ 10%",
+    "unchanged": "About the same"
+  },
+  "noQueries": "No tracked query on this table could be costed.",
+  "queryTable": {
+    "caption": "Estimated cost of each tracked query, without and with the index",
+    "query": "Query",
+    "dbTime": "DB time",
+    "costToday": "Cost today",
+    "withIndex": "With index",
+    "change": "Change",
+    "plans": "Plans",
+    "usesIndex": "(plan uses the index)",
+    "comparePlans": "Compare plans",
+    "indexNotUsed": "index not used"
+  },
+  "form": {
+    "title": "Candidate indexes",
+    "description": "Each candidate is created as a hypothetical index (HypoPG) in a private session, and the tracked queries that touch its table are planned with and without it. Nothing is built or written on the database.",
+    "table": "Table",
+    "tableHint": "schema.table",
+    "columns": "Columns",
+    "columnsHint": "In index order, comma-separated",
+    "add": "Add candidate",
+    "invalid": "Enter the table as schema.table and at least one column.",
+    "duplicate": "That candidate is already in the list.",
+    "remove": "Remove {{name}}"
+  },
+  "run": {
+    "costing": "Costing…",
+    "labelEmpty": "Cost candidates",
+    "label_one": "Cost {{count}} candidate",
+    "label_other": "Cost {{count}} candidates",
+    "note": "Up to {{max}} at a time. Costs are the planner's estimates, not timings."
+  },
+  "hypopgMissing": "HypoPG isn't installed",
+  "summary_one": "Costed against {{count}} tracked query",
+  "summary_other": "Costed against {{count}} tracked queries",
+  "summarySkipped_one": "({{count}} couldn't be planned — utility statements, or parameterized queries on PostgreSQL < 16)",
+  "summarySkipped_other": "({{count}} couldn't be planned — utility statements, or parameterized queries on PostgreSQL < 16)",
+  "costNote": "Planner cost leaves two things out: the work every write spends keeping the index up to date, and the foreign-key checks a DELETE or key UPDATE on a parent table makes through an index on the child's FK columns. An index on FK columns can be essential even when no plan here picks it.",
+  "empty": {
+    "title": "No candidates yet",
+    "body": "Add an index above, or use \"Cost in What-if\" on an Index Advisor or Refactoring finding."
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "exampleComment": "Näide: kolm levinud viisi, kuidas migratsioon toodangu liikluse blokeerib.",
+  "blocks": {
+    "readsAndWrites": "blokeerib lugemise ja kirjutamise",
+    "writes": "blokeerib kirjutamise",
+    "nothing": "liiklus jätkub"
+  },
+  "lockOn": "<code>{{mode}}</code> objektil <code>{{relation}}</code>",
+  "viaIndex": "(indeks – lukustab oma tabeli)",
+  "table": {
+    "caption": "Mida iga lause lukustab ja kui kauaks",
+    "line": "Rida",
+    "statement": "Lause",
+    "locks": "Lukud",
+    "howLong": "Kui kaua",
+    "onDatabaseNow": "Selles andmebaasis praegu",
+    "inTransaction": "tehingus"
+  },
+  "form": {
+    "title": "Migratsioon",
+    "description": "Kleebi siia skeemi migratsiooni SQL. See parsitakse PostgreSQL-i enda grammatikaga ja seda ei käivitata kunagi – isegi mitte tehingus.",
+    "loadExample": "Laadi näide",
+    "sqlHint": "Mitu lauset on lubatud; BEGIN/COMMIT ja SET lock_timeout võetakse arvesse.",
+    "predictImpact": "Ennusta mõju andmebaasile {{target}} (tabelite suurused, praegu lukke hoidvad seansid, hiljutine liiklus)",
+    "predictImpactUnnamed": "Ennusta mõju sellele andmebaasile (tabelite suurused, praegu lukke hoidvad seansid, hiljutine liiklus)",
+    "checking": "Kontrollin…",
+    "check": "Kontrolli migratsiooni"
+  },
+  "syntaxError": "Süntaksiviga real {{line}}, veerus {{column}}",
+  "summary": {
+    "statements_one": "{{count}} lause",
+    "statements_other": "{{count}} lauset",
+    "noRiskyPatterns": "riskantseid mustreid ei leitud",
+    "counts": "kriitilisi: {{critical}}, tähelepanu: {{attention}}, info: {{info}}",
+    "liveState": "Andmebaasi {{target}} olek loetud {{time}}",
+    "liveStateUnnamed": "Selle andmebaasi olek loetud {{time}}",
+    "oldestTransaction": "vanim avatud tehing {{seconds}} s"
+  },
+  "findingsLabel": "Leiud",
+  "statementsTitle": "Lause haaval",
+  "empty": {
+    "title": "Midagi pole veel kontrollitud",
+    "body": "Linter märgib muu hulgas ilma CONCURRENTLY-ta indeksiehitused, tabelite ümberkirjutamised, valideerimise luku all ja puuduva lock_timeout'i – ning kui andmebaas on ühendatud, ütleb, mitu seanssi jääks praegu iga luku taha ootama."
+  }
+}

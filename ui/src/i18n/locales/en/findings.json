@@ -1,0 +1,62 @@
+{
+  "coveringVerdict": {
+    "key": "used to filter/sort",
+    "include_candidate": "INCLUDE candidate",
+    "unused_in_sample": "not seen in sample",
+    "no_data": "no query data"
+  },
+  "applyConfirm": {
+    "title": "Run this against your database?",
+    "message": "This changes the target directly.",
+    "confirmLabel": "Confirm & run"
+  },
+  "vacuumConfirm": {
+    "title": "Run VACUUM ANALYZE?",
+    "message": "Run VACUUM ANALYZE on {{name}}?",
+    "confirmLabel": "Run Vacuum"
+  },
+  "firstSeenTitle": "From the deep scan's persisted history",
+  "openSince": "· open since {{time}}",
+  "running": "Running…",
+  "runVacuum": "Run Vacuum",
+  "open": "Open",
+  "costInWhatIf": "Cost in What-if",
+  "vacuumFailed": "Vacuum failed: {{error}}",
+  "applyFailed": "Apply failed: {{error}}",
+  "matchingQueries_one": "{{count}} matching query",
+  "matchingQueries_other": "{{count}} matching queries",
+  "calledTimes_one": "Called {{calls}} time",
+  "calledTimes_other": "Called {{calls}} times",
+  "indexesOnTable_one": "{{count}} index on this table",
+  "indexesOnTable_other": "{{count}} indexes on this table",
+  "indexTable": {
+    "index": "Index",
+    "columns": "Columns",
+    "method": "Method",
+    "size": "Size"
+  },
+  "columnUsage_one": "Column usage ({{matched}} matched query)",
+  "columnUsage_other": "Column usage ({{matched}} matched queries)",
+  "technicalDetail": "Technical detail",
+  "suggested": "Suggested: {{action}}",
+  "archivedAt": "Archived {{time}}",
+  "ddl": {
+    "applyAvailable": "Suggested DDL — use Apply above, or copy to run yourself",
+    "manual": "Suggested DDL — not applied automatically"
+  },
+  "coverageAnalysis": {
+    "start": "Analyze with AI",
+    "starting": "Starting…",
+    "heading": "AI Analysis",
+    "running": "Running…",
+    "applying": "Applying…",
+    "noChange": "The AI didn't recommend a change — see its reasoning above."
+  },
+  "filter": {
+    "ariaLabel": "{{label}}: choose which {{lowerLabel}} to show",
+    "ariaLabelHidden_one": "{{label}} ({{count}} hidden): choose which {{lowerLabel}} to show",
+    "ariaLabelHidden_other": "{{label}} ({{count}} hidden): choose which {{lowerLabel}} to show",
+    "hiddenCount_one": "({{count}} hidden)",
+    "hiddenCount_other": "({{count}} hidden)"
+  }
+}

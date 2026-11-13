@@ -1,0 +1,28 @@
+{
+  "verdicts": {
+    "being_used": "Being used",
+    "not_used_yet": "Not used yet",
+    "too_early": "Too early to tell"
+  },
+  "title": "Tracked indexes",
+  "description": "Indexes you've added from Index Advisor's Apply button, and whether they're actually earning their keep. Once you're happy with one, add it to your own migration tooling (Liquibase, etc.) — dropping it here only removes it from this database, not from anywhere else.",
+  "loading": "Loading tracked indexes…",
+  "empty": {
+    "title": "Nothing here yet",
+    "body": "Use Apply on an Index Advisor finding to create an index and start tracking it."
+  },
+  "drop": {
+    "confirmTitle": "Drop {{name}}?",
+    "confirmMessage": "Drop {{name}} from {{table}}? This runs against the target immediately and can't be undone from here.",
+    "confirmLabel": "Drop index",
+    "dropping": "Dropping…",
+    "label": "Drop this index"
+  },
+  "meta": "on {{table}} · added {{time}}",
+  "metrics": {
+    "scans": "Scans since added",
+    "size": "Index size",
+    "seqScans": "Table's seq scans since added",
+    "seqScansHint": "Raw count, not a rate — for a real before/after trend, watch this table's Seq-Scan-Heavy finding over time too."
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "exampleComment": "Example: three common ways a migration blocks production traffic.",
+  "blocks": {
+    "readsAndWrites": "blocks reads and writes",
+    "writes": "blocks writes",
+    "nothing": "traffic continues"
+  },
+  "lockOn": "<code>{{mode}}</code> on <code>{{relation}}</code>",
+  "viaIndex": "(index — locks its table)",
+  "table": {
+    "caption": "What each statement locks and for how long",
+    "line": "Line",
+    "statement": "Statement",
+    "locks": "Locks",
+    "howLong": "How long",
+    "onDatabaseNow": "On this database now",
+    "inTransaction": "in transaction"
+  },
+  "form": {
+    "title": "Migration",
+    "description": "Paste the SQL of a schema migration. It is parsed with PostgreSQL's own grammar and never executed — not even in a transaction.",
+    "loadExample": "Load an example",
+    "sqlHint": "Several statements are fine; BEGIN/COMMIT and SET lock_timeout are taken into account.",
+    "predictImpact": "Predict the impact on {{target}} (table sizes, sessions holding locks now, recent traffic)",
+    "predictImpactUnnamed": "Predict the impact on this database (table sizes, sessions holding locks now, recent traffic)",
+    "checking": "Checking…",
+    "check": "Check migration"
+  },
+  "syntaxError": "Syntax error on line {{line}}, column {{column}}",
+  "summary": {
+    "statements_one": "{{count}} statement",
+    "statements_other": "{{count}} statements",
+    "noRiskyPatterns": "no risky patterns found",
+    "counts": "{{critical}} critical, {{attention}} attention, {{info}} info",
+    "liveState": "Live state of {{target}} read {{time}}",
+    "liveStateUnnamed": "Live state of this database read {{time}}",
+    "oldestTransaction": "oldest open transaction {{seconds}}s"
+  },
+  "findingsLabel": "Findings",
+  "statementsTitle": "Statement by statement",
+  "empty": {
+    "title": "Nothing checked yet",
+    "body": "The linter flags non-concurrent index builds, table rewrites, validation under lock, missing lock_timeout and more — and with a database connected, says how many sessions would queue behind each lock right now."
+  }
+}

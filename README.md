@@ -61,6 +61,9 @@ every screen without connecting anything real.
   ranges, the heaviest queries, lock incidents, plan changes, table growth and server events. You
   can print it to PDF, download it as HTML, and optionally post a summary to the alert webhook.
 - **MCP server and Prometheus** — read-only integrations, each with its own token (see below).
+- **English and Estonian** — an EN / ET switch in the top bar. It starts in the browser's language
+  and remembers the choice. Texts the backend writes (findings, the weekly report) are English for
+  now.
 
 ## Tech stack
 

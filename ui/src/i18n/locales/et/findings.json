@@ -1,0 +1,62 @@
+{
+  "coveringVerdict": {
+    "key": "filtreerib/sorteerib",
+    "include_candidate": "INCLUDE-kandidaat",
+    "unused_in_sample": "valimis ei esine",
+    "no_data": "päringuandmed puuduvad"
+  },
+  "applyConfirm": {
+    "title": "Käivitada see sinu andmebaasis?",
+    "message": "See muudab andmebaasi otse.",
+    "confirmLabel": "Kinnita ja käivita"
+  },
+  "vacuumConfirm": {
+    "title": "Käivitada VACUUM ANALYZE?",
+    "message": "Käivitada tabelil {{name}} käsk VACUUM ANALYZE?",
+    "confirmLabel": "Käivita vacuum"
+  },
+  "firstSeenTitle": "Süvaskannimise salvestatud ajaloost",
+  "openSince": "· avatud {{time}}",
+  "running": "Käib…",
+  "runVacuum": "Käivita vacuum",
+  "open": "Ava",
+  "costInWhatIf": "Hinda What-if'is",
+  "vacuumFailed": "Vacuum ebaõnnestus: {{error}}",
+  "applyFailed": "Rakendamine ebaõnnestus: {{error}}",
+  "matchingQueries_one": "{{count}} sobiv päring",
+  "matchingQueries_other": "{{count}} sobivat päringut",
+  "calledTimes_one": "Käivitatud {{calls}} kord",
+  "calledTimes_other": "Käivitatud {{calls}} korda",
+  "indexesOnTable_one": "Sellel tabelil on {{count}} indeks",
+  "indexesOnTable_other": "Sellel tabelil on {{count}} indeksit",
+  "indexTable": {
+    "index": "Indeks",
+    "columns": "Veerud",
+    "method": "Meetod",
+    "size": "Suurus"
+  },
+  "columnUsage_one": "Veergude kasutus ({{matched}} sobiv päring)",
+  "columnUsage_other": "Veergude kasutus ({{matched}} sobivat päringut)",
+  "technicalDetail": "Tehnilised üksikasjad",
+  "suggested": "Soovitus: {{action}}",
+  "archivedAt": "Arhiveeritud {{time}}",
+  "ddl": {
+    "applyAvailable": "Soovitatud DDL – kasuta ülal nuppu „Rakenda“ või kopeeri ja käivita ise",
+    "manual": "Soovitatud DDL – automaatselt ei rakendata"
+  },
+  "coverageAnalysis": {
+    "start": "Analüüsi tehisaruga",
+    "starting": "Alustan…",
+    "heading": "Tehisaru analüüs",
+    "running": "Käib…",
+    "applying": "Rakendan…",
+    "noChange": "Tehisaru muudatust ei soovitanud – vaata põhjendust ülal."
+  },
+  "filter": {
+    "ariaLabel": "{{label}}: vali, mida näidata",
+    "ariaLabelHidden_one": "{{label}} ({{count}} peidetud): vali, mida näidata",
+    "ariaLabelHidden_other": "{{label}} ({{count}} peidetud): vali, mida näidata",
+    "hiddenCount_one": "({{count}} peidetud)",
+    "hiddenCount_other": "({{count}} peidetud)"
+  }
+}

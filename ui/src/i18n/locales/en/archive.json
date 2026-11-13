@@ -1,0 +1,8 @@
+{
+  "title": "Archived findings",
+  "count_one": "{{count}} archived",
+  "count_other": "{{count}} archived",
+  "loading": "Loading archived findings…",
+  "emptyTitle": "Nothing archived yet",
+  "emptyBody": "Archive a finding from the Advisor screen to see it here."
+}

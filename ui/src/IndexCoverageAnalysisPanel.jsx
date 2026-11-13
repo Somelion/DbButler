@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
 import { Alert } from "./components";
@@ -13,6 +14,7 @@ const POLL_INTERVAL_MS = 3000;
 // under the finding it's about, since a covering-index verdict only makes
 // sense in the context of that one index.
 export default function IndexCoverageAnalysisPanel({ targetId, findingId, onApplyAnalysis }) {
+  const { t } = useTranslation("findings");
   // The analysis this panel started (as returned by the create call). Until
   // then nothing is fetched or polled.
   const [created, setCreated] = useState(null);
@@ -63,7 +65,7 @@ export default function IndexCoverageAnalysisPanel({ targetId, findingId, onAppl
           onClick={handleStart}
           disabled={starting}
         >
-          {starting ? "Starting…" : "Analyze with AI"}
+          {starting ? t("coverageAnalysis.starting") : t("coverageAnalysis.start")}
         </button>
         {error && (
           <Alert tone="critical" compact>
@@ -76,11 +78,11 @@ export default function IndexCoverageAnalysisPanel({ targetId, findingId, onAppl
 
   return (
     <div className={styles.panel}>
-      <h4 className={styles.heading}>AI Analysis</h4>
+      <h4 className={styles.heading}>{t("coverageAnalysis.heading")}</h4>
 
       {analysis.status === "pending" && (
         <p role="status" className={styles.muted}>
-          Running…
+          {t("coverageAnalysis.running")}
         </p>
       )}
 
@@ -102,11 +104,11 @@ export default function IndexCoverageAnalysisPanel({ targetId, findingId, onAppl
                 onClick={handleApply}
                 disabled={applying}
               >
-                {applying ? "Applying…" : "Apply"}
+                {applying ? t("coverageAnalysis.applying") : t("common:actions.apply")}
               </button>
             </>
           ) : (
-            <p className={styles.muted}>The AI didn't recommend a change — see its reasoning above.</p>
+            <p className={styles.muted}>{t("coverageAnalysis.noChange")}</p>
           )}
         </>
       )}

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Settings2 } from "lucide-react";
 import styles from "./CategoryFilterDropdown.module.css";
 import { Checkbox, Popover, popoverStyles } from "./components";
@@ -6,21 +7,37 @@ import { Checkbox, Popover, popoverStyles } from "./components";
 // Select none. Generic over "items" so it can drive both the Table Health
 // schema filter and the Advisor tab/category/schema filters from the same
 // component. A checked item is shown; `hiddenItems` holds the unchecked ones.
-export default function CategoryFilterDropdown({ label, items, hiddenItems, onToggle, onSelectAll, onSelectNone }) {
+// `itemLabel` optionally maps an item to its displayed text (e.g. a
+// translation), so the item itself can stay a stable stored id.
+export default function CategoryFilterDropdown({
+  label,
+  items,
+  hiddenItems,
+  onToggle,
+  onSelectAll,
+  onSelectNone,
+  itemLabel = (item) => item,
+}) {
+  const { t } = useTranslation("findings");
   if (items.length === 0) return null;
 
-  const hiddenText = hiddenItems.size > 0 ? ` (${hiddenItems.size} hidden)` : "";
+  const ariaLabel =
+    hiddenItems.size > 0
+      ? t("filter.ariaLabelHidden", { label, lowerLabel: label.toLowerCase(), count: hiddenItems.size })
+      : t("filter.ariaLabel", { label, lowerLabel: label.toLowerCase() });
 
   return (
     <Popover
-      ariaLabel={`${label}${hiddenText}: choose which ${label.toLowerCase()} to show`}
+      ariaLabel={ariaLabel}
       panelLabel={label}
       buttonClassName={`button-secondary button-sm ${styles.trigger}`}
       label={
         <>
           <Settings2 size={13} aria-hidden="true" />
           {label}
-          {hiddenItems.size > 0 && <span className={styles.hiddenCount}>({hiddenItems.size} hidden)</span>}
+          {hiddenItems.size > 0 && (
+            <span className={styles.hiddenCount}>{t("filter.hiddenCount", { count: hiddenItems.size })}</span>
+          )}
         </>
       }
     >
@@ -28,10 +45,10 @@ export default function CategoryFilterDropdown({ label, items, hiddenItems, onTo
         <>
           <div className={styles.bulkActions}>
             <button type="button" className="button-link" onClick={onSelectAll}>
-              Select all
+              {t("common:actions.selectAll")}
             </button>
             <button type="button" className="button-link" onClick={onSelectNone}>
-              Select none
+              {t("common:actions.selectNone")}
             </button>
           </div>
           <div className={popoverStyles.divider} />
@@ -43,7 +60,7 @@ export default function CategoryFilterDropdown({ label, items, hiddenItems, onTo
               onChange={() => onToggle(item)}
               className={`${popoverStyles.option} ${styles.option}`}
             >
-              <span className={styles.itemLabel}>{item}</span>
+              <span className={styles.itemLabel}>{itemLabel(item)}</span>
             </Checkbox>
           ))}
         </>

@@ -1,0 +1,56 @@
+{
+  "columns": {
+    "parameter": {
+      "label": "Parameter",
+      "help": "The postgresql.conf setting name."
+    },
+    "current": {
+      "label": "Current",
+      "help": "The value currently active on your target database."
+    },
+    "recommended": {
+      "label": "Recommended",
+      "help": "DbButler's suggested value, sized from your saved Hardware Profile (RAM/CPU/storage/workload)."
+    },
+    "why": {
+      "label": "Why",
+      "help": "The reasoning behind the recommendation."
+    },
+    "restart": {
+      "srLabel": "Restart required",
+      "help": "A badge here means this change only takes effect after a manual PostgreSQL restart — everything else applies via a reload (pg_reload_conf())."
+    }
+  },
+  "script": {
+    "reloadComment": "Reload-only settings take effect immediately after:",
+    "restartComment": "Settings marked \"restart\" need a manual PostgreSQL restart to apply."
+  },
+  "title": "Recommended settings",
+  "recommendOnly": "<b>Recommend only.</b> Nothing here changes your database automatically — copy or export these values and apply them yourself when you're ready.",
+  "loading": "Loading recommendations…",
+  "restartBadge": "Restart",
+  "copyAlterSystem": "Copy as ALTER SYSTEM script",
+  "copyConf": "Copy as postgresql.conf snippet",
+  "hardware": {
+    "title": "Hardware Profile",
+    "edit": "Edit",
+    "loading": "Loading hardware profile…",
+    "detecting": "Detecting hardware…",
+    "memory": "Memory",
+    "cpu": "CPU",
+    "cores_one": "{{count}} core",
+    "cores_other": "{{count}} cores",
+    "storage": "Storage",
+    "workload": "Workload",
+    "memoryMb": "Memory (MB)",
+    "cpuCores": "CPU cores",
+    "storageType": "Storage type",
+    "workloadType": "Workload type",
+    "workloads": {
+      "mixed": "Mixed / general use",
+      "oltp": "Many small transactions",
+      "analytics": "Analytics / reporting",
+      "home": "Small home project"
+    }
+  }
+}

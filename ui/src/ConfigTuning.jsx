@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
 import HeaderHint from "./HeaderHint";
@@ -6,33 +7,29 @@ import { Alert, Badge, Card, CopyButton, Skeleton } from "./components";
 import tableStyles from "./components/Table.module.css";
 import styles from "./ConfigTuning.module.css";
 
+// label/srLabel/help are translation keys, translated at render.
 const COLUMNS = [
-  { label: "Parameter", help: "The postgresql.conf setting name." },
-  { label: "Current", help: "The value currently active on your target database." },
-  {
-    label: "Recommended",
-    help: "DbButler's suggested value, sized from your saved Hardware Profile (RAM/CPU/storage/workload).",
-  },
-  { label: "Why", help: "The reasoning behind the recommendation." },
-  {
-    label: "",
-    srLabel: "Restart required",
-    help: "A badge here means this change only takes effect after a manual PostgreSQL restart — everything else applies via a reload (pg_reload_conf()).",
-  },
+  { key: "parameter", label: "columns.parameter.label", help: "columns.parameter.help" },
+  { key: "current", label: "columns.current.label", help: "columns.current.help" },
+  { key: "recommended", label: "columns.recommended.label", help: "columns.recommended.help" },
+  { key: "why", label: "columns.why.label", help: "columns.why.help" },
+  { key: "restart", label: "", srLabel: "columns.restart.srLabel", help: "columns.restart.help" },
 ];
 
 // Exported so HardwareProfile can invalidate it on save — the
 // recommendations are recomputed from the profile server-side.
 export const configTuningKey = (targetId) => targetKey(targetId, "config-tuning");
 
-const alterSystemScript = (rows) =>
+// `t` translates the script's two comment lines; the SQL stays as it is.
+const alterSystemScript = (rows, t) =>
   rows.map((r) => `ALTER SYSTEM SET ${r.name} = '${r.recommended_value}';`).join("\n") +
-  "\n\n-- Reload-only settings take effect immediately after:\nSELECT pg_reload_conf();\n" +
-  "-- Settings marked \"restart\" need a manual PostgreSQL restart to apply.";
+  `\n\n-- ${t("script.reloadComment")}\nSELECT pg_reload_conf();\n` +
+  `-- ${t("script.restartComment")}`;
 
 const confSnippet = (rows) => rows.map((r) => `${r.name} = ${r.recommended_value}`).join("\n");
 
 export default function ConfigTuning({ targetId }) {
+  const { t } = useTranslation("configTuning");
   const { data, error, isPending } = useQuery({
     queryKey: configTuningKey(targetId),
     queryFn: ({ signal }) => api.getConfigTuning(targetId, { signal }),
@@ -43,10 +40,9 @@ export default function ConfigTuning({ targetId }) {
   const needsProfile = error?.message.includes("Hardware Profile");
 
   return (
-    <Card title="Recommended settings">
+    <Card title={t("title")}>
       <Alert tone="info" compact>
-        <b>Recommend only.</b> Nothing here changes your database automatically — copy or export these values and
-        apply them yourself when you're ready.
+        <Trans t={t} i18nKey="recommendOnly" components={{ b: <b /> }} />
       </Alert>
 
       {error && (
@@ -55,7 +51,7 @@ export default function ConfigTuning({ targetId }) {
         </Alert>
       )}
 
-      {isPending && <Skeleton lines={5} label="Loading recommendations…" />}
+      {isPending && <Skeleton lines={5} label={t("loading")} />}
 
       {data && (
         <>
@@ -64,10 +60,10 @@ export default function ConfigTuning({ targetId }) {
               <thead>
                 <tr>
                   {COLUMNS.map((col) => (
-                    <th key={col.label || "restart"} scope="col" className={tableStyles.th}>
-                      {col.label}
-                      {col.srLabel && <span className="sr-only">{col.srLabel}</span>}
-                      <HeaderHint text={col.help} />
+                    <th key={col.key} scope="col" className={tableStyles.th}>
+                      {col.label && t(col.label)}
+                      {col.srLabel && <span className="sr-only">{t(col.srLabel)}</span>}
+                      <HeaderHint text={t(col.help)} />
                     </th>
                   ))}
                 </tr>
@@ -79,7 +75,7 @@ export default function ConfigTuning({ targetId }) {
                     <td className={`${tableStyles.td} ${styles.current}`}>{row.current_value}</td>
                     <td className={`${tableStyles.td} ${styles.recommended}`}>{row.recommended_value}</td>
                     <td className={`${tableStyles.td} ${styles.why}`}>{row.why}</td>
-                    <td className={tableStyles.td}>{row.requires_restart && <Badge tone="attention">Restart</Badge>}</td>
+                    <td className={tableStyles.td}>{row.requires_restart && <Badge tone="attention">{t("restartBadge")}</Badge>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -88,13 +84,13 @@ export default function ConfigTuning({ targetId }) {
 
           <div className={styles.actions}>
             <CopyButton
-              text={alterSystemScript(data.rows)}
-              label="Copy as ALTER SYSTEM script"
+              text={alterSystemScript(data.rows, t)}
+              label={t("copyAlterSystem")}
               className="button-primary"
             />
             <CopyButton
               text={confSnippet(data.rows)}
-              label="Copy as postgresql.conf snippet"
+              label={t("copyConf")}
               className="button-secondary"
             />
           </div>

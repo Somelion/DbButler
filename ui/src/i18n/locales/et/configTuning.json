@@ -1,0 +1,56 @@
+{
+  "columns": {
+    "parameter": {
+      "label": "Parameeter",
+      "help": "Seade nimi failis postgresql.conf."
+    },
+    "current": {
+      "label": "Praegune",
+      "help": "Väärtus, mis on sinu andmebaasis praegu kasutusel."
+    },
+    "recommended": {
+      "label": "Soovitatud",
+      "help": "DbButleri soovitatud väärtus, arvutatud sinu salvestatud riistvaraprofiili põhjal (RAM/CPU/salvestus/koormus)."
+    },
+    "why": {
+      "label": "Miks",
+      "help": "Soovituse põhjendus."
+    },
+    "restart": {
+      "srLabel": "Vajab taaskäivitust",
+      "help": "Märk siin tähendab, et muudatus hakkab kehtima alles pärast PostgreSQL-i käsitsi taaskäivitamist – kõik muu rakendub konfiguratsiooni uuesti laadimisega (pg_reload_conf())."
+    }
+  },
+  "script": {
+    "reloadComment": "Uuesti laadimisega rakenduvad seaded hakkavad kehtima kohe pärast seda:",
+    "restartComment": "Märkega „Taaskäivitus“ seaded rakenduvad alles pärast PostgreSQL-i käsitsi taaskäivitamist."
+  },
+  "title": "Soovitatud seaded",
+  "recommendOnly": "<b>Ainult soovitused.</b> Siin ei muudeta sinu andmebaasis midagi automaatselt – kopeeri või ekspordi need väärtused ja rakenda need ise, kui oled valmis.",
+  "loading": "Soovituste laadimine…",
+  "restartBadge": "Taaskäivitus",
+  "copyAlterSystem": "Kopeeri ALTER SYSTEM skriptina",
+  "copyConf": "Kopeeri postgresql.conf-i lõiguna",
+  "hardware": {
+    "title": "Riistvaraprofiil",
+    "edit": "Muuda",
+    "loading": "Riistvaraprofiili laadimine…",
+    "detecting": "Riistvara tuvastamine…",
+    "memory": "Mälu",
+    "cpu": "CPU",
+    "cores_one": "{{count}} tuum",
+    "cores_other": "{{count}} tuuma",
+    "storage": "Salvestus",
+    "workload": "Koormus",
+    "memoryMb": "Mälu (MB)",
+    "cpuCores": "CPU tuumad",
+    "storageType": "Salvestuse tüüp",
+    "workloadType": "Koormuse tüüp",
+    "workloads": {
+      "mixed": "Segakoormus / üldkasutus",
+      "oltp": "Palju väikseid tehinguid",
+      "analytics": "Analüütika / aruandlus",
+      "home": "Väike koduprojekt"
+    }
+  }
+}
