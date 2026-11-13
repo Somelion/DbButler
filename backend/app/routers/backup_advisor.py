@@ -26,6 +26,7 @@ ARCHIVER_STATUS_QUERY = """
 # access needed — by default restricted to superusers and pg_monitor
 # members, the role this app already recommends everywhere else.
 WAL_DIR_SIZE_QUERY = "SELECT COALESCE(sum(size), 0) FROM pg_ls_waldir()"
+WAL_DIR_ACCESS_QUERY = "SELECT has_function_privilege('pg_catalog.pg_ls_waldir()', 'EXECUTE')"
 
 MAX_WAL_SIZE_QUERY = "SELECT pg_size_bytes(current_setting('max_wal_size'))"
 
@@ -43,6 +44,19 @@ def get_backup_advisor(target_id: uuid.UUID):
     return BackupAdvisorResponse(findings=[IndexFinding(**finding) for finding in findings])
 
 
+def fetch_wal_dir_bytes(cur) -> int | None:
+    """Size of pg_wal, or None when the monitoring role may not call
+    pg_ls_waldir() (only superusers and pg_monitor members can by default).
+    The privilege is checked first rather than catching the error: a failed
+    statement would abort the caller's transaction and take every later
+    check on the same connection down with it."""
+    cur.execute(WAL_DIR_ACCESS_QUERY)
+    if not cur.fetchone()[0]:
+        return None
+    cur.execute(WAL_DIR_SIZE_QUERY)
+    return cur.fetchone()[0]
+
+
 def compute_backup_advisor_findings(cur) -> list[dict]:
     """Runs all Backup & WAL Health checks against an already-open target
     cursor and returns raw finding dicts, unfiltered by archive state. Shared
@@ -54,8 +68,7 @@ def compute_backup_advisor_findings(cur) -> list[dict]:
     cur.execute(ARCHIVER_STATUS_QUERY)
     failed_count, last_archived_time, last_failed_time, last_failed_wal = cur.fetchone()
 
-    cur.execute(WAL_DIR_SIZE_QUERY)
-    wal_dir_bytes = cur.fetchone()[0]
+    wal_dir_bytes = fetch_wal_dir_bytes(cur)
 
     cur.execute(MAX_WAL_SIZE_QUERY)
     max_wal_size_bytes = cur.fetchone()[0]

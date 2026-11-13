@@ -6,6 +6,7 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
   min-width: 0;
 }
 

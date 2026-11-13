@@ -1216,3 +1216,8 @@ class IntegrationsStatus(BaseModel):
     metrics_enabled: bool
     public_url: str | None
     mcp_tools: list[str]
+
+
+class FeatureFlags(BaseModel):
+    # The Workload Map's "3D map" view (FEATURE_WORKLOAD_3D).
+    workload_map_3d: bool

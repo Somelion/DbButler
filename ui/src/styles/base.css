@@ -7,10 +7,24 @@
   box-sizing: border-box;
 }
 
+/* The document scrolls — one scrollbar, at the window edge. min-height,
+   not height, so a long page grows the body instead of overflowing it.
+   scroll-padding keeps scrollIntoView targets clear of the sticky top bar;
+   the stable gutter stops the layout shifting when a page grows a scrollbar. */
+html {
+  scroll-padding-top: calc(var(--topbar-height) + var(--space-12));
+  scrollbar-gutter: stable;
+}
+
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 body {

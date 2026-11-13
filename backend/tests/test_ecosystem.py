@@ -551,3 +551,69 @@ def test_report_webhook_payloads():
     assert generic["report"]["report_id"] == "r1" and generic["report"]["link"] is None
     discord = format_report_payload("discord", "T", ["x" * 3000], None, "attention", {})
     assert len(discord["content"]) == 2000
+
+
+# --- Backup & WAL without pg_monitor ------------------------------------------------
+
+
+def test_wal_size_is_skipped_without_the_privilege():
+    from app.routers.backup_advisor import WAL_DIR_SIZE_QUERY, fetch_wal_dir_bytes
+
+    cursor = FakeStoreCursor([[(False,)]])
+    assert fetch_wal_dir_bytes(cursor) is None
+    assert all(sql != WAL_DIR_SIZE_QUERY for sql, _p in cursor.executed)  # never attempted
+    cursor = FakeStoreCursor([[(True,)], [(123,)]])
+    assert fetch_wal_dir_bytes(cursor) == 123
+
+
+def test_missing_wal_privilege_is_a_notice_not_a_problem():
+    from app.backup_advisor import build_backup_status
+    from app.severity import worse
+
+    category, findings = build_backup_status("on", 0, None, None, None, None, 1024**3)
+    assert category.severity == "healthy"
+    assert "needs pg_monitor" in category.detail
+    assert [(f["id"], f["severity"]) for f in findings] == [("wal-directory-size-not-visible", "info")]
+    assert worse("healthy", "info") == "healthy"
+
+
+# --- pg_stat_statements in a schema off the search_path -------------------------
+
+
+def test_pg_stat_statements_in_its_own_schema_is_put_on_the_search_path():
+    from app import pg_stat_statements as pss
+
+    cursor = FakeStoreCursor([[("extensions", False, True)], [("$user, public, extensions",)], [("170000",)]])
+    assert pss.is_enabled(cursor) is True
+    sql, params = cursor.executed[1]
+    assert "set_config( 'search_path'" in sql and params == {"schema": "extensions"}
+
+    # Already visible: nothing to change.
+    cursor = FakeStoreCursor([[("public", True, True)], [("170000",)]])
+    assert pss.is_enabled(cursor) is True
+    assert not any("set_config" in sql for sql, _p in cursor.executed)
+
+
+def test_pg_stat_statements_schema_without_usage_explains_the_grant():
+    from app import pg_stat_statements as pss
+
+    cursor = FakeStoreCursor([[("extensions", False, False)]])
+    assert pss.is_enabled(cursor) is False
+    cursor = FakeStoreCursor([[("extensions", False, False)]])
+    assert "GRANT USAGE ON SCHEMA extensions" in pss.unavailable_message(cursor)
+    cursor = FakeStoreCursor([[]])
+    assert pss.unavailable_message(cursor) == pss.NOT_INSTALLED_MESSAGE
+
+
+# --- Feature flags ---------------------------------------------------------------
+
+
+def test_workload_3d_flag_is_off_by_default_and_follows_the_setting(monkeypatch):
+    import os
+
+    client = TestClient(app)
+    auth = {"Authorization": f"Bearer {os.environ['AUTH_TOKEN']}"}
+    assert client.get("/api/features").status_code == 401
+    assert client.get("/api/features", headers=auth).json() == {"workload_map_3d": False}
+    monkeypatch.setattr(settings, "feature_workload_3d", True)
+    assert client.get("/api/features", headers=auth).json() == {"workload_map_3d": True}

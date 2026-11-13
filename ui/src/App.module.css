@@ -1,20 +1,61 @@
+/* The page scrolls as one document: the rail (NavRail.module.css) and the
+   top bar are sticky, so there is a single scrollbar at the window edge and
+   no inner scroll boxes. */
 .app {
-  display: flex;
-  height: 100vh;
+  display: grid;
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    radial-gradient(1200px 520px at 100% -10%, color-mix(in oklch, var(--accent) 7%, transparent), transparent 70%),
+    var(--bg);
 }
 
 .main {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-24);
-  padding: var(--space-28) var(--space-36);
-  overflow: auto;
+  padding: 0 var(--page-pad-x) var(--space-36);
 }
 
 .main:focus {
   outline: none;
+}
+
+/* Title, database switcher and theme stay in view while the page scrolls.
+   Translucent with a blur, so content slides under it rather than being
+   cut off by a hard edge. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-topbar);
+  margin: 0 calc(-1 * var(--page-pad-x)) var(--space-24);
+  padding: var(--space-14) var(--page-pad-x);
+  background: var(--topbar-bg);
+  backdrop-filter: saturate(1.5) blur(14px);
+  -webkit-backdrop-filter: saturate(1.5) blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbarInner,
+.content {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  animation: content-in var(--duration-normal) var(--ease-standard);
+}
+
+@keyframes content-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
 /* First Tab stop on every page; jumps past the nav rail. */
@@ -37,7 +78,14 @@
 }
 
 @media (max-width: 900px) {
-  .main {
-    padding: var(--space-20) var(--space-16);
+  .app {
+    grid-template-columns: 60px minmax(0, 1fr);
+    --page-pad-x: var(--space-16);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content {
+    animation: none;
   }
 }

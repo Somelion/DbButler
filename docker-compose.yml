@@ -39,6 +39,8 @@ services:
       MCP_TOKEN: ${APP_MCP_TOKEN:-}
       METRICS_TOKEN: ${APP_METRICS_TOKEN:-}
       PUBLIC_URL: ${APP_PUBLIC_URL:-}
+      # Feature flags, off unless set to true in .env.
+      FEATURE_WORKLOAD_3D: ${APP_FEATURE_WORKLOAD_3D:-false}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${UI_PORT:-5173}}
       LOG_TO_FILE: ${LOG_TO_FILE:-false}
       LOG_DIR: /logs

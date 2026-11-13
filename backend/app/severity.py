@@ -4,7 +4,10 @@ Kept in one place so a threshold only needs tuning once, and so new checks
 (Epic 3/4) can reuse the same scale rather than inventing their own.
 """
 
-SEVERITY_RANK = {"unknown": 0, "healthy": 1, "attention": 2, "critical": 3}
+# "info" is a notice, not a problem (e.g. a check that couldn't run for lack
+# of a privilege): it ranks with healthy, so it never turns a tile amber or
+# reaches an alert.
+SEVERITY_RANK = {"unknown": 0, "healthy": 1, "info": 1, "attention": 2, "critical": 3}
 
 
 def worse(a: str, b: str) -> str:

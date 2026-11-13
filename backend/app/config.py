@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     # message simply has no link without it.
     public_url: str = ""
 
+    # Feature flags (FEATURE_* in docker-compose.yml, APP_FEATURE_* in .env),
+    # read by the UI from /api/features. Off by default.
+    #   feature_workload_3d: the Workload Map's "3D map" view.
+    feature_workload_3d: bool = False
+
     # Comma-separated list of origins the UI is allowed to call the API from.
     cors_allowed_origins: str = "http://localhost:5173"
 

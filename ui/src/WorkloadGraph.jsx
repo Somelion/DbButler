@@ -206,7 +206,12 @@ export default function WorkloadGraph({ nodes, edges, colorBy, visibleKinds, sel
     });
     cy.on("mouseout", "edge", () => setHover(null));
     cyRef.current = cy;
+    // Cytoscape only notices window resizes on its own; the container also
+    // changes size when the map goes full screen or the side panel opens.
+    const observer = new ResizeObserver(() => cy.resize());
+    observer.observe(containerRef.current);
     return () => {
+      observer.disconnect();
       cy.destroy();
       cyRef.current = null;
     };

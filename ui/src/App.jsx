@@ -220,31 +220,34 @@ function Shell({ targets, loadError }) {
       <a href="#main-content" className={styles.skipLink}>
         Skip to content
       </a>
-      <NavRail
-        connected={connected}
-        activeTarget={target}
-        badges={{ "ai-analysis": aiAnalysisUnseen }}
-      />
+      <NavRail connected={connected} activeTarget={target} badges={{ "ai-analysis": aiAnalysisUnseen }} />
       <main id="main-content" className={styles.main} tabIndex={-1}>
-        {loadError && <Alert tone="critical">{loadError}</Alert>}
-        {extensionWarning && screen.scope === "target" && <Alert tone="attention">{extensionWarning}</Alert>}
-        <ScreenHeader
-          title={screen.label}
-          subtitle={subtitle}
-          mode={mode}
-          onModeChange={screen.showMode ? setMode : null}
-          targetSwitcher={
-            <TargetSwitcher
-              targets={targets}
-              activeTargetId={target?.id ?? null}
-              onSelect={handleSelectTarget}
-              onManage={() => navigate("/connections")}
+        <div className={styles.topbar}>
+          <div className={styles.topbarInner}>
+            <ScreenHeader
+              title={screen.label}
+              subtitle={subtitle}
+              mode={mode}
+              onModeChange={screen.showMode ? setMode : null}
+              targetSwitcher={
+                <TargetSwitcher
+                  targets={targets}
+                  activeTargetId={target?.id ?? null}
+                  onSelect={handleSelectTarget}
+                  onManage={() => navigate("/connections")}
+                />
+              }
             />
-          }
-        />
-        <ModeContext.Provider value={mode}>
-          <Outlet context={outletContext} />
-        </ModeContext.Provider>
+          </div>
+        </div>
+        {/* Keyed by screen, so each screen fades in on navigation. */}
+        <div className={styles.content} key={screenKey ?? "none"}>
+          {loadError && <Alert tone="critical">{loadError}</Alert>}
+          {extensionWarning && screen.scope === "target" && <Alert tone="attention">{extensionWarning}</Alert>}
+          <ModeContext.Provider value={mode}>
+            <Outlet context={outletContext} />
+          </ModeContext.Provider>
+        </div>
       </main>
     </div>
   );

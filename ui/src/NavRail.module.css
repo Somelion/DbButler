@@ -1,41 +1,74 @@
+/* Sticky beside the page, full window height. Compact enough to fit a
+   laptop screen; on a very short window it scrolls, with the scrollbar only
+   shown while the pointer is over the rail. */
 .rail {
+  position: sticky;
+  top: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: var(--space-16);
-  width: var(--rail-width);
-  flex-shrink: 0;
-  height: 100%;
-  padding: var(--space-20) var(--space-12);
+  gap: var(--space-14);
+  height: 100vh;
+  height: 100dvh;
+  padding: var(--space-16) var(--space-10) var(--space-20);
   overflow-y: auto;
-  background: var(--row-bg);
+  overscroll-behavior: contain;
+  scrollbar-color: transparent transparent;
+  background: color-mix(in oklch, var(--row-bg) 85%, transparent);
   border-right: 1px solid var(--border);
 }
 
-.top {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-16);
+.rail:hover,
+.rail:focus-within {
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
-  padding: 0 var(--space-8);
+  gap: var(--space-10);
+  padding: var(--space-2) var(--space-6) var(--space-8);
 }
 
-.logo {
-  color: var(--accent);
+.logoTile {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
+  color: var(--on-accent);
+  background: linear-gradient(135deg, var(--accent), var(--chart-4));
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 14px color-mix(in oklch, var(--accent) 35%, transparent);
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .brandName {
   font-family: var(--font-display);
   font-weight: var(--weight-bold);
   font-size: var(--font-size-lg);
+  line-height: var(--leading-tight);
   letter-spacing: var(--tracking-display);
   color: var(--text);
+}
+
+.instance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.instanceName {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .group {
@@ -45,10 +78,10 @@
 }
 
 .groupLabel {
-  padding: 0 var(--space-12) var(--space-4);
+  padding: 0 var(--space-10) var(--space-4);
   font-size: var(--font-size-2xs);
   font-weight: var(--weight-bold);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -56,26 +89,30 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 1px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-10);
-  padding: var(--space-6) var(--space-12);
+  padding: var(--space-5) var(--space-10);
   font-size: var(--font-size-md);
   font-weight: var(--weight-medium);
-  color: var(--text);
+  color: var(--text-secondary);
   text-decoration: none;
   border-radius: var(--radius-md);
-  transition: background-color var(--duration-fast) var(--ease-standard);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
 }
 
 .item:hover:not(.disabled) {
+  color: var(--text);
   background: var(--surface-sunken);
 }
 
@@ -86,6 +123,18 @@
   background: var(--accent-tint);
 }
 
+/* Accent bar on the current screen. */
+.active::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--rail-active-bar);
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+}
+
 .disabled {
   opacity: 0.45;
   cursor: default;
@@ -94,9 +143,15 @@
 .icon {
   flex-shrink: 0;
   color: var(--text-muted);
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
-.active .icon {
+.item:hover:not(.disabled) .icon {
+  color: var(--text-secondary);
+}
+
+.active .icon,
+.active:hover .icon {
   color: var(--accent);
 }
 
@@ -121,46 +176,24 @@
   border-radius: var(--radius-pill);
 }
 
-.footer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-10);
-  padding: var(--space-10) var(--space-8) 0;
-  border-top: 1px solid var(--border);
-}
-
-.instance {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  min-width: 0;
-}
-
-.instanceName {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Narrow windows: icon-only rail. Labels stay in the DOM for screen
    readers; the link title shows them on hover. */
 @media (max-width: 900px) {
   .rail {
-    width: 60px;
-    padding: var(--space-16) var(--space-8);
+    padding: var(--space-14) var(--space-8);
   }
 
-  .brandName,
-  .instanceName {
-    display: none;
-  }
-
-  .brand,
-  .instance {
+  .brand {
     justify-content: center;
-    padding: 0;
+    padding: 0 0 var(--space-6);
+  }
+
+  .brandText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
   }
 
   .groupLabel {
@@ -177,9 +210,12 @@
   }
 
   .item {
-    position: relative;
     justify-content: center;
     padding: var(--space-8);
+  }
+
+  .active::before {
+    left: -8px;
   }
 
   .label {
@@ -194,14 +230,5 @@
     position: absolute;
     top: 0;
     right: 0;
-  }
-
-  .footer {
-    align-items: center;
-    padding: var(--space-10) 0 0;
-  }
-
-  .footer [role="radiogroup"] {
-    flex-direction: column;
   }
 }

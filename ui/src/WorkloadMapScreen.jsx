@@ -1,7 +1,7 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
-import { Network, Search } from "lucide-react";
+import { Maximize2, Minimize2, Network, Search } from "lucide-react";
 import styles from "./WorkloadMapScreen.module.css";
 import { api } from "./api";
 import { formatRelativeTime } from "./format";
@@ -22,8 +22,8 @@ const RANGE_OPTIONS = [
 ];
 const DEFAULT_HOURS = 168;
 const VIEW_ITEMS = [
-  { key: "map", label: "Map" },
-  { key: "3d", label: "3D" },
+  { key: "map", label: "2D map" },
+  { key: "3d", label: "3D map" },
   { key: "list", label: "Relationships" },
 ];
 const RANGE_LABEL = { 24: "24 hours", 168: "7 days", 720: "30 days" };
@@ -200,11 +200,81 @@ function TimeSlider({ hours, until, onCommit }) {
   );
 }
 
+// Full screen: the map (with its toolbar and side panel) fills the window,
+// and the browser goes full screen too when it allows it. Esc, the button,
+// or leaving browser full screen returns to the normal page.
+function useFullScreen() {
+  const [on, setOn] = useState(false);
+  const usedBrowserFullScreen = useRef(false);
+
+  const enter = () => {
+    setOn(true);
+    // Must be called from the click itself; a refusal (iframe, policy)
+    // just leaves the in-page full screen.
+    const request = document.documentElement.requestFullscreen?.();
+    if (request) {
+      request.then(() => (usedBrowserFullScreen.current = true)).catch(() => {});
+    }
+  };
+
+  const exit = () => {
+    setOn(false);
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    usedBrowserFullScreen.current = false;
+  };
+
+  useEffect(() => {
+    if (!on) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (event) => {
+      if (event.key === "Escape" && !event.defaultPrevented) setOn(false);
+    };
+    // Esc in browser full screen never reaches the page as a keydown; the
+    // browser leaves full screen, and this follows it.
+    const onFullScreenChange = () => {
+      if (!document.fullscreenElement && usedBrowserFullScreen.current) {
+        usedBrowserFullScreen.current = false;
+        setOn(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("fullscreenchange", onFullScreenChange);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("fullscreenchange", onFullScreenChange);
+    };
+  }, [on]);
+
+  // Leaving the screen while in full screen: give the browser window back.
+  useEffect(
+    () => () => {
+      if (usedBrowserFullScreen.current && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    },
+    []
+  );
+
+  return { on, enter, exit };
+}
+
 export default function WorkloadMapScreen({ targetId }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { hours, until, view, colorBy, visibleKinds, selection } = useMapParams(searchParams);
+  const { hours, until, view: requestedView, colorBy, visibleKinds, selection } = useMapParams(searchParams);
+  // The 3D map is behind a feature flag (APP_FEATURE_WORKLOAD_3D in .env):
+  // while it's off — or not known yet — the tab is hidden and a ?view=3d
+  // link shows the 2D map.
+  const featuresQuery = useQuery({
+    queryKey: ["features"],
+    queryFn: ({ signal }) => api.getFeatures({ signal }),
+    staleTime: Infinity,
+  });
+  const has3d = featuresQuery.data?.workload_map_3d === true;
+  const view = requestedView === "3d" && !has3d ? "map" : requestedView;
+  const viewItems = has3d ? VIEW_ITEMS : VIEW_ITEMS.filter((item) => item.key !== "3d");
   const [search, setSearch] = useState("");
   const [searchMiss, setSearchMiss] = useState(null);
+  const fullScreen = useFullScreen();
   const untilIso = until ? until.toISOString() : null;
 
   const graphQuery = useQuery({
@@ -268,7 +338,7 @@ export default function WorkloadMapScreen({ targetId }) {
       <Tabs
         label="View"
         idPrefix="workload-view"
-        items={VIEW_ITEMS}
+        items={viewItems}
         value={view}
         onChange={(key) => updateParams({ view: key === "map" ? null : key })}
       />
@@ -303,6 +373,16 @@ export default function WorkloadMapScreen({ targetId }) {
           Find
         </button>
       </form>
+      <button
+        type="button"
+        className="button-secondary button-sm"
+        onClick={fullScreen.on ? fullScreen.exit : fullScreen.enter}
+        aria-pressed={fullScreen.on}
+        title={fullScreen.on ? "Exit full screen (Esc)" : "Full screen"}
+      >
+        {fullScreen.on ? <Minimize2 size={13} aria-hidden="true" /> : <Maximize2 size={13} aria-hidden="true" />}
+        {fullScreen.on ? "Exit full screen" : "Full screen"}
+      </button>
     </div>
   );
 
@@ -334,8 +414,13 @@ export default function WorkloadMapScreen({ targetId }) {
         : "No user tables to show: the tracked queries only touch system catalogs, or tables outside this connection's schema filter.";
 
   return (
-    <div className={styles.screen}>
-      <Card>
+    <div
+      className={`${styles.screen} ${fullScreen.on ? styles.fullscreen : ""}`}
+      role={fullScreen.on ? "dialog" : undefined}
+      aria-modal={fullScreen.on ? "true" : undefined}
+      aria-label={fullScreen.on ? "Workload Map, full screen" : undefined}
+    >
+      <Card className={styles.controlsCard}>
         {toolbar}
         {searchMiss && (
           <Alert tone="info" compact>
@@ -355,7 +440,9 @@ export default function WorkloadMapScreen({ targetId }) {
             time they took in that window. Join columns come from each query's current plan.
           </Alert>
         )}
-        <CoverageMeter meta={meta} />
+        <div className={styles.coverageBlock}>
+          <CoverageMeter meta={meta} />
+        </div>
         {meta.weight_basis === "lifetime" && (
           <Alert tone="info" compact>
             No tracked query ran in the last {RANGE_LABEL[hours]}, so weights use each query's total since
@@ -418,7 +505,7 @@ export default function WorkloadMapScreen({ targetId }) {
                 />
               </Card>
             ) : (
-              <Card>
+              <Card className={styles.listCard}>
                 <Legend
                   visibleKinds={visibleKinds}
                   onToggleKind={toggleKind}

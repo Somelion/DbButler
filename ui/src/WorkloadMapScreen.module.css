@@ -109,6 +109,66 @@
   grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
 }
 
+/* The side panel stays beside the map while the page scrolls. */
+.withPanel > aside {
+  position: sticky;
+  top: calc(var(--topbar-height) + var(--space-12));
+  max-height: calc(100vh - var(--topbar-height) - var(--space-36));
+}
+
+/* Full screen: toolbar on top, map (and side panel) filling the rest. */
+.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-fullscreen);
+  gap: var(--space-12);
+  padding: var(--space-12);
+  overflow: hidden;
+  background: var(--bg);
+  animation: fullscreen-in var(--duration-normal) var(--ease-standard);
+}
+
+@keyframes fullscreen-in {
+  from {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+}
+
+.fullscreen .controlsCard {
+  flex-shrink: 0;
+  gap: var(--space-8);
+  padding: var(--space-10) var(--space-14);
+}
+
+.fullscreen .coverageBlock {
+  display: none;
+}
+
+.fullscreen .body {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.fullscreen .main,
+.fullscreen .main > * {
+  height: 100%;
+}
+
+.fullscreen .graphCard {
+  height: 100%;
+}
+
+.fullscreen .listCard {
+  overflow: auto;
+}
+
+.fullscreen .withPanel > aside {
+  position: static;
+  max-height: 100%;
+}
+
 .main {
   min-width: 0;
 }
@@ -224,7 +284,29 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .withPanel > aside {
+    position: static;
+    max-height: none;
+  }
+
+  /* Stacked map and panel in full screen: the whole stage scrolls. */
+  .fullscreen .body {
+    overflow-y: auto;
+    grid-template-rows: none;
+  }
+
+  .fullscreen .main,
+  .fullscreen .main > * {
+    height: max(420px, 70vh);
+  }
+
   .search {
     margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fullscreen {
+    animation: none;
   }
 }

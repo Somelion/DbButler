@@ -252,6 +252,8 @@ export const api = {
   getReport: (reportId, opts) => request(`/api/reports/${encodeURIComponent(reportId)}`, opts),
   getReportHtml: (reportId, opts) => requestText(`/api/reports/${encodeURIComponent(reportId)}/html`, opts),
   getIntegrations: (opts) => request("/api/integrations", opts),
+  // Feature flags from the server's .env (APP_FEATURE_*).
+  getFeatures: (opts) => request("/api/features", opts),
   getWorkloadTable: (targetId, schemaName, tableName, hours, opts, until) =>
     request(
       `/api/targets/${targetId}/workload-graph/tables/${encodeURIComponent(schemaName)}/${encodeURIComponent(tableName)}?hours=${hours}${until ? `&until=${encodeURIComponent(until)}` : ""}`,

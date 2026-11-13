@@ -4,6 +4,8 @@ import psycopg
 from fastapi import APIRouter, HTTPException
 from psycopg import sql
 
+from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
+from app.pg_stat_statements import unavailable_message
 from app.schemas import MaintenanceResult, TableMaintenanceRequest, VacuumRequest
 from app.target_conn import MAINTENANCE_STATEMENT_TIMEOUT_MS, connect_to_target
 
@@ -76,6 +78,10 @@ def reset_table_stats(target_id: uuid.UUID, payload: TableMaintenanceRequest):
 def reset_query_stats(target_id: uuid.UUID):
     try:
         with connect_to_target(target_id, autocommit=True) as conn, conn.cursor() as cur:
+            # Also puts the extension's schema on the search_path when it
+            # was installed somewhere else (app/pg_stat_statements.py).
+            if not pg_stat_statements_enabled(cur):
+                raise HTTPException(status_code=409, detail=unavailable_message(cur))
             cur.execute("SELECT pg_stat_statements_reset()")
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

@@ -89,7 +89,28 @@ def find_wal_archiving_failure_findings(
     ]
 
 
-def find_wal_dir_size_findings(wal_dir_bytes: int, max_wal_size_bytes: int) -> list[dict]:
+def find_wal_dir_size_findings(wal_dir_bytes: int | None, max_wal_size_bytes: int) -> list[dict]:
+    """wal_dir_bytes is None when the monitoring role may not call
+    pg_ls_waldir(): a notice saying so, instead of the size check."""
+    if wal_dir_bytes is None:
+        return [
+            {
+                "id": "wal-directory-size-not-visible",
+                "category": CATEGORY,
+                "severity": "info",
+                "title": "WAL directory size can't be checked",
+                "summary": (
+                    "The role DbButler connects as may not call pg_ls_waldir(), so the size of pg_wal isn't "
+                    "checked. WAL archiving status is still checked. A WAL directory that keeps growing "
+                    "(failed archiving, a stuck replication slot) won't be flagged until this is granted."
+                ),
+                "detail": "permission denied for function pg_ls_waldir (needs superuser or pg_monitor)",
+                "suggested_action": (
+                    "Grant the monitoring role pg_monitor (GRANT pg_monitor TO <role>;), or only this function: "
+                    "GRANT EXECUTE ON FUNCTION pg_catalog.pg_ls_waldir() TO <role>;"
+                ),
+            }
+        ]
     severity = wal_dir_size_severity(wal_dir_bytes, max_wal_size_bytes)
     if severity in ("healthy", "unknown"):
         return []
@@ -123,7 +144,7 @@ def build_backup_status(
     last_archived_time,
     last_failed_time,
     last_failed_wal,
-    wal_dir_bytes: int,
+    wal_dir_bytes: int | None,
     max_wal_size_bytes: int,
 ) -> tuple[CategoryStatus, list[dict]]:
     """Rolls all three Backup & WAL Health checks into one Dashboard tile —
@@ -138,12 +159,14 @@ def build_backup_status(
     for finding in findings:
         severity = worse(severity, finding["severity"])
 
-    ratio = (wal_dir_bytes / max_wal_size_bytes) if max_wal_size_bytes else None
+    ratio = (wal_dir_bytes / max_wal_size_bytes) if max_wal_size_bytes and wal_dir_bytes is not None else None
     value = f"{ratio:.1f}x" if ratio is not None else "—"
     if archive_mode == "off":
         detail = "WAL archiving not configured"
     elif ratio is not None:
         detail = f"WAL dir {ratio:.1f}x max_wal_size"
+    elif wal_dir_bytes is None:
+        detail = "archiving on · WAL size not visible (needs pg_monitor)"
     else:
         detail = "archiving on"
 

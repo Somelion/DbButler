@@ -24,6 +24,7 @@ from app.routers.ddl_lint import router as ddl_lint_router
 from app.routers.diagnose import router as diagnose_router
 from app.routers.explain import router as explain_router
 from app.routers.extension_advisor import router as extension_advisor_router
+from app.routers.features import router as features_router
 from app.routers.hardware_profile import router as hardware_profile_router
 from app.routers.index_advisor import router as index_advisor_router
 from app.routers.index_coverage_analysis import router as index_coverage_analysis_router
@@ -136,6 +137,7 @@ app.include_router(timeline_router, dependencies=_AUTH)
 app.include_router(ddl_lint_router, dependencies=_AUTH)
 app.include_router(reports_router, dependencies=_AUTH)
 app.include_router(integrations_router, dependencies=_AUTH)
+app.include_router(features_router, dependencies=_AUTH)
 
 # The machine integrations carry their own, narrower tokens instead of
 # AUTH_TOKEN (app/auth.py): MCP_TOKEN for the AI agent endpoint,

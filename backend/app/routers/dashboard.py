@@ -7,13 +7,13 @@ from fastapi import APIRouter, HTTPException
 from app.backup_advisor import build_backup_status
 from app.cache_hit import LIFETIME_CACHE_HIT_QUERY
 from app.db.store import store_conn
-from app.pg_stat_statements import installed_but_too_old, unavailable_message
+from app.pg_stat_statements import installed_but_too_old, installed_without_access, unavailable_message
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.pgbouncer_conn import connect_to_pgbouncer, get_pgbouncer_credentials
 from app.pgbouncer_status import build_pooler_status
 from app.replication_advisor import build_replication_status
 from app.routers.advisor_archive import get_archived_finding_ids
-from app.routers.backup_advisor import ARCHIVER_STATUS_QUERY, MAX_WAL_SIZE_QUERY, WAL_DIR_SIZE_QUERY
+from app.routers.backup_advisor import ARCHIVER_STATUS_QUERY, MAX_WAL_SIZE_QUERY, fetch_wal_dir_bytes
 from app.routers.replication_advisor import REPLICATION_STATUS_QUERY, fetch_replication_slots
 from app.routers.table_health import fetch_table_health_rows
 from app.schema_filter import get_allowed_schemas
@@ -198,6 +198,18 @@ def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
                     summary="This server is older than PostgreSQL 13, which PostgreDba's query stats require.",
                     detail="pg_stat_statements is installed, but the server predates the 13+ column names this app relies on.",
                     suggested_action="Upgrade the target to PostgreSQL 13 or newer to use this feature.",
+                )
+            )
+        elif not_usable_schema := installed_without_access(cur):
+            findings.append(
+                Finding(
+                    id="query-stats-disabled",
+                    category="query intelligence",
+                    severity="unknown",
+                    title="Detailed query stats can't be read",
+                    summary="pg_stat_statements is installed, but DbButler's role may not use the schema it's in.",
+                    detail=f"pg_stat_statements lives in schema {not_usable_schema}.",
+                    suggested_action=unavailable_message(cur),
                 )
             )
         else:
@@ -528,8 +540,7 @@ def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
     archive_mode = cur.fetchone()[0]
     cur.execute(ARCHIVER_STATUS_QUERY)
     failed_count, last_archived_time, last_failed_time, last_failed_wal = cur.fetchone()
-    cur.execute(WAL_DIR_SIZE_QUERY)
-    wal_dir_bytes = cur.fetchone()[0]
+    wal_dir_bytes = fetch_wal_dir_bytes(cur)
     cur.execute(MAX_WAL_SIZE_QUERY)
     max_wal_size_bytes = cur.fetchone()[0]
     backup_category, backup_findings = build_backup_status(
