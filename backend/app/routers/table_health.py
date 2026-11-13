@@ -5,6 +5,7 @@ import psycopg
 from fastapi import APIRouter, HTTPException
 
 from app.db.store import store_conn
+from app.live_tuples import LIVE_TUPLES_ESTIMATED_SQL, LIVE_TUPLES_SQL
 from app.routers.advisor_archive import get_archived_finding_ids
 from app.schema_filter import get_allowed_schemas
 from app.schemas import (
@@ -53,10 +54,13 @@ ALLOWED_APPLY_STATEMENT = re.compile(r"^\s*(ALTER\s+TABLE|ANALYZE)\s", re.IGNORE
 # xid_age is the older of the heap and its TOAST table (VACUUM freezes both,
 # and either can be the one that wraps). A partitioned parent holds no rows
 # and has relfrozenxid 0, which age() reports as the maximum, so it's 0.
-_TABLE_HEALTH_COLUMNS = """
+#
+# n_live_tup falls back to the catalog's row estimate after a statistics
+# reset (app/live_tuples.py); the trailing live_estimated column says so.
+_TABLE_HEALTH_COLUMNS = f"""
         s.schemaname,
         s.relname,
-        s.n_live_tup,
+        {LIVE_TUPLES_SQL} AS n_live_tup,
         s.n_dead_tup,
         s.last_vacuum,
         s.last_autovacuum,
@@ -64,12 +68,13 @@ _TABLE_HEALTH_COLUMNS = """
         s.last_autoanalyze,
         CASE WHEN c.relkind = 'p' THEN 0
              ELSE greatest(age(c.relfrozenxid), age(toast.relfrozenxid)) END AS xid_age,
-        {total_bytes_expr} AS total_bytes,
+        {{total_bytes_expr}} AS total_bytes,
         100.0 * io.heap_blks_hit / nullif(io.heap_blks_hit + io.heap_blks_read, 0) AS cache_hit_pct,
         c.oid AS table_oid,
         c.reltoastrelid,
         s.n_tup_upd,
-        s.n_tup_hot_upd
+        s.n_tup_hot_upd,
+        {LIVE_TUPLES_ESTIMATED_SQL} AS live_estimated
 """
 
 # pg_total_relation_size() stats every segment file of a table's heap, TOAST
@@ -326,6 +331,7 @@ def _build_table_health_row(row, size_cache: dict | None = None) -> TableHealthR
         _reltoastrelid,
         _n_tup_upd,
         _n_tup_hot_upd,
+        live_estimated,
     ) = row
     live_tuples = live_tuples or 0
     dead_tuples = dead_tuples or 0
@@ -339,6 +345,7 @@ def _build_table_health_row(row, size_cache: dict | None = None) -> TableHealthR
         schema_name=schema_name,
         table_name=table_name,
         live_tuples=live_tuples,
+        live_tuples_estimated=bool(live_estimated),
         dead_tuples=dead_tuples,
         dead_pct=dead_pct,
         dead_pct_severity=dead_pct_severity(dead_pct),
@@ -391,6 +398,7 @@ def _analyze_table(cur, row, target_id: uuid.UUID) -> tuple[list[dict], dict]:
         reltoastrelid,
         n_tup_upd,
         n_tup_hot_upd,
+        _live_estimated,
     ) = row
     n_live_tup = n_live_tup or 0
     n_dead_tup = n_dead_tup or 0

@@ -19,6 +19,7 @@ from app.config import settings
 from app.crypto import decrypt
 from app.db.store import store_conn
 from app.health_report import report_summary_lines
+from app.live_tuples import DEAD_PCT_SQL, LIVE_TUPLES_SQL
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.plan_fingerprint import build_explain_sql, build_fingerprint, hash_fingerprint, summarize_fingerprint
 from app.query_history_delta import Baseline, QueryCounters, compute_interval
@@ -46,15 +47,17 @@ logger = logging.getLogger(__name__)
 # One row per user table per cycle into table_stat_snapshots. The counters
 # beyond dead_pct/total_bytes aren't charted yet; they're the history later
 # workload features need (scans, writes and I/O per table over time).
-TABLE_METRICS_QUERY = """
+#
+# Live rows (and so dead_pct) fall back to the catalog estimate after a
+# statistics reset, as on Table Health (app/live_tuples.py) — otherwise a
+# reset draws every untouched table at 100% dead in Trends.
+TABLE_METRICS_QUERY = f"""
     SELECT
         s.schemaname,
         s.relname,
-        CASE WHEN (s.n_live_tup + s.n_dead_tup) > 0
-             THEN 100.0 * s.n_dead_tup / (s.n_live_tup + s.n_dead_tup)
-             ELSE 0 END AS dead_pct,
+        {DEAD_PCT_SQL} AS dead_pct,
         pg_total_relation_size(c.oid) AS total_bytes,
-        s.n_live_tup,
+        {LIVE_TUPLES_SQL} AS n_live_tup,
         s.n_dead_tup,
         s.n_mod_since_analyze,
         s.seq_scan,

@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, RefreshCw } from "lucide-react";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
 import { formatBytes, formatRelativeTime } from "./format";
@@ -9,12 +9,18 @@ import HeaderHint from "./HeaderHint";
 import TableHealthDetail from "./TableHealthDetail";
 import CategoryFilterDropdown from "./CategoryFilterDropdown";
 import { useFirstSeenMap } from "./useFirstSeenMap";
-import { Alert, Card, EmptyState, SeverityIcon, Skeleton, SortHeader, useConfirm } from "./components";
+import { Alert, Card, EmptyState, SeverityIcon, Skeleton, SortHeader, useConfirm, useToast } from "./components";
 import tableStyles from "./components/Table.module.css";
 import tone from "./components/tone.module.css";
 import styles from "./TableHealth.module.css";
 
 const POLL_INTERVAL_MS = 15000;
+
+// Shown when the live count is the catalog's estimate (app/live_tuples.py).
+const ESTIMATED_ROWS_HINT =
+  "Estimated from PostgreSQL's table statistics: the activity counters were reset (pg_stat_reset, a crash or a restore) " +
+  "and the table hasn't been vacuumed or analyzed since. The dead count only covers changes since the reset. " +
+  "Run ANALYZE on the table for exact numbers.";
 const SEVERITY_RANK = { critical: 2, attention: 1, healthy: 0 };
 
 const hiddenSchemasKey = (targetId) => `pgdba.tableHealth.hiddenSchemas.${targetId}`;
@@ -404,6 +410,14 @@ export default function TableHealth({ targetId }) {
                   isCollapsed={isCollapsed}
                   groupId={groupId}
                   onToggle={() => toggleSchema(schemaName, isCollapsed)}
+                  action={
+                    <AnalyzeSchemaButton
+                      targetId={targetId}
+                      schemaName={schemaName}
+                      tableCount={schemaTables.length}
+                      onFinished={refreshTables}
+                    />
+                  }
                 >
                   {!isCollapsed &&
                     schemaTables.map((table) => {
@@ -437,32 +451,119 @@ export default function TableHealth({ targetId }) {
   );
 }
 
-function SchemaGroup({ schemaName, tableCount, severity, isCollapsed, groupId, onToggle, children }) {
+function SchemaGroup({ schemaName, tableCount, severity, isCollapsed, groupId, onToggle, action, children }) {
   const flagged = severity === "critical" || severity === "attention";
   return (
     <>
       <tbody>
         <tr className={tableStyles.groupRow}>
           <td colSpan={COLUMNS.length} className={tableStyles.td}>
-            <button
-              type="button"
-              className={tableStyles.expander}
-              aria-expanded={!isCollapsed}
-              aria-controls={groupId}
-              onClick={onToggle}
-            >
-              <ChevronRight size={14} className={tableStyles.chevron} aria-hidden="true" />
-              <span className={`${styles.schemaName} ${flagged ? tone[severity] : ""}`}>{schemaName}</span>
-              {flagged && <SeverityIcon severity={severity} size={13} />}
-              <span className={styles.schemaCount}>
-                {tableCount} table{tableCount === 1 ? "" : "s"}
-              </span>
-            </button>
+            <div className={styles.schemaHeader}>
+              <button
+                type="button"
+                className={tableStyles.expander}
+                aria-expanded={!isCollapsed}
+                aria-controls={groupId}
+                onClick={onToggle}
+              >
+                <ChevronRight size={14} className={tableStyles.chevron} aria-hidden="true" />
+                <span className={`${styles.schemaName} ${flagged ? tone[severity] : ""}`}>{schemaName}</span>
+                {flagged && <SeverityIcon severity={severity} size={13} />}
+                <span className={styles.schemaCount}>
+                  {tableCount} table{tableCount === 1 ? "" : "s"}
+                </span>
+              </button>
+              {action}
+            </div>
           </td>
         </tr>
       </tbody>
       <tbody id={groupId}>{children}</tbody>
     </>
+  );
+}
+
+const ANALYZE_POLL_MS = 1500;
+
+// "Analyze all" for one schema: confirms, starts the background job, shows
+// progress while it runs, then reports what happened — including tables
+// ANALYZE skipped because the monitoring role may not analyze them — and
+// refreshes the table list so the new counts appear.
+function AnalyzeSchemaButton({ targetId, schemaName, tableCount, onFinished }) {
+  const confirm = useConfirm();
+  const toast = useToast();
+  const [jobId, setJobId] = useState(null);
+  const [startError, setStartError] = useState(null);
+  const reportedJobs = useRef(new Set());
+
+  // Reported from the poll itself (not an effect), once, when the job stops.
+  const report = (job) => {
+    if (reportedJobs.current.has(job.job_id)) return;
+    reportedJobs.current.add(job.job_id);
+    setJobId(null);
+    onFinished();
+    const parts = [`Analyzed ${job.analyzed} of ${job.total} table${job.total === 1 ? "" : "s"} in ${schemaName}.`];
+    if (job.skipped.length > 0) {
+      parts.push(
+        `${job.skipped.length} skipped: DbButler's role may not analyze ${job.skipped.length === 1 ? "it" : "them"} (needs table ownership, or pg_maintain on PostgreSQL 17+).`
+      );
+    }
+    if (job.failed.length > 0) {
+      parts.push(`${job.failed.length} failed: ${job.failed.map((f) => `${f.table} (${f.error})`).join("; ")}.`);
+    }
+    if (job.status === "error") parts.push(`Stopped early: ${job.error}`);
+    toast(parts.join(" "));
+  };
+
+  const jobQuery = useQuery({
+    queryKey: targetKey(targetId, "analyze-schema", jobId),
+    queryFn: async ({ signal }) => {
+      const data = await api.getAnalyzeSchemaJob(targetId, jobId, { signal });
+      if (data.status !== "running") report(data);
+      return data;
+    },
+    enabled: Boolean(jobId),
+    refetchInterval: (query) => (query.state.data?.status === "running" ? ANALYZE_POLL_MS : false),
+  });
+  const job = jobId ? jobQuery.data : undefined;
+  const running = Boolean(jobId);
+
+  const handleClick = async () => {
+    const ok = await confirm({
+      title: `Analyze all tables in ${schemaName}?`,
+      message: `Runs ANALYZE on ${tableCount} table${tableCount === 1 ? "" : "s"}, one after another, so their row counts and planner statistics are fresh. ANALYZE reads a sample of each table; reads and writes carry on while it runs.`,
+      confirmLabel: "Analyze all",
+    });
+    if (!ok) return;
+    setStartError(null);
+    try {
+      const started = await api.analyzeSchema(targetId, schemaName);
+      setJobId(started.job_id);
+    } catch (err) {
+      setStartError(err.message);
+    }
+  };
+
+  return (
+    <span className={styles.schemaAction}>
+      {startError && (
+        <span className={styles.schemaActionError} role="alert">
+          {startError}
+        </span>
+      )}
+      <button
+        type="button"
+        className="button-secondary button-sm"
+        onClick={handleClick}
+        disabled={running}
+        aria-live="polite"
+      >
+        <RefreshCw size={12} aria-hidden="true" className={running ? styles.spin : undefined} />
+        {running
+          ? `Analyzing ${job ? Math.min(job.done + 1, job.total) : 1}/${job?.total ?? tableCount}…`
+          : "Analyze all"}
+      </button>
+    </span>
   );
 }
 
@@ -616,8 +717,17 @@ function TableRow({
             {table.table_name}
           </button>
         </td>
-        <td className={`${tableStyles.td} ${tableStyles.mono} ${styles.secondary}`}>
+        <td
+          className={`${tableStyles.td} ${tableStyles.mono} ${styles.secondary}`}
+          title={table.live_tuples_estimated ? ESTIMATED_ROWS_HINT : undefined}
+        >
+          {table.live_tuples_estimated && (
+            <span className={styles.estimate} aria-hidden="true">
+              ≈
+            </span>
+          )}
           {table.live_tuples.toLocaleString()} / {table.dead_tuples.toLocaleString()}
+          {table.live_tuples_estimated && <span className="sr-only"> ({ESTIMATED_ROWS_HINT})</span>}
         </td>
         <td className={tableStyles.td}>
           <SeverityValue severity={table.dead_pct_severity}>{table.dead_pct.toFixed(1)}%</SeverityValue>

@@ -47,7 +47,8 @@ CHUNK_MAP_QUERY = """
     _RELTOASTRELID,
     _N_TUP_UPD,
     _N_TUP_HOT_UPD,
-) = range(15)
+    _LIVE_ESTIMATED,
+) = range(16)
 
 
 def is_timescaledb_installed(cur) -> bool:
@@ -82,7 +83,7 @@ def aggregate_hypertable_rows(rows: list[tuple], cur) -> list[tuple]:
     """Rolls chunk rows (and the hypertable's own near-empty native row, if
     present in this result set) up onto one synthetic row per hypertable.
     Ordinary, non-hypertable tables pass through unchanged. Returns a new
-    list of rows in the exact same 15-column shape TABLE_HEALTH_QUERY
+    list of rows in the exact same 16-column shape TABLE_HEALTH_QUERY
     produces, safe to hand to _build_table_health_row/_analyze_table as-is."""
     chunk_map = fetch_chunk_map(cur)
     if not chunk_map:
@@ -158,6 +159,7 @@ def aggregate_hypertable_rows(rows: list[tuple], cur) -> list[tuple]:
                 identity_row[_RELTOASTRELID],
                 n_tup_upd,
                 n_tup_hot_upd,
+                any(r[_LIVE_ESTIMATED] for r in contributing),
             )
         )
 

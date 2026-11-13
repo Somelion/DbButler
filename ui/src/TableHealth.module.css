@@ -51,6 +51,13 @@
   color: var(--text-secondary);
 }
 
+.estimate {
+  margin-right: var(--space-4);
+  color: var(--attention-text);
+  font-weight: var(--weight-semibold);
+  cursor: help;
+}
+
 .severityValue {
   display: inline-flex;
   align-items: center;
@@ -77,4 +84,40 @@
   padding: var(--space-14);
   background: var(--row-bg);
   border-bottom: 1px solid var(--border);
+}
+
+/* Schema group header: the expand toggle on the left, "Analyze all" on the right. */
+.schemaHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.schemaAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-shrink: 0;
+}
+
+.schemaActionError {
+  font-size: var(--font-size-xs);
+  color: var(--critical-text);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
 }

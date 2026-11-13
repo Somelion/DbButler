@@ -116,6 +116,11 @@ class TableHealthRow(BaseModel):
     schema_name: str
     table_name: str
     live_tuples: int
+    # True when live_tuples is the catalog's estimate (pg_class.reltuples)
+    # because the activity counters were reset and nothing has vacuumed or
+    # analyzed the table since — see app/live_tuples.py. The dead count then
+    # only covers changes since the reset.
+    live_tuples_estimated: bool = False
     dead_tuples: int
     dead_pct: float
     dead_pct_severity: str
@@ -460,6 +465,36 @@ class VacuumRequest(BaseModel):
 class MaintenanceResult(BaseModel):
     ok: bool
     message: str
+
+
+class AnalyzeSchemaRequest(BaseModel):
+    schema_name: str
+
+
+class AnalyzeSchemaFailure(BaseModel):
+    table: str
+    error: str
+
+
+class AnalyzeSchemaJob(BaseModel):
+    """Table Health's "Analyze all" for one schema, run in the background
+    (routers/maintenance.py); the screen polls it until status isn't
+    "running"."""
+
+    job_id: str
+    schema_name: str
+    status: str  # "running" | "done" | "error"
+    total: int
+    done: int  # tables processed so far (analyzed + skipped + failed)
+    analyzed: int
+    current: str | None
+    # Tables ANALYZE skipped with a warning because the role may not analyze
+    # them (not the owner; PostgreSQL 17+: not in pg_maintain).
+    skipped: list[str]
+    failed: list[AnalyzeSchemaFailure]
+    error: str | None
+    started_at: datetime
+    finished_at: datetime | None
 
 
 class TrendPoint(BaseModel):

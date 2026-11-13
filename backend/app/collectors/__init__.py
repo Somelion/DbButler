@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from app.live_tuples import DEAD_PCT_SQL
+
 
 @dataclass(frozen=True)
 class Collector:
@@ -30,13 +32,12 @@ CONNECTION_COUNT = Collector(
 WORST_TABLE_DEAD_PCT = Collector(
     name="worst_table_dead_pct",
     metric_name="worst_table_dead_pct",
-    query="""
-        SELECT COALESCE(MAX(
-            CASE WHEN (n_live_tup + n_dead_tup) > 0
-                 THEN 100.0 * n_dead_tup / (n_live_tup + n_dead_tup)
-                 ELSE 0 END
-        ), 0)
-        FROM pg_stat_user_tables
+    # Live rows fall back to the catalog estimate after a statistics reset
+    # (app/live_tuples.py), so a reset doesn't read as a 100% dead table.
+    query=f"""
+        SELECT COALESCE(MAX({DEAD_PCT_SQL}), 0)
+        FROM pg_stat_user_tables s
+        JOIN pg_class c ON c.oid = s.relid
     """,
 )
 

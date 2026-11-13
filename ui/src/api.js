@@ -175,6 +175,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ schema_name: schemaName, table_name: tableName }),
     }),
+  // ANALYZE every table in a schema, as a background job: poll
+  // getAnalyzeSchemaJob until its status isn't "running".
+  analyzeSchema: (targetId, schemaName) =>
+    request(`/api/targets/${targetId}/maintenance/analyze-schema`, {
+      method: "POST",
+      body: JSON.stringify({ schema_name: schemaName }),
+    }),
+  getAnalyzeSchemaJob: (targetId, jobId, opts) =>
+    request(`/api/targets/${targetId}/maintenance/analyze-schema/${encodeURIComponent(jobId)}`, opts),
   resetQueryStats: (targetId) =>
     request(`/api/targets/${targetId}/maintenance/reset-query-stats`, { method: "POST" }),
   getTrends: (targetId, hours, opts) => request(`/api/targets/${targetId}/trends?hours=${hours}`, opts),
