@@ -1,3 +1,5 @@
+import i18n from "./i18n";
+import { useTranslation } from "react-i18next";
 import styles from "./TrendChart.module.css";
 import { formatMetricValue } from "./format";
 import { findNearestPoint, useTimeChartInteraction } from "./useTimeChartInteraction";
@@ -12,7 +14,7 @@ const PAD_BOTTOM = 24;
 const BOTTOM_Y = H - PAD_BOTTOM;
 
 function formatTick(ts) {
-  return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleString(i18n.language, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 // `bare` skips the card wrapper (background/border/padding) so a caller that
@@ -21,6 +23,7 @@ function formatTick(ts) {
 // optional caption below the chart (Trends' capacity-forecast text) — null
 // for every other caller, so this is a no-op change for them.
 export default function TrendChart({ label, unit, points, thresholdMin, thresholdMax, bare = false, footer = null }) {
+  const { t } = useTranslation("trends");
   const latest = points.length ? points[points.length - 1].value : null;
   const latestText = formatMetricValue(latest, unit);
 
@@ -33,7 +36,7 @@ export default function TrendChart({ label, unit, points, thresholdMin, threshol
 
       {points.length < 2 ? (
         <div className={styles.placeholder}>
-          <span className={styles.placeholderText}>Collecting data&hellip;</span>
+          <span className={styles.placeholderText}>{t("chart.collecting")}</span>
         </div>
       ) : (
         <Chart
@@ -52,6 +55,7 @@ export default function TrendChart({ label, unit, points, thresholdMin, threshol
 }
 
 function Chart({ label, latestText, points, unit, thresholdMin, thresholdMax }) {
+  const { t } = useTranslation("trends");
   const fullMin = new Date(points[0].ts).getTime();
   const fullMax = new Date(points[points.length - 1].ts).getTime();
 
@@ -69,10 +73,10 @@ function Chart({ label, latestText, points, unit, thresholdMin, thresholdMax }) 
   if (visible.length < 2) {
     return (
       <div className={styles.placeholder}>
-        <span className={styles.placeholderText}>No data in this range.</span>
+        <span className={styles.placeholderText}>{t("chart.noDataInRange")}</span>
         {isZoomed && (
           <button type="button" className="button-secondary button-sm" onClick={resetZoom}>
-            Reset zoom
+            {t("chart.resetZoom")}
           </button>
         )}
       </div>
@@ -100,16 +104,20 @@ function Chart({ label, latestText, points, unit, thresholdMin, thresholdMax }) 
 
   // The SVG is one image to assistive tech; this sentence stands in for the
   // line (the hover tooltip is a pointer-only extra on top of it).
-  const summary =
-    `${label}, ${formatTick(min)} to ${formatTick(max)}. ` +
-    `Latest ${latestText}; low ${formatMetricValue(Math.min(...values), unit)}, ` +
-    `high ${formatMetricValue(Math.max(...values), unit)}.`;
+  const summary = t("chart.summary", {
+    label,
+    from: formatTick(min),
+    to: formatTick(max),
+    latest: latestText,
+    low: formatMetricValue(Math.min(...values), unit),
+    high: formatMetricValue(Math.max(...values), unit),
+  });
 
   return (
     <div className={styles.plot}>
       {isZoomed && (
         <button type="button" className={`button-secondary ${styles.resetZoom}`} onClick={resetZoom}>
-          Reset zoom
+          {t("chart.resetZoom")}
         </button>
       )}
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={styles.svg} role="img" aria-label={summary} {...handlers}>

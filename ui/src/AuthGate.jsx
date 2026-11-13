@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Trans, useTranslation } from "react-i18next";
 import styles from "./AuthGate.module.css";
 import { api, getAuthToken, onUnauthorized, setAuthToken } from "./api";
 import { Field, Skeleton } from "./components";
@@ -9,6 +10,7 @@ import { Field, Skeleton } from "./components";
 // login. Held in sessionStorage: re-prompts on a new tab/window, survives a
 // refresh within the same one.
 export default function AuthGate({ children }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(() => (getAuthToken() ? "checking" : "needed")); // checking | needed | ok
   const [input, setInput] = useState("");
@@ -57,7 +59,7 @@ export default function AuthGate({ children }) {
   if (status === "checking") {
     return (
       <div className={styles.page}>
-        <Skeleton lines={2} width="240px" label="Checking access…" />
+        <Skeleton lines={2} width="240px" label={t("auth.checkingAccess")} />
       </div>
     );
   }
@@ -70,11 +72,10 @@ export default function AuthGate({ children }) {
         <div className={styles.intro}>
           <h1 className={styles.title}>DbButler</h1>
           <p className={styles.description}>
-            Enter the access token this instance was set up with — the <code>APP_AUTH_TOKEN</code> value in its{" "}
-            <code>.env</code> file.
+            <Trans i18nKey="auth.intro" components={{ code: <code /> }} />
           </p>
         </div>
-        <Field label="Access token" error={error}>
+        <Field label={t("auth.token")} error={error}>
           <input
             ref={inputRef}
             type="password"
@@ -84,7 +85,7 @@ export default function AuthGate({ children }) {
           />
         </Field>
         <button type="submit" className="button-primary" disabled={submitting || !input.trim()}>
-          {submitting ? "Checking…" : "Continue"}
+          {submitting ? t("auth.checking") : t("auth.continue")}
         </button>
       </form>
     </main>

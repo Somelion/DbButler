@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import { api } from "./api";
 import PgBouncerSettings, { SSL_MODE_OPTIONS } from "./PgBouncerSettings";
@@ -43,6 +44,7 @@ function useFocusWhen(active) {
 }
 
 export default function ConnectionsScreen({ targets, activeTargetId, onCreated, onRemoved, onUpdated, onSelect }) {
+  const { t } = useTranslation("connections");
   const [showForm, setShowForm] = useState(targets.length === 0);
 
   return (
@@ -73,7 +75,7 @@ export default function ConnectionsScreen({ targets, activeTargetId, onCreated, 
       ) : (
         <button type="button" className={`button-secondary ${styles.addButton}`} onClick={() => setShowForm(true)}>
           <Plus size={14} aria-hidden="true" />
-          Add another connection
+          {t("addAnother")}
         </button>
       )}
     </div>
@@ -81,6 +83,7 @@ export default function ConnectionsScreen({ targets, activeTargetId, onCreated, 
 }
 
 function ConnectionForm({ onSaved, onCancel }) {
+  const { t } = useTranslation("connections");
   const [form, setForm] = useState(EMPTY_FORM);
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
@@ -125,25 +128,17 @@ function ConnectionForm({ onSaved, onCancel }) {
   return (
     <div className={styles.formBlock}>
       {error && <Alert tone="critical">{error}</Alert>}
-      <Card title="New connection">
+      <Card title={t("form.title")}>
         <form onSubmit={handleSubmit} className={styles.form}>
-          <Field label="Nickname">
+          <Field label={t("form.nickname")}>
             <input value={form.name} onChange={set("name")} placeholder="analytics-primary" autoComplete="off" />
           </Field>
 
           <div className={styles.hostRow}>
-            <Field
-              label="Host"
-              hint={
-                <>
-                  Database on this machine? Use <b>host.docker.internal</b>, not localhost/127.0.0.1 — DbButler runs
-                  in its own container, so that would point at itself.
-                </>
-              }
-            >
+            <Field label={t("form.host")} hint={<Trans t={t} i18nKey="form.hostHint" components={{ b: <b /> }} />}>
               <input value={form.host} onChange={set("host")} placeholder="10.0.4.22" autoComplete="off" />
             </Field>
-            <Field label="Port">
+            <Field label={t("form.port")}>
               <input
                 value={form.port}
                 onChange={set("port")}
@@ -155,10 +150,10 @@ function ConnectionForm({ onSaved, onCancel }) {
           </div>
 
           <div className={styles.pairRow}>
-            <Field label="Database">
+            <Field label={t("form.database")}>
               <input value={form.dbname} onChange={set("dbname")} placeholder="analytics" autoComplete="off" />
             </Field>
-            <Field label="SSL mode">
+            <Field label={t("form.sslMode")}>
               <select value={form.sslmode} onChange={set("sslmode")}>
                 {SSL_MODE_OPTIONS.map((mode) => (
                   <option key={mode} value={mode}>
@@ -170,42 +165,37 @@ function ConnectionForm({ onSaved, onCancel }) {
           </div>
 
           <div className={styles.pairRow}>
-            <Field label="Username">
+            <Field label={t("form.username")}>
               <input value={form.username} onChange={set("username")} placeholder="pgdba_monitor" autoComplete="off" />
             </Field>
-            <Field label="Password">
+            <Field label={t("form.password")}>
               <input type="password" value={form.password} onChange={set("password")} autoComplete="new-password" />
             </Field>
           </div>
 
-          <Field
-            label="Schemas to monitor (optional)"
-            hint="Comma-separated schema names. Narrows Table Health and every Advisor tab to just these schemas — leave blank to see everything, the default."
-          >
+          <Field label={t("form.schemas")} hint={t("form.schemasHint")}>
             <input
               value={form.allowedSchemas}
               onChange={set("allowedSchemas")}
-              placeholder="public, sales (leave blank to watch every schema)"
+              placeholder={t("schemasPlaceholder")}
               autoComplete="off"
             />
           </Field>
 
           <Alert tone="info" compact>
-            <b>pg_monitor</b> is enough to watch a database — DbButler never needs superuser. To also use maintenance
-            actions (Vacuum/Analyze/reset stats), the role additionally needs to own the tables, or (PostgreSQL 17+)
-            membership in the built-in <b>pg_maintain</b> role.
+            <Trans t={t} i18nKey="form.rolesNote" components={{ b: <b /> }} />
           </Alert>
 
           <div className={styles.formActions}>
             <button type="button" className="button-primary" onClick={handleTest} disabled={testing || saving}>
-              {testing ? "Testing…" : "Test connection"}
+              {testing ? t("testing") : t("testConnection")}
             </button>
             <button type="submit" className="button-secondary" disabled={saving || testing}>
-              {saving ? "Saving…" : "Save connection"}
+              {saving ? t("common:actions.saving") : t("form.save")}
             </button>
             {onCancel && (
               <button type="button" className="button-secondary" onClick={onCancel} disabled={saving || testing}>
-                Cancel
+                {t("common:actions.cancel")}
               </button>
             )}
           </div>
@@ -218,23 +208,26 @@ function ConnectionForm({ onSaved, onCancel }) {
 }
 
 function TestResultBanner({ result }) {
+  const { t } = useTranslation("connections");
   if (!result.ok) {
-    return <Alert tone="critical">{result.message || "Could not connect."}</Alert>;
+    return <Alert tone="critical">{result.message || t("couldNotConnect")}</Alert>;
   }
   return (
-    <Alert tone="healthy" title={`Connected — PostgreSQL ${result.pg_version}`}>
-      <span className={styles.uptime}>uptime {result.uptime_human}</span>
+    <Alert tone="healthy" title={t("connectedPg", { version: result.pg_version })}>
+      <span className={styles.uptime}>{t("form.uptime", { uptime: result.uptime_human })}</span>
     </Alert>
   );
 }
 
 function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
+  const { t } = useTranslation("connections");
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(target.name);
   const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState(target.username);
   const [passwordDraft, setPasswordDraft] = useState("");
   const [editingSchemas, setEditingSchemas] = useState(false);
   const [schemasDraft, setSchemasDraft] = useState(() => formatAllowedSchemas(target.allowed_schemas));
@@ -243,6 +236,7 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
   const passwordRef = useFocusWhen(updatingPassword);
   const schemasRef = useFocusWhen(editingSchemas);
   const renameId = useId();
+  const usernameId = useId();
   const passwordId = useId();
   const schemasId = useId();
 
@@ -282,9 +276,12 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
 
   const handleRemove = async () => {
     const confirmed = await confirm({
-      title: "Remove connection?",
-      message: `Remove "${target.name}" (${target.host}:${target.port}/${target.dbname})? DbButler stops monitoring it and its collected history is deleted. The database itself is not touched.`,
-      confirmLabel: "Remove connection",
+      title: t("card.removeTitle"),
+      message: t("card.removeMessage", {
+        name: target.name,
+        address: `${target.host}:${target.port}/${target.dbname}`,
+      }),
+      confirmLabel: t("card.remove"),
       tone: "danger",
     });
     if (!confirmed) return;
@@ -332,16 +329,29 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
     }
   };
 
-  const handleSavePassword = async (e) => {
+  const closeLoginForm = () => {
+    setUpdatingPassword(false);
+    setUsernameDraft(target.username);
+    setPasswordDraft("");
+  };
+
+  // Changing the user and/or the password: the backend tests the new login
+  // first and keeps the old one if it fails. A blank password keeps the
+  // stored one.
+  const handleSaveLogin = async (e) => {
     e.preventDefault();
-    if (!passwordDraft) {
-      setUpdatingPassword(false);
+    const username = usernameDraft.trim();
+    const changes = {};
+    if (username && username !== target.username) changes.username = username;
+    if (passwordDraft) changes.password = passwordDraft;
+    if (Object.keys(changes).length === 0) {
+      closeLoginForm();
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const updated = await api.updateTarget(target.id, { password: passwordDraft });
+      const updated = await api.updateTarget(target.id, changes);
       onUpdated(updated);
       setUpdatingPassword(false);
       setPasswordDraft("");
@@ -364,7 +374,7 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
             {renaming ? (
               <form onSubmit={handleSaveRename} className={styles.inlineForm}>
                 <label htmlFor={renameId} className="sr-only">
-                  Connection name
+                  {t("card.nameLabel")}
                 </label>
                 <input
                   id={renameId}
@@ -374,7 +384,7 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
                   autoComplete="off"
                 />
                 <button type="submit" className="button-secondary button-sm" disabled={busy}>
-                  Save
+                  {t("common:actions.save")}
                 </button>
                 <button
                   type="button"
@@ -385,7 +395,7 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
                   }}
                   disabled={busy}
                 >
-                  Cancel
+                  {t("common:actions.cancel")}
                 </button>
               </form>
             ) : (
@@ -395,21 +405,21 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
                   type="button"
                   className="button-link"
                   onClick={() => setRenaming(true)}
-                  aria-label={`Rename ${target.name}`}
+                  aria-label={t("card.renameAria", { name: target.name })}
                 >
-                  Rename
+                  {t("card.rename")}
                 </button>
-                {!target.is_active && <Badge tone="neutral">Paused</Badge>}
+                {!target.is_active && <Badge tone="neutral">{t("card.paused")}</Badge>}
               </div>
             )}
             <span className={styles.address}>
-              {target.host}:{target.port}/{target.dbname}
+              {target.username}@{target.host}:{target.port}/{target.dbname}
             </span>
           </div>
 
           {isActive ? (
             <Badge tone="info" className={styles.headerAction}>
-              Currently viewing
+              {t("card.currentlyViewing")}
             </Badge>
           ) : (
             <button
@@ -417,7 +427,8 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
               className={`button-secondary button-sm ${styles.headerAction}`}
               onClick={onSelect}
             >
-              Switch to this<span className="sr-only">: {target.name}</span>
+              {t("card.switchTo")}
+              <span className="sr-only">: {target.name}</span>
             </button>
           )}
         </div>
@@ -426,7 +437,7 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
           <StatusIcon size={16} className={styles.statusIcon} aria-hidden="true" />
           <div className={styles.statusText}>
             <span className={styles.statusTitle}>
-              {ok ? `Connected — PostgreSQL ${target.detected_pg_version}` : "Not connected"}
+              {ok ? t("connectedPg", { version: target.detected_pg_version }) : t("common:nav.notConnected")}
             </span>
             {!ok && target.last_test_message && (
               <span className={styles.statusMessage}>{target.last_test_message}</span>
@@ -435,48 +446,55 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
         </div>
 
         {updatingPassword ? (
-          <form onSubmit={handleSavePassword} className={styles.inlineForm}>
+          <form onSubmit={handleSaveLogin} className={styles.inlineForm}>
+            <label htmlFor={usernameId} className="sr-only">
+              {t("card.usernameLabel", { name: target.name })}
+            </label>
+            <input
+              id={usernameId}
+              ref={passwordRef}
+              value={usernameDraft}
+              onChange={(e) => setUsernameDraft(e.target.value)}
+              placeholder={t("form.username")}
+              autoComplete="off"
+              className={styles.grow}
+            />
             <label htmlFor={passwordId} className="sr-only">
-              New password for {target.name}
+              {t("card.newPasswordLabel", { name: target.name })}
             </label>
             <input
               id={passwordId}
-              ref={passwordRef}
               type="password"
               value={passwordDraft}
               onChange={(e) => setPasswordDraft(e.target.value)}
-              placeholder="New password"
+              placeholder={t("card.newPasswordKeep")}
               autoComplete="new-password"
               className={styles.grow}
             />
-            <button type="submit" className="button-secondary" disabled={busy || !passwordDraft}>
-              {busy ? "Testing…" : "Save & test"}
-            </button>
             <button
-              type="button"
+              type="submit"
               className="button-secondary"
-              onClick={() => {
-                setUpdatingPassword(false);
-                setPasswordDraft("");
-              }}
-              disabled={busy}
+              disabled={busy || !usernameDraft.trim() || (usernameDraft.trim() === target.username && !passwordDraft)}
             >
-              Cancel
+              {busy ? t("testing") : t("card.saveAndTest")}
+            </button>
+            <button type="button" className="button-secondary" onClick={closeLoginForm} disabled={busy}>
+              {t("common:actions.cancel")}
             </button>
           </form>
         ) : (
           <div className={styles.actions}>
             <button type="button" className="button-secondary" onClick={handleRetest} disabled={busy}>
-              {busy ? "Working…" : "Test again"}
+              {busy ? t("card.working") : t("testAgain")}
             </button>
             <button type="button" className="button-secondary" onClick={() => setUpdatingPassword(true)} disabled={busy}>
-              Update password
+              {t("card.changeLogin")}
             </button>
             <button type="button" className="button-secondary" onClick={handleTogglePaused} disabled={busy}>
-              {target.is_active ? "Pause monitoring" : "Resume monitoring"}
+              {target.is_active ? t("card.pause") : t("card.resume")}
             </button>
             <button type="button" className="button-danger" onClick={handleRemove} disabled={busy}>
-              Remove connection
+              {t("card.remove")}
             </button>
           </div>
         )}
@@ -484,19 +502,19 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
         {editingSchemas ? (
           <form onSubmit={handleSaveSchemas} className={styles.inlineForm}>
             <label htmlFor={schemasId} className="sr-only">
-              Schemas to monitor (comma-separated)
+              {t("card.schemasLabel")}
             </label>
             <input
               id={schemasId}
               ref={schemasRef}
               value={schemasDraft}
               onChange={(e) => setSchemasDraft(e.target.value)}
-              placeholder="public, sales (leave blank to watch every schema)"
+              placeholder={t("schemasPlaceholder")}
               autoComplete="off"
               className={styles.grow}
             />
             <button type="submit" className="button-secondary" disabled={busy}>
-              {busy ? "Saving…" : "Save"}
+              {busy ? t("common:actions.saving") : t("common:actions.save")}
             </button>
             <button
               type="button"
@@ -507,30 +525,30 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
               }}
               disabled={busy}
             >
-              Cancel
+              {t("common:actions.cancel")}
             </button>
           </form>
         ) : (
           <div className={styles.schemasRow}>
             <span className={styles.schemas}>
               {target.allowed_schemas && target.allowed_schemas.length > 0
-                ? `Watching: ${target.allowed_schemas.join(", ")}`
-                : "Watching all schemas"}
+                ? t("card.watching", { schemas: target.allowed_schemas.join(", ") })
+                : t("card.watchingAll")}
             </span>
             <button
               type="button"
               className="button-link"
               onClick={() => setEditingSchemas(true)}
-              title="Choose which schemas Table Health and the Advisor tabs consider"
-              aria-label={`Edit monitored schemas for ${target.name}`}
+              title={t("card.editSchemasTitle")}
+              aria-label={t("card.editSchemasAria", { name: target.name })}
             >
-              Edit
+              {t("card.edit")}
             </button>
           </div>
         )}
       </Card>
 
-      <CollapsibleGroup label="PgBouncer (optional)" defaultExpanded={false}>
+      <CollapsibleGroup label={t("card.pgbouncerGroup")} defaultExpanded={false}>
         <PgBouncerSettings targetId={target.id} targetName={target.name} />
       </CollapsibleGroup>
     </div>

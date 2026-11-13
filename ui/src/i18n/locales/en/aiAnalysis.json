@@ -1,0 +1,30 @@
+{
+  "status": {
+    "pending": "Running…",
+    "done": "Done",
+    "error": "Error"
+  },
+  "history": {
+    "title": "Analysis history",
+    "description": "Every query you've sent for AI analysis from Query Intelligence, newest first. Open a row for the full EXPLAIN plan and the AI's response.",
+    "loading": "Loading analyses…",
+    "emptyTitle": "Nothing here yet",
+    "emptyText": "Use \"Analyze with AI\" on a query in Query Intelligence to start one.",
+    "querySent": "Query sent",
+    "querySentAnonymized": "Query sent (anonymized)",
+    "aiRecommendation": "AI recommendation",
+    "stillRunning": "Still running — this row updates automatically once the AI responds."
+  },
+  "modal": {
+    "title": "Analyze with AI",
+    "starting": "Starting…",
+    "run": "Run Analysis",
+    "leadTemplate": "Query template — fill in a value for each $N placeholder below to see the query that will actually run.",
+    "leadAnonymized": "Table and column names below are anonymized before anything is sent to the AI provider.",
+    "leadExact": "This is the exact query text that will be sent to the AI provider, unmodified.",
+    "anonymizing": "Anonymizing…",
+    "anonymize": "Anonymize table/column names",
+    "footnote": "Runs EXPLAIN (ANALYZE, BUFFERS) against your database, then sends the query and plan to the AI provider configured in Settings. Only literal values are already redacted (pg_stat_statements normalizes those to $1/$2/... before this app ever sees the query) — anonymizing here additionally hides real table/column names.",
+    "started": "Analysis started. It's running in the background — you'll see a notification on the AI Analysis tab when it's ready, or check there any time."
+  }
+}

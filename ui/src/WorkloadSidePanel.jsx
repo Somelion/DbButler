@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { X } from "lucide-react";
 import styles from "./WorkloadSidePanel.module.css";
@@ -17,6 +18,7 @@ function queryHistoryLink(targetId, queries) {
 }
 
 function TopQueries({ targetId, queries, emptyText }) {
+  const { t } = useTranslation("workloadMap");
   if (queries.length === 0) return <p className={styles.muted}>{emptyText}</p>;
   return (
     <>
@@ -25,28 +27,34 @@ function TopQueries({ targetId, queries, emptyText }) {
           <li key={q.queryid} className={styles.queryItem}>
             <code className={styles.queryText}>{q.query}</code>
             <span className={styles.queryMeta}>
-              {formatMs(q.db_time_ms)} DB time · {formatCount(q.calls)} calls
+              {t("panel.queryMeta", {
+                time: formatMs(q.db_time_ms),
+                calls: formatCount(q.calls),
+                count: Math.round(q.calls ?? 0),
+              })}
               {q.access_kinds?.length > 0 && ` · ${q.access_kinds.join(", ")}`}
-              {q.filter_columns?.length > 0 && ` · filters on ${q.filter_columns.join(", ")}`}
+              {q.filter_columns?.length > 0 &&
+                ` · ${t("panel.filtersOn", { columns: q.filter_columns.join(", ") })}`}
             </span>
           </li>
         ))}
       </ol>
       <Link className="button-secondary button-sm" to={queryHistoryLink(targetId, queries)}>
-        Open in Query History
+        {t("panel.openQueryHistory")}
       </Link>
     </>
   );
 }
 
 function PanelHeader({ title, onClose, children }) {
+  const { t } = useTranslation("workloadMap");
   return (
     <div className={styles.header}>
       <div className={styles.headerText}>
         <h2 className={styles.title}>{title}</h2>
         {children}
       </div>
-      <button type="button" className="button-icon" onClick={onClose} aria-label="Close details">
+      <button type="button" className="button-icon" onClick={onClose} aria-label={t("panel.close")}>
         <X size={16} aria-hidden="true" />
       </button>
     </div>
@@ -54,6 +62,7 @@ function PanelHeader({ title, onClose, children }) {
 }
 
 function TablePanel({ targetId, hours, until, node, edges, onSelect, onClose }) {
+  const { t } = useTranslation("workloadMap");
   // `until` follows the map's time slider, so a past map lists that
   // window's queries, not today's.
   const detailQuery = useQuery({
@@ -72,36 +81,36 @@ function TablePanel({ targetId, hours, until, node, edges, onSelect, onClose }) 
 
       <dl className={styles.stats}>
         <div>
-          <dt>Size</dt>
+          <dt>{t("panel.size")}</dt>
           <dd>{formatBytes(node.total_bytes)}</dd>
         </div>
         <div>
-          <dt>Live rows</dt>
+          <dt>{t("panel.liveRows")}</dt>
           <dd>{formatCount(node.live_rows)}</dd>
         </div>
         <div>
-          <dt>Dead rows</dt>
+          <dt>{t("panel.deadRows")}</dt>
           <dd>{node.dead_pct == null ? "—" : `${node.dead_pct}%`}</dd>
         </div>
         <div>
-          <dt>Share of DB time</dt>
+          <dt>{t("panel.dbShare")}</dt>
           <dd>{node.share_pct}%</dd>
         </div>
         <div>
-          <dt>Seq-scan rows read</dt>
+          <dt>{t("panel.seqRowsRead")}</dt>
           <dd>{formatCount(node.seq_tup_read)}</dd>
         </div>
         <div>
-          <dt>Rows written</dt>
+          <dt>{t("panel.rowsWritten")}</dt>
           <dd>{formatCount(node.writes)}</dd>
         </div>
         <div>
-          <dt>HOT updates</dt>
+          <dt>{t("panel.hotUpdates")}</dt>
           <dd>{node.hot_update_pct == null ? "—" : `${node.hot_update_pct}%`}</dd>
         </div>
         {node.folded_children > 0 && (
           <div>
-            <dt>Partitions / chunks</dt>
+            <dt>{t("panel.partitions")}</dt>
             <dd>{node.folded_children}</dd>
           </div>
         )}
@@ -112,19 +121,19 @@ function TablePanel({ targetId, hours, until, node, edges, onSelect, onClose }) 
           className="button-secondary button-sm"
           to={screenPath("table-health", targetId, null, { table: node.id })}
         >
-          Open in Table Health
+          {t("panel.openTableHealth")}
         </Link>
         <Link className="button-secondary button-sm" to={screenPath("advisor", targetId, "index")}>
-          Index Advisor
+          {t("panel.indexAdvisor")}
         </Link>
       </div>
 
       <section className={styles.section} aria-labelledby="workload-related">
         <h3 id="workload-related" className={styles.sectionTitle}>
-          Relationships ({related.length})
+          {t("panel.relationships", { n: related.length })}
         </h3>
         {related.length === 0 ? (
-          <p className={styles.muted}>Not joined with any other table in the tracked queries.</p>
+          <p className={styles.muted}>{t("panel.notJoined")}</p>
         ) : (
           <ul className={styles.relatedList}>
             {related.map((edge) => {
@@ -138,7 +147,7 @@ function TablePanel({ targetId, hours, until, node, edges, onSelect, onClose }) 
                   >
                     <span className={styles.relatedName}>{other}</span>
                     <Badge tone={EDGE_KINDS[edge.kind].tone}>{EDGE_KINDS[edge.kind].label}</Badge>
-                    {isUnindexedFkEdge(edge) && <Badge tone="attention">unindexed</Badge>}
+                    {isUnindexedFkEdge(edge) && <Badge tone="attention">{t("panel.unindexed")}</Badge>}
                     {edge.kind !== "fk_unused" && <span className={styles.muted}>{edge.share_pct}%</span>}
                   </button>
                 </li>
@@ -149,43 +158,45 @@ function TablePanel({ targetId, hours, until, node, edges, onSelect, onClose }) 
       </section>
 
       {detailQuery.error && <Alert tone="critical">{detailQuery.error.message}</Alert>}
-      {detailQuery.isPending && <Skeleton lines={5} label="Loading table details…" />}
+      {detailQuery.isPending && <Skeleton lines={5} label={t("panel.loadingDetails")} />}
       {detail && (
         <>
           <section className={styles.section} aria-labelledby="workload-queries">
             <h3 id="workload-queries" className={styles.sectionTitle}>
-              Queries touching this table ({detail.query_count})
+              {t("panel.tableQueries", { n: detail.query_count })}
             </h3>
-            <TopQueries
-              targetId={targetId}
-              queries={detail.queries}
-              emptyText="No tracked query touches this table — it's on the map through a foreign key."
-            />
+            <TopQueries targetId={targetId} queries={detail.queries} emptyText={t("panel.noTableQueries")} />
           </section>
 
           <section className={styles.section} aria-labelledby="workload-indexes">
             <h3 id="workload-indexes" className={styles.sectionTitle}>
-              Indexes ({detail.indexes.length})
+              {t("panel.indexes", { n: detail.indexes.length })}
             </h3>
             {detail.index_usage_partial && (
               <Alert tone="info" compact>
-                TimescaleDB hypertable: scans of the per-chunk indexes aren't included in these counts.
+                {t("panel.hypertableNote")}
               </Alert>
             )}
             {detail.indexes.length === 0 ? (
-              <p className={styles.muted}>No indexes.</p>
+              <p className={styles.muted}>{t("panel.noIndexes")}</p>
             ) : (
               <ul className={styles.indexList}>
                 {detail.indexes.map((index) => (
                   <li key={index.name} className={styles.indexItem}>
                     <span className={styles.indexName}>
                       {index.name}
-                      {index.is_primary && <Badge tone="info">primary key</Badge>}
-                      {!index.is_primary && index.is_unique && <Badge tone="info">unique</Badge>}
-                      {index.idx_scan === 0 && !index.is_primary && <Badge tone="attention">never scanned</Badge>}
+                      {index.is_primary && <Badge tone="info">{t("panel.primaryKey")}</Badge>}
+                      {!index.is_primary && index.is_unique && <Badge tone="info">{t("panel.unique")}</Badge>}
+                      {index.idx_scan === 0 && !index.is_primary && (
+                        <Badge tone="attention">{t("panel.neverScanned")}</Badge>
+                      )}
                     </span>
                     <span className={styles.queryMeta}>
-                      {formatCount(index.idx_scan)} scans · {formatBytes(index.size_bytes)}
+                      {t("panel.indexMeta", {
+                        scans: formatCount(index.idx_scan),
+                        size: formatBytes(index.size_bytes),
+                        count: Math.round(index.idx_scan ?? 0),
+                      })}
                     </span>
                     <code className={styles.queryText}>{index.definition}</code>
                   </li>
@@ -196,10 +207,10 @@ function TablePanel({ targetId, hours, until, node, edges, onSelect, onClose }) 
 
           <section className={styles.section} aria-labelledby="workload-findings">
             <h3 id="workload-findings" className={styles.sectionTitle}>
-              Open findings ({detail.findings.length})
+              {t("panel.openFindings", { n: detail.findings.length })}
             </h3>
             {detail.findings.length === 0 ? (
-              <p className={styles.muted}>None from the last deep scan.</p>
+              <p className={styles.muted}>{t("panel.noFindings")}</p>
             ) : (
               <ul className={styles.findingList}>
                 {detail.findings.map((finding) => (
@@ -218,6 +229,7 @@ function TablePanel({ targetId, hours, until, node, edges, onSelect, onClose }) 
 }
 
 function EdgePanel({ targetId, edge, onSelect, onClose }) {
+  const { t } = useTranslation("workloadMap");
   const kind = EDGE_KINDS[edge.kind];
   const fk = edge.foreign_keys[0];
 
@@ -226,7 +238,7 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
       <PanelHeader
         title={
           <>
-            {edge.source} <span aria-label="and">⇄</span> {edge.target}
+            {edge.source} <span aria-label={t("panel.and")}>⇄</span> {edge.target}
           </>
         }
         onClose={onClose}
@@ -254,7 +266,7 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
 
       <section className={styles.section} aria-labelledby="workload-columns">
         <h3 id="workload-columns" className={styles.sectionTitle}>
-          Join columns
+          {t("panel.joinColumns")}
         </h3>
         <ul className={styles.columnList}>
           {edge.column_pairs.map(([left, right]) => (
@@ -267,8 +279,11 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
         </ul>
         {edge.join_types.length > 0 && (
           <p className={styles.muted}>
-            {edge.join_types.join(", ")} join · {edge.join_strategies.join(", ") || "strategy not shown"} ·{" "}
-            {edge.share_pct}% of tracked DB time
+            {t("panel.joinLine", {
+              types: edge.join_types.join(", "),
+              strategies: edge.join_strategies.join(", ") || t("panel.strategyNotShown"),
+              share: edge.share_pct,
+            })}
           </p>
         )}
       </section>
@@ -276,7 +291,7 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
       {fk && (
         <section className={styles.section} aria-labelledby="workload-fk">
           <h3 id="workload-fk" className={styles.sectionTitle}>
-            Foreign key
+            {t("panel.foreignKey")}
           </h3>
           <p>
             <code>{fk.name}</code>: {fk.child} ({fk.child_columns.join(", ")}) → {fk.parent} (
@@ -284,13 +299,16 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
           </p>
           {fk.indexed ? (
             <Alert tone="healthy" compact>
-              The FK columns on {fk.child} are indexed.
+              {t("panel.fkIndexed", { child: fk.child })}
             </Alert>
           ) : (
             <Alert tone="attention" compact>
-              No index on {fk.child} ({fk.child_columns.join(", ")}). Joins from {fk.parent}, and every DELETE or key
-              update on {fk.parent}, have to scan {fk.child}.{" "}
-              <Link to={screenPath("advisor", targetId, "index")}>See Index Advisor</Link>.
+              <Trans
+                t={t}
+                i18nKey="panel.fkNotIndexed"
+                values={{ child: fk.child, parent: fk.parent, columns: fk.child_columns.join(", ") }}
+                components={{ link: <Link to={screenPath("advisor", targetId, "index")} /> }}
+              />
             </Alert>
           )}
         </section>
@@ -299,7 +317,7 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
       {edge.kind === "no_fk" && (
         <section className={styles.section} aria-labelledby="workload-nofk">
           <h3 id="workload-nofk" className={styles.sectionTitle}>
-            Join conditions without a foreign key
+            {t("panel.noFkTitle")}
           </h3>
           {/* One block per join condition: two different joins between the
               same tables (sender_id and recipient_id, say) are separate. */}
@@ -316,17 +334,17 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
                     <li key={table}>
                       {table}:{" "}
                       {indexed ? (
-                        "indexed"
+                        t("panel.indexed")
                       ) : (
                         <>
-                          <strong>no index leads with the join column</strong> —{" "}
+                          <strong>{t("panel.noLeadingIndex")}</strong> —{" "}
                           <Link
                             to={screenPath("what-if", targetId, null, {
                               table,
                               columns: [...new Set(group.pairs.map((pair) => pair[side]))].join(","),
                             })}
                           >
-                            cost an index in What-if
+                            {t("panel.costInWhatIf")}
                           </Link>
                         </>
                       )}
@@ -335,19 +353,16 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
                 </ul>
               </div>
             ))}
-          <p className={styles.muted}>
-            If one side is meant to reference the other, declaring the foreign key documents it and lets PostgreSQL
-            enforce it. A side without an index is scanned on every join.
-          </p>
+          <p className={styles.muted}>{t("panel.noFkHint")}</p>
         </section>
       )}
 
       {edge.kind !== "fk_unused" && (
         <section className={styles.section} aria-labelledby="workload-edge-queries">
           <h3 id="workload-edge-queries" className={styles.sectionTitle}>
-            Queries joining these tables ({edge.query_count})
+            {t("panel.edgeQueries", { n: edge.query_count })}
           </h3>
-          <TopQueries targetId={targetId} queries={edge.top_queries} emptyText="No tracked query joins these tables." />
+          <TopQueries targetId={targetId} queries={edge.top_queries} emptyText={t("panel.noEdgeQueries")} />
         </section>
       )}
     </>
@@ -356,11 +371,12 @@ function EdgePanel({ targetId, edge, onSelect, onClose }) {
 
 // Details for whatever is selected on the map — a table or a relationship.
 export default function WorkloadSidePanel({ targetId, hours, until, graph, selection, onSelect, onClose }) {
+  const { t } = useTranslation("workloadMap");
   const node = selection.type === "table" ? graph.nodes.find((n) => n.id === selection.id) : null;
   const edge = selection.type === "edge" ? graph.edges.find((e) => e.id === selection.id) : null;
 
   return (
-    <aside className={styles.panel} aria-label="Selection details">
+    <aside className={styles.panel} aria-label={t("panel.label")}>
       {node && (
         <TablePanel
           key={node.id}
@@ -375,8 +391,8 @@ export default function WorkloadSidePanel({ targetId, hours, until, graph, selec
       )}
       {edge && <EdgePanel targetId={targetId} edge={edge} onSelect={onSelect} onClose={onClose} />}
       {!node && !edge && (
-        <PanelHeader title="Not on the map" onClose={onClose}>
-          <p className={styles.muted}>The selected item isn't part of this time range's map.</p>
+        <PanelHeader title={t("panel.notOnMap")} onClose={onClose}>
+          <p className={styles.muted}>{t("panel.notOnMapHint")}</p>
         </PanelHeader>
       )}
     </aside>

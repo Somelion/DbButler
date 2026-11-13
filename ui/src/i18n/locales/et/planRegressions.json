@@ -1,0 +1,27 @@
+{
+  "title": "Taandarenenud päringud",
+  "description": "Jälgitavad päringud (päringuajaloo top 50), mille EXPLAIN-plaani kuju on muutunud ja mis on pärast seda märgatavalt aeglasemaks läinud. Mitte lihtsalt aeglased päringud, vaid ainult need, mis on struktuurilt halvemaks muutunud.",
+  "findingCount_one": "{{count}} leid",
+  "findingCount_other": "{{count}} leidu",
+  "loading": "Plaanide taandarengu laadimine…",
+  "emptyTitle": "Plaanide taandarengut ei leitud",
+  "emptyBody": "Selleks on igal päringul vaja vähemalt kahte plaani salvestust ja mõnda latentsuse mõõtmist, nii et äsja ühendatud andmebaasil ei pruugi veel piisavalt ajalugu olla.",
+  "comparePlans": "Võrdle plaane",
+  "diff": {
+    "title": "Plaanikujude võrdlus",
+    "description": "Ainult struktuur – sõlmede tüübid, liitmised, relatsioonid ja indeksid. Salvestanud plaanide taandarengu töö, ilma kuludeta.",
+    "loading": "Plaaniajaloo laadimine…",
+    "onlyOne": "Selle päringu kohta on seni salvestatud ainult üks plaani kuju.",
+    "before": "Enne",
+    "after": "Pärast",
+    "latest": "viimane",
+    "identical": "Mõlemad kujud on identsed.",
+    "differ_one": "{{count}} sõlm erineb.",
+    "differ_other": "{{count}} sõlme erineb.",
+    "status": {
+      "changed": "muutunud",
+      "removed": "ainult enne",
+      "added": "ainult pärast"
+    }
+  }
+}

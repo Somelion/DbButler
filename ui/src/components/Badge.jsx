@@ -1,16 +1,25 @@
 import { CircleCheck, CircleHelp, CircleX, Info, TriangleAlert } from "lucide-react";
+import i18n from "../i18n";
 import styles from "./Badge.module.css";
 import tone from "./tone.module.css";
 
 // Severity vocabulary shared by every finding, tile and diagnose step.
 // Each level carries a text label and an icon as well as a colour, so status
-// is never conveyed by colour alone (WCAG 1.4.1).
+// is never conveyed by colour alone (WCAG 1.4.1). `label` is a getter, so it
+// reads in the current UI language (common:severity.*).
+const severityEntry = (key, Icon) => ({
+  Icon,
+  get label() {
+    return i18n.t(`common:severity.${key}`);
+  },
+});
+
 export const SEVERITY = {
-  critical: { label: "Critical", Icon: CircleX },
-  attention: { label: "Attention", Icon: TriangleAlert },
-  healthy: { label: "Healthy", Icon: CircleCheck },
-  info: { label: "Info", Icon: Info },
-  unknown: { label: "Unknown", Icon: CircleHelp },
+  critical: severityEntry("critical", CircleX),
+  attention: severityEntry("attention", TriangleAlert),
+  healthy: severityEntry("healthy", CircleCheck),
+  info: severityEntry("info", Info),
+  unknown: severityEntry("unknown", CircleHelp),
 };
 
 export const severityMeta = (severity) => SEVERITY[severity] ?? SEVERITY.unknown;

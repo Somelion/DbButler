@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
@@ -21,6 +22,7 @@ const EMPTY_FORM = { host: "", port: "6432", username: "", password: "", sslmode
 // `targetName` is optional and only used to name the database in the
 // remove confirmation.
 export default function PgBouncerSettings({ targetId, targetName }) {
+  const { t } = useTranslation("connections");
   const queryClient = useQueryClient();
   const queryKey = targetKey(targetId, "pgbouncer");
   const [actionError, setActionError] = useState(null);
@@ -37,10 +39,9 @@ export default function PgBouncerSettings({ targetId, targetName }) {
 
   return (
     <div className={styles.root}>
-      <h3 className={styles.title}>PgBouncer (optional)</h3>
+      <h3 className={styles.title}>{t("pgbouncer.title")}</h3>
       <p className={styles.description}>
-        If this database sits behind PgBouncer, connect to its admin console to see pool utilization on the
-        Dashboard. A user in PgBouncer's <b>stats_users</b> list is enough — this never runs PAUSE/KILL/RELOAD.
+        <Trans t={t} i18nKey="pgbouncer.description" components={{ b: <b /> }} />
       </p>
       {shownError && (
         <Alert tone="critical" compact>
@@ -48,7 +49,7 @@ export default function PgBouncerSettings({ targetId, targetName }) {
         </Alert>
       )}
       {isPending ? (
-        <Skeleton lines={2} label="Loading PgBouncer connection…" />
+        <Skeleton lines={2} label={t("pgbouncer.loading")} />
       ) : connection === null ? (
         <PgBouncerForm targetId={targetId} onSaved={reload} />
       ) : connection ? (
@@ -65,6 +66,7 @@ export default function PgBouncerSettings({ targetId, targetName }) {
 }
 
 function PgBouncerForm({ targetId, onSaved }) {
+  const { t } = useTranslation("connections");
   const [form, setForm] = useState(EMPTY_FORM);
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
@@ -109,21 +111,21 @@ function PgBouncerForm({ targetId, onSaved }) {
         </Alert>
       )}
       <div className={styles.hostRow}>
-        <Field label="Host">
+        <Field label={t("form.host")}>
           <input value={form.host} onChange={set("host")} placeholder="10.0.4.22" autoComplete="off" />
         </Field>
-        <Field label="Port">
+        <Field label={t("form.port")}>
           <input value={form.port} onChange={set("port")} placeholder="6432" inputMode="numeric" autoComplete="off" />
         </Field>
       </div>
       <div className={styles.credentialsRow}>
-        <Field label="Username">
+        <Field label={t("form.username")}>
           <input value={form.username} onChange={set("username")} placeholder="pgbouncer_stats" autoComplete="off" />
         </Field>
-        <Field label="Password">
+        <Field label={t("form.password")}>
           <input type="password" value={form.password} onChange={set("password")} autoComplete="new-password" />
         </Field>
-        <Field label="SSL mode">
+        <Field label={t("form.sslMode")}>
           <select value={form.sslmode} onChange={set("sslmode")}>
             {SSL_MODE_OPTIONS.map((mode) => (
               <option key={mode} value={mode}>
@@ -135,15 +137,17 @@ function PgBouncerForm({ targetId, onSaved }) {
       </div>
       <div className={styles.actions}>
         <button type="button" className="button-secondary" onClick={handleTest} disabled={testing || saving}>
-          {testing ? "Testing…" : "Test connection"}
+          {testing ? t("testing") : t("testConnection")}
         </button>
         <button type="submit" className="button-primary" disabled={saving || testing}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("common:actions.saving") : t("common:actions.save")}
         </button>
       </div>
       {testResult && (
         <Alert tone={testResult.ok ? "healthy" : "critical"} compact>
-          {testResult.ok ? `Connected — ${testResult.version}` : testResult.message || "Could not connect."}
+          {testResult.ok
+            ? t("pgbouncer.connectedVersion", { version: testResult.version })
+            : testResult.message || t("couldNotConnect")}
         </Alert>
       )}
     </form>
@@ -151,6 +155,7 @@ function PgBouncerForm({ targetId, onSaved }) {
 }
 
 function PgBouncerStatus({ targetId, targetName, connection, onChanged, setError }) {
+  const { t } = useTranslation("connections");
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const ok = connection.last_test_ok;
@@ -172,11 +177,11 @@ function PgBouncerStatus({ targetId, targetName, connection, onChanged, setError
   const handleRemove = async () => {
     const address = `${connection.host}:${connection.port}`;
     const confirmed = await confirm({
-      title: "Remove PgBouncer?",
+      title: t("pgbouncer.removeTitle"),
       message: targetName
-        ? `Stop reading pool stats from PgBouncer at ${address} for "${targetName}"? The Dashboard's Pooler tile goes back to unconfigured.`
-        : `Stop reading pool stats from PgBouncer at ${address}? The Dashboard's Pooler tile goes back to unconfigured.`,
-      confirmLabel: "Remove",
+        ? t("pgbouncer.removeMessageNamed", { address, name: targetName })
+        : t("pgbouncer.removeMessage", { address }),
+      confirmLabel: t("common:actions.remove"),
       tone: "danger",
     });
     if (!confirmed) return;
@@ -198,7 +203,7 @@ function PgBouncerStatus({ targetId, targetName, connection, onChanged, setError
         <Icon size={16} className={styles.statusIcon} aria-hidden="true" />
         <div className={styles.statusText}>
           <span className={styles.statusTitle}>
-            {ok ? "Connected" : "Not connected"} — {connection.host}:{connection.port}
+            {ok ? t("common:nav.connected") : t("common:nav.notConnected")} — {connection.host}:{connection.port}
           </span>
           {!ok && connection.last_test_message && (
             <span className={styles.statusMessage}>{connection.last_test_message}</span>
@@ -207,10 +212,10 @@ function PgBouncerStatus({ targetId, targetName, connection, onChanged, setError
       </div>
       <div className={styles.actions}>
         <button type="button" className="button-secondary" onClick={handleRetest} disabled={busy}>
-          {busy ? "Testing…" : "Test again"}
+          {busy ? t("testing") : t("testAgain")}
         </button>
         <button type="button" className="button-danger" onClick={handleRemove} disabled={busy}>
-          Remove
+          {t("common:actions.remove")}
         </button>
       </div>
     </div>

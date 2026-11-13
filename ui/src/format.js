@@ -1,3 +1,5 @@
+import i18n from "./i18n";
+
 export function formatBytes(bytes) {
   if (bytes == null) return "—";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -10,15 +12,18 @@ export function formatBytes(bytes) {
   return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+// In the current UI language (common:time.*). Called during render; the
+// app remounts on a language switch (main.jsx), so these re-run then.
 export function formatRelativeTime(isoString) {
-  if (!isoString) return "never";
+  const t = i18n.t.bind(i18n);
+  if (!isoString) return t("common:time.never");
   const diffSeconds = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));
-  if (diffSeconds < 60) return `${diffSeconds}s ago`;
+  if (diffSeconds < 60) return t("common:time.secondsAgo", { count: diffSeconds });
   const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  if (diffMinutes < 60) return t("common:time.minutesAgo", { count: diffMinutes });
   const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${Math.floor(diffHours / 24)}d ago`;
+  if (diffHours < 24) return t("common:time.hoursAgo", { count: diffHours });
+  return t("common:time.daysAgo", { count: Math.floor(diffHours / 24) });
 }
 
 export function formatMs(ms) {

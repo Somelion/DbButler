@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import styles from "./TimelineChart.module.css";
 
 const WIDTH = 1000;
@@ -10,19 +11,17 @@ const MARKER_LANE = 30;
 const AXIS = 22;
 const PLOT_WIDTH = WIDTH - PAD_LEFT - PAD_RIGHT;
 
+// labelKey is a key in the timeMachine namespace, translated at render.
 export const MARKER_KINDS = {
-  plan_change: { label: "Plan changed", className: "markerPlan", shape: "diamond" },
-  finding_opened: { label: "Finding opened", className: "markerOpened", shape: "triangle" },
-  finding_resolved: { label: "Finding resolved", className: "markerResolved", shape: "circle" },
-  restart: { label: "Restart", className: "markerRestart", shape: "square" },
-  stats_reset: { label: "Stats reset", className: "markerReset", shape: "square" },
-  config_change: { label: "Config change", className: "markerConfig", shape: "square" },
+  plan_change: { labelKey: "markers.plan_change", className: "markerPlan", shape: "diamond" },
+  finding_opened: { labelKey: "markers.finding_opened", className: "markerOpened", shape: "triangle" },
+  finding_resolved: { labelKey: "markers.finding_resolved", className: "markerResolved", shape: "circle" },
+  restart: { labelKey: "markers.restart", className: "markerRestart", shape: "square" },
+  stats_reset: { labelKey: "markers.stats_reset", className: "markerReset", shape: "square" },
+  config_change: { labelKey: "markers.config_change", className: "markerConfig", shape: "square" },
 };
 
 const SERIES_CLASSES = ["line1", "line2", "line3", "line4"];
-
-const formatTime = (ms) =>
-  new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 function markerShape(shape, x, y) {
   const r = 5;
@@ -39,6 +38,14 @@ function markerShape(shape, x, y) {
 // window), Page Up/Down (10%), Home/End. Every marker and incident is also
 // listed as text beside the chart, so nothing is only in the picture.
 export default function TimelineChart({ start, end, series, incidents, markers, at, onPick, label }) {
+  const { t, i18n } = useTranslation("timeMachine");
+  const timeFormat = new Intl.DateTimeFormat(i18n.language, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const formatTime = (ms) => timeFormat.format(new Date(ms));
   const svgRef = useRef(null);
   const [hoverMs, setHoverMs] = useState(null);
   const startMs = new Date(start).getTime();
@@ -82,7 +89,7 @@ export default function TimelineChart({ start, end, series, incidents, markers, 
         aria-valuemin={startMs}
         aria-valuemax={endMs}
         aria-valuenow={atMs ?? endMs}
-        aria-valuetext={atMs ? `Moment: ${formatTime(atMs)}` : "No moment picked"}
+        aria-valuetext={atMs ? t("chart.moment", { time: formatTime(atMs) }) : t("chart.noMoment")}
         onKeyDown={handleKeyDown}
         onPointerDown={(e) => onPick(new Date(timeFromEvent(e)))}
         onPointerMove={(e) => setHoverMs(timeFromEvent(e))}
@@ -102,7 +109,10 @@ export default function TimelineChart({ start, end, series, incidents, markers, 
               className={styles.incident}
             >
               <title>
-                Lock incident: up to {incident.max_blocked} blocked, {formatTime(new Date(incident.start).getTime())}
+                {t("chart.incidentTitle", {
+                  n: incident.max_blocked,
+                  time: formatTime(new Date(incident.start).getTime()),
+                })}
               </title>
             </rect>
           );
@@ -126,7 +136,7 @@ export default function TimelineChart({ start, end, series, incidents, markers, 
                 {line.label}
                 {values.length > 0 &&
                   ` · ${Math.round(min * 10) / 10}–${Math.round(max * 10) / 10}${line.unit === "%" ? "%" : ""}`}
-                {values.length === 0 && " · no data"}
+                {values.length === 0 && t("chart.noData")}
               </text>
             </g>
           );

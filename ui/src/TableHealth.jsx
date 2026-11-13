@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { ChevronRight, Eraser, RefreshCw } from "lucide-react";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
@@ -17,10 +18,8 @@ import styles from "./TableHealth.module.css";
 const POLL_INTERVAL_MS = 15000;
 
 // Shown when the live count is the catalog's estimate (app/live_tuples.py).
-const ESTIMATED_ROWS_HINT =
-  "Estimated from PostgreSQL's table statistics: the activity counters were reset (pg_stat_reset, a crash or a restore) " +
-  "and the table hasn't been vacuumed or analyzed since. The dead count only covers changes since the reset. " +
-  "Run ANALYZE on the table for exact numbers.";
+// A translation key, translated at render.
+const ESTIMATED_ROWS_HINT = "estimatedRowsHint";
 const SEVERITY_RANK = { critical: 2, attention: 1, healthy: 0 };
 
 const hiddenSchemasKey = (targetId) => `pgdba.tableHealth.hiddenSchemas.${targetId}`;
@@ -67,44 +66,17 @@ function loadHiddenSchemas(targetId) {
   }
 }
 
+// label/help are translation keys, translated at render.
 const COLUMNS = [
-  { key: "table_name", label: "Table", help: "Table name — grouped by schema below." },
-  {
-    key: "live_tuples",
-    label: "Rows (live/dead)",
-    help: "Estimated live row count and dead (deleted or updated but not yet reclaimed by VACUUM) row count for this table, from pg_stat_user_tables.",
-  },
-  {
-    key: "dead_pct",
-    label: "Dead %",
-    help: "Percent of this table's rows that are dead (deleted or updated but not yet reclaimed by VACUUM). High values mean autovacuum is falling behind.",
-  },
-  {
-    key: "last_vacuum_at",
-    label: "Last vacuum",
-    help: "When this table was last vacuumed (manual or automatic), reclaiming dead row space.",
-  },
-  {
-    key: "last_analyze_at",
-    label: "Last analyze",
-    help: "When this table's query-planner statistics were last refreshed (manual or automatic).",
-  },
-  {
-    key: "xid_age",
-    label: "Wraparound age",
-    help: "How many transactions old this table's oldest row is. Approaching the ~2 billion limit risks transaction ID wraparound — keep autovacuum running.",
-  },
-  {
-    key: "cache_hit_pct",
-    label: "Cache hit %",
-    help: "Percent of this table's reads served from memory rather than disk (target: above 95%). A single hot table can run low even when the database-wide average on the Dashboard looks healthy.",
-  },
-  {
-    key: "total_bytes",
-    label: "Size",
-    help: "Total on-disk size, including all of this table's indexes. Refreshed on the background table-metrics cycle (every 5 minutes by default), not computed live on every load — kept off the hot path since it's expensive to compute for every table on a large database.",
-  },
-  { key: "", label: "Actions" },
+  { key: "table_name", label: "columns.table.label", help: "columns.table.help" },
+  { key: "live_tuples", label: "columns.rows.label", help: "columns.rows.help" },
+  { key: "dead_pct", label: "columns.deadPct.label", help: "columns.deadPct.help" },
+  { key: "last_vacuum_at", label: "columns.lastVacuum.label", help: "columns.lastVacuum.help" },
+  { key: "last_analyze_at", label: "columns.lastAnalyze.label", help: "columns.lastAnalyze.help" },
+  { key: "xid_age", label: "columns.wraparound.label", help: "columns.wraparound.help" },
+  { key: "cache_hit_pct", label: "columns.cacheHit.label", help: "columns.cacheHit.help" },
+  { key: "total_bytes", label: "columns.size.label", help: "columns.size.help" },
+  { key: "", label: "columns.actions.label" },
 ];
 
 // ?sort= is validated against these; anything else falls back to the default.
@@ -112,6 +84,7 @@ const SORT_KEYS = new Set(COLUMNS.map((col) => col.key).filter(Boolean));
 const DEFAULT_SORT_KEY = "dead_pct";
 
 export default function TableHealth({ targetId }) {
+  const { t } = useTranslation("tableHealth");
   const queryClient = useQueryClient();
   const idPrefix = useId();
   const location = useLocation();
@@ -316,12 +289,12 @@ export default function TableHealth({ targetId }) {
         <>
           {tables && (
             <span className={styles.meta}>
-              {visibleTableCount} table{visibleTableCount === 1 ? "" : "s"}
-              {hiddenSchemas.size > 0 && ` (${hiddenSchemas.size} schema${hiddenSchemas.size === 1 ? "" : "s"} hidden)`}
+              {t("tableCount", { count: visibleTableCount })}
+              {hiddenSchemas.size > 0 && ` (${t("schemasHidden", { count: hiddenSchemas.size })})`}
             </span>
           )}
           <CategoryFilterDropdown
-            label="Schemas"
+            label={t("schemas")}
             items={allSchemaNames}
             hiddenItems={hiddenSchemas}
             onToggle={toggleSchemaHidden}
@@ -332,23 +305,25 @@ export default function TableHealth({ targetId }) {
       }
     >
       <div className={styles.deepScanBar}>
-        <span className={styles.meta} title="Also runs automatically every night — see Settings.">
+        <span className={styles.meta} title={t("deepScan.autoTitle")}>
           {deepScan
             ? deepScan.last_run_at
-              ? `Deep scan: ${formatRelativeTime(deepScan.last_run_at)}${
-                  deepScan.last_run_status === "error" ? " (failed)" : ` · ${deepScan.open_findings} open finding${deepScan.open_findings === 1 ? "" : "s"}`
+              ? `${t("deepScan.lastRun", { time: formatRelativeTime(deepScan.last_run_at) })}${
+                  deepScan.last_run_status === "error"
+                    ? ` (${t("deepScan.failed")})`
+                    : ` · ${t("deepScan.openFindings", { count: deepScan.open_findings })}`
                 }`
-              : "Deep scan: never run"
-            : "Deep scan: —"}
+              : t("deepScan.neverRun")
+            : t("deepScan.unknown")}
         </span>
         <button
           type="button"
           className="button-secondary button-sm"
           disabled={deepScanMutation.isPending}
-          title="Runs every table's advisor checks now, across the whole database, and records the results — the same thing that runs nightly (see Settings)."
+          title={t("deepScan.runTitle")}
           onClick={() => deepScanMutation.mutate()}
         >
-          {deepScanMutation.isPending ? "Running…" : "Run Deep Scan Now"}
+          {deepScanMutation.isPending ? t("deepScan.running") : t("deepScan.run")}
         </button>
       </div>
       {deepScanError && (
@@ -362,10 +337,10 @@ export default function TableHealth({ targetId }) {
           {tablesQuery.error.message}
         </Alert>
       )}
-      {tablesQuery.isPending && <Skeleton lines={6} label="Loading tables…" />}
-      {tables && tables.length === 0 && <EmptyState title="No user tables found." />}
+      {tablesQuery.isPending && <Skeleton lines={6} label={t("loadingTables")} />}
+      {tables && tables.length === 0 && <EmptyState title={t("noTables")} />}
       {tables && tables.length > 0 && visibleGrouped.length === 0 && (
-        <p className={styles.note}>All schemas are hidden — use the Schemas button above to show some.</p>
+        <p className={styles.note}>{t("allSchemasHidden")}</p>
       )}
       {visibleGrouped.length > 0 && (
         <div className={tableStyles.wrap}>
@@ -380,13 +355,13 @@ export default function TableHealth({ targetId }) {
                       sortKey={sortKey}
                       sortDir={sortDir}
                       onSort={handleSort}
-                      hint={<HeaderHint text={col.help} />}
+                      hint={<HeaderHint text={t(col.help)} />}
                     >
-                      {col.label}
+                      {t(col.label)}
                     </SortHeader>
                   ) : (
                     <th key="actions" scope="col" className={tableStyles.th}>
-                      <span className="sr-only">{col.label}</span>
+                      <span className="sr-only">{t(col.label)}</span>
                     </th>
                   )
                 )}
@@ -452,6 +427,7 @@ export default function TableHealth({ targetId }) {
 }
 
 function SchemaGroup({ schemaName, tableCount, severity, isCollapsed, groupId, onToggle, action, children }) {
+  const { t } = useTranslation("tableHealth");
   const flagged = severity === "critical" || severity === "attention";
   return (
     <>
@@ -469,9 +445,7 @@ function SchemaGroup({ schemaName, tableCount, severity, isCollapsed, groupId, o
                 <ChevronRight size={14} className={tableStyles.chevron} aria-hidden="true" />
                 <span className={`${styles.schemaName} ${flagged ? tone[severity] : ""}`}>{schemaName}</span>
                 {flagged && <SeverityIcon severity={severity} size={13} />}
-                <span className={styles.schemaCount}>
-                  {tableCount} table{tableCount === 1 ? "" : "s"}
-                </span>
+                <span className={styles.schemaCount}>{t("tableCount", { count: tableCount })}</span>
               </button>
               {action}
             </div>
@@ -485,26 +459,11 @@ function SchemaGroup({ schemaName, tableCount, severity, isCollapsed, groupId, o
 
 const SCHEMA_JOB_POLL_MS = 1500;
 
-// The two whole-schema operations. `confirm` is the dialog text.
+// The two whole-schema operations. Their texts (label, confirm dialog,
+// progress and toast) live under schemaOps.<operation> in the translations.
 const SCHEMA_OPERATIONS = {
-  analyze: {
-    label: "Analyze all",
-    running: "Analyzing",
-    past: "Analyzed",
-    verb: "analyze",
-    Icon: RefreshCw,
-    confirm: (n) =>
-      `Runs ANALYZE on ${n} table${n === 1 ? "" : "s"}, one after another, so their row counts and planner statistics are fresh. ANALYZE reads a sample of each table; reads and writes carry on while it runs.`,
-  },
-  vacuum: {
-    label: "Vacuum all",
-    running: "Vacuuming",
-    past: "Vacuumed",
-    verb: "vacuum",
-    Icon: Eraser,
-    confirm: (n) =>
-      `Runs VACUUM (ANALYZE) on ${n} table${n === 1 ? "" : "s"}, one after another: dead rows become reusable space and the statistics are refreshed. Reads and writes carry on, but VACUUM reads every table and writes its changes, so on a busy server prefer a quiet moment. This is not VACUUM FULL — nothing is locked against use, and files don't shrink.`,
-  },
+  analyze: { Icon: RefreshCw },
+  vacuum: { Icon: Eraser },
 };
 
 // "Analyze all" / "Vacuum all" for one schema: confirms, starts the
@@ -513,6 +472,7 @@ const SCHEMA_OPERATIONS = {
 // process them — and refreshes the table list so the new numbers appear.
 // One job per schema at a time: both buttons wait while either runs.
 function SchemaMaintenanceActions({ targetId, schemaName, tableCount, onFinished }) {
+  const { t } = useTranslation("tableHealth");
   const confirm = useConfirm();
   const toast = useToast();
   const [active, setActive] = useState(null); // { jobId, operation }
@@ -525,17 +485,20 @@ function SchemaMaintenanceActions({ targetId, schemaName, tableCount, onFinished
     reportedJobs.current.add(job.job_id);
     setActive(null);
     onFinished();
-    const op = SCHEMA_OPERATIONS[job.operation];
-    const parts = [`${op.past} ${job.completed} of ${job.total} table${job.total === 1 ? "" : "s"} in ${schemaName}.`];
+    const ns = `schemaOps.${job.operation}`;
+    const parts = [t(`${ns}.done`, { count: job.total, completed: job.completed, schema: schemaName })];
     if (job.skipped.length > 0) {
-      parts.push(
-        `${job.skipped.length} skipped: DbButler's role may not ${op.verb} ${job.skipped.length === 1 ? "it" : "them"} (needs table ownership, or pg_maintain on PostgreSQL 17+).`
-      );
+      parts.push(t(`${ns}.skipped`, { count: job.skipped.length }));
     }
     if (job.failed.length > 0) {
-      parts.push(`${job.failed.length} failed: ${job.failed.map((f) => `${f.table} (${f.error})`).join("; ")}.`);
+      parts.push(
+        t("schemaOps.failed", {
+          count: job.failed.length,
+          list: job.failed.map((f) => `${f.table} (${f.error})`).join("; "),
+        })
+      );
     }
-    if (job.status === "error") parts.push(`Stopped early: ${job.error}`);
+    if (job.status === "error") parts.push(t("schemaOps.stoppedEarly", { error: job.error }));
     toast(parts.join(" "));
   };
 
@@ -552,11 +515,10 @@ function SchemaMaintenanceActions({ targetId, schemaName, tableCount, onFinished
   const job = active ? jobQuery.data : undefined;
 
   const start = async (operation) => {
-    const op = SCHEMA_OPERATIONS[operation];
     const ok = await confirm({
-      title: `${op.label.replace(" all", "")} all tables in ${schemaName}?`,
-      message: op.confirm(tableCount),
-      confirmLabel: op.label,
+      title: t(`schemaOps.${operation}.confirmTitle`, { schema: schemaName }),
+      message: t(`schemaOps.${operation}.confirm`, { count: tableCount }),
+      confirmLabel: t(`schemaOps.${operation}.label`),
     });
     if (!ok) return;
     setStartError(null);
@@ -588,8 +550,11 @@ function SchemaMaintenanceActions({ targetId, schemaName, tableCount, onFinished
           >
             <op.Icon size={12} aria-hidden="true" className={running ? styles.spin : undefined} />
             {running
-              ? `${op.running} ${job ? Math.min(job.done + 1, job.total) : 1}/${job?.total ?? tableCount}…`
-              : op.label}
+              ? t(`schemaOps.${operation}.progress`, {
+                  done: job ? Math.min(job.done + 1, job.total) : 1,
+                  total: job?.total ?? tableCount,
+                })
+              : t(`schemaOps.${operation}.label`)}
           </button>
         );
       })}
@@ -625,6 +590,7 @@ function TableRow({
   onChanged,
   firstSeenByFindingId,
 }) {
+  const { t } = useTranslation("tableHealth");
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const detailId = useId();
@@ -654,6 +620,7 @@ function TableRow({
     if (scrollIntoView) rowRef.current?.scrollIntoView({ block: "start" });
   }, [scrollIntoView, hasDetail]);
 
+  // verb: "analyze" | "vacuum" | "resetStats" — also the row.<verb> translation keys.
   const runAction = async (verb, confirmOptions, fn) => {
     if (!(await confirm(confirmOptions))) return;
     const before = table;
@@ -666,7 +633,7 @@ function TableRow({
       // The table's suggestions (dead tuples, never analyzed, …) can change
       // with it — refetched if the row is open, marked stale otherwise.
       queryClient.invalidateQueries({ queryKey: detailKey });
-      let message = result?.message || `${verb} succeeded.`;
+      let message = result?.message || t(`row.${verb}.succeeded`);
       // Vacuum's whole point is reclaiming dead tuples — show the actual
       // before/after count rather than just "it ran," since a VACUUM that
       // completes without error can still leave dead_tup unchanged when
@@ -676,27 +643,30 @@ function TableRow({
       // this screen — but "it ran, nothing changed" is exactly what a user
       // needs to see to go looking for that cause instead of assuming the
       // click did nothing.
-      if (verb === "Vacuum" && freshTables) {
+      if (verb === "vacuum" && freshTables) {
         const after = freshTables.find(
-          (t) => t.schema_name === before.schema_name && t.table_name === before.table_name
+          (row) => row.schema_name === before.schema_name && row.table_name === before.table_name
         );
         if (after) {
           message +=
             after.dead_tuples === before.dead_tuples
-              ? ` Dead tuples unchanged (${before.dead_tuples.toLocaleString()}) — VACUUM completed without error, but something else may be holding the rows back from actually being reclaimed: check Activity for a long-running or idle-in-transaction session, or Advisor → Replication Advisor for an inactive replication slot.`
-              : ` Dead tuples: ${before.dead_tuples.toLocaleString()} → ${after.dead_tuples.toLocaleString()}.`;
+              ? ` ${t("row.deadTuplesUnchanged", { dead: before.dead_tuples.toLocaleString() })}`
+              : ` ${t("row.deadTuplesChanged", {
+                  before: before.dead_tuples.toLocaleString(),
+                  after: after.dead_tuples.toLocaleString(),
+                })}`;
         }
-      } else if (verb === "Analyze") {
+      } else if (verb === "analyze") {
         // Analyze has no visible row change to point at (it refreshes
         // planner statistics, not row counts) — the plain "it ran" message
         // is easy to read as "nothing happened" without something concrete
         // to anchor it, so name what actually changed.
-        message += " Query planner statistics refreshed for this table.";
+        message += ` ${t("row.statsRefreshed")}`;
       }
       setActionSuccess(message);
       setTimeout(() => setActionSuccess(null), ACTION_SUCCESS_TIMEOUT_MS);
     } catch (err) {
-      setActionError(`${verb} failed: ${err.message}`);
+      setActionError(t(`row.${verb}.failed`, { error: err.message }));
     } finally {
       setBusyVerb(null);
     }
@@ -740,7 +710,7 @@ function TableRow({
             className={tableStyles.expander}
             aria-expanded={expanded}
             aria-controls={detailId}
-            title="Show suggestions for this table"
+            title={t("row.showSuggestions")}
             onClick={onToggleExpand}
           >
             <ChevronRight size={14} className={tableStyles.chevron} aria-hidden="true" />
@@ -749,7 +719,7 @@ function TableRow({
         </td>
         <td
           className={`${tableStyles.td} ${tableStyles.mono} ${styles.secondary}`}
-          title={table.live_tuples_estimated ? ESTIMATED_ROWS_HINT : undefined}
+          title={table.live_tuples_estimated ? t(ESTIMATED_ROWS_HINT) : undefined}
         >
           {table.live_tuples_estimated && (
             <span className={styles.estimate} aria-hidden="true">
@@ -757,7 +727,7 @@ function TableRow({
             </span>
           )}
           {table.live_tuples.toLocaleString()} / {table.dead_tuples.toLocaleString()}
-          {table.live_tuples_estimated && <span className="sr-only"> ({ESTIMATED_ROWS_HINT})</span>}
+          {table.live_tuples_estimated && <span className="sr-only"> ({t(ESTIMATED_ROWS_HINT)})</span>}
         </td>
         <td className={tableStyles.td}>
           <SeverityValue severity={table.dead_pct_severity}>{table.dead_pct.toFixed(1)}%</SeverityValue>
@@ -776,10 +746,10 @@ function TableRow({
           {table.total_bytes_as_of ? (
             <>
               {formatBytes(table.total_bytes)}
-              <div className={styles.asOf}>as of {formatRelativeTime(table.total_bytes_as_of)}</div>
+              <div className={styles.asOf}>{t("row.asOf", { time: formatRelativeTime(table.total_bytes_as_of) })}</div>
             </>
           ) : (
-            "pending"
+            t("row.pending")
           )}
         </td>
         <td className={tableStyles.td}>
@@ -788,63 +758,60 @@ function TableRow({
               type="button"
               className="button-secondary button-sm"
               disabled={busy}
-              title="Refresh the query planner's statistics for this table. Fast, no meaningful lock — safe to run any time, e.g. after a bulk load."
+              title={t("row.analyze.title")}
               onClick={() =>
                 runAction(
-                  "Analyze",
+                  "analyze",
                   {
-                    title: `Analyze ${fullName}?`,
-                    message:
-                      "Refreshes the query planner's statistics for this table. Fast, no meaningful lock — safe to run any time.",
-                    confirmLabel: "Analyze",
+                    title: t("row.analyze.confirmTitle", { name: fullName }),
+                    message: t("row.analyze.confirmMessage"),
+                    confirmLabel: t("row.analyze.label"),
                   },
                   () => api.analyzeTable(targetId, table.schema_name, table.table_name)
                 )
               }
             >
-              {busyVerb === "Analyze" ? "Analyzing…" : "Analyze"}
+              {busyVerb === "analyze" ? t("row.analyze.busy") : t("row.analyze.label")}
             </button>
             <button
               type="button"
               className="button-secondary button-sm"
               disabled={busy}
-              title="Reclaim dead-row space and refresh statistics (VACUUM ANALYZE). Runs alongside normal reads/writes, but uses real I/O — avoid running on many large tables at once."
+              title={t("row.vacuum.title")}
               onClick={() =>
                 runAction(
-                  "Vacuum",
+                  "vacuum",
                   {
-                    title: `Vacuum (analyze) ${fullName}?`,
-                    message:
-                      "Runs VACUUM ANALYZE: reclaims dead-row space and refreshes statistics. Runs alongside normal reads/writes, but uses real I/O — avoid running on many large tables at once.",
-                    confirmLabel: "Vacuum",
+                    title: t("row.vacuum.confirmTitle", { name: fullName }),
+                    message: t("row.vacuum.confirmMessage"),
+                    confirmLabel: t("row.vacuum.label"),
                     tone: "danger",
                   },
                   () => api.vacuumTable(targetId, table.schema_name, table.table_name, true)
                 )
               }
             >
-              {busyVerb === "Vacuum" ? "Vacuuming…" : "Vacuum"}
+              {busyVerb === "vacuum" ? t("row.vacuum.busy") : t("row.vacuum.label")}
             </button>
             <button
               type="button"
               className="button-secondary button-sm"
               disabled={busy}
-              title="Reset this table's cumulative counters (dead/live tuple counts, index scan counts) back to zero. Useful right after a manual Vacuum to see a clean baseline. Does not change any data."
+              title={t("row.resetStats.title")}
               onClick={() =>
                 runAction(
-                  "Reset stats",
+                  "resetStats",
                   {
-                    title: `Reset statistics for ${fullName}?`,
-                    message:
-                      "Resets this table's cumulative counters (dead/live tuple counts, index scan counts) to zero. Does not change any data.",
-                    confirmLabel: "Reset stats",
+                    title: t("row.resetStats.confirmTitle", { name: fullName }),
+                    message: t("row.resetStats.confirmMessage"),
+                    confirmLabel: t("row.resetStats.label"),
                     tone: "danger",
                   },
                   () => api.resetTableStats(targetId, table.schema_name, table.table_name)
                 )
               }
             >
-              {busyVerb === "Reset stats" ? "Resetting…" : "Reset stats"}
+              {busyVerb === "resetStats" ? t("row.resetStats.busy") : t("row.resetStats.label")}
             </button>
           </div>
         </td>
@@ -870,7 +837,7 @@ function TableRow({
       {expanded && (
         <tr id={detailId}>
           <td colSpan={COLUMNS.length} className={styles.detailCell}>
-            {findingsQuery.isPending && <Skeleton lines={4} label={`Loading details for ${fullName}…`} />}
+            {findingsQuery.isPending && <Skeleton lines={4} label={t("row.loadingDetails", { name: fullName })} />}
             {findingsError && (
               <Alert tone="critical" compact>
                 {findingsError}

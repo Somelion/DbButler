@@ -1,0 +1,102 @@
+{
+  "ranges": {
+    "1h": "1h",
+    "6h": "6h",
+    "24h": "24h",
+    "7d": "7d"
+  },
+  "duration": {
+    "seconds": "{{s}}s",
+    "minutes": "{{m}}m {{s}}s",
+    "hours": "{{h}}h {{m}}m"
+  },
+  "longestWait": "longest wait {{seconds}}s",
+  "markers": {
+    "plan_change": "Plan changed",
+    "finding_opened": "Finding opened",
+    "finding_resolved": "Finding resolved",
+    "restart": "Restart",
+    "stats_reset": "Stats reset",
+    "config_change": "Config change"
+  },
+  "explain": {
+    "title": "What happened? (AI)",
+    "description": "Written by your configured AI provider from the facts below — counts, table and lock names, finding titles. No query text or data was sent.",
+    "asking": "Asking the AI — this can take a minute or two…",
+    "whatWasSent": "Exactly what was sent"
+  },
+  "moment": {
+    "pickTitle": "Pick a moment",
+    "nothingSelected": "Nothing selected",
+    "pickHint": "Click the timeline (or focus it and use the arrow keys), or pick a lock incident or event on the left, to see who blocked whom, what ran and what had just changed.",
+    "title": "At {{time}}",
+    "stepThrough": "Step through lock snapshots",
+    "previousSnapshot": "Previous snapshot",
+    "pause": "Pause",
+    "play": "Play",
+    "nextSnapshot": "Next snapshot",
+    "loading": "Loading this moment…",
+    "blocking": "Blocking",
+    "sessionsBlocked_one": "{{count}} session blocked",
+    "sessionsBlocked_other": "{{count}} sessions blocked",
+    "snapshotAt": " — snapshot at {{time}}. Query literals are masked.",
+    "noLockWait": "No session was waiting on a lock at this moment (snapshots are taken every 15 seconds while one is).",
+    "topQueries": "Top queries in this interval",
+    "noQueryInterval": "No Query History interval covers this moment.",
+    "queriesCaption": "Tracked queries by DB time in the collection interval ending {{time}}",
+    "colQuery": "Query",
+    "colCalls": "Calls",
+    "colMean": "Mean",
+    "colDbTime": "DB time",
+    "nearby": "Changes within 30 minutes",
+    "noneRecorded": "None recorded.",
+    "openFindings": "Findings open at this moment",
+    "noOpenFindings": "None from the deep scan.",
+    "since": "since {{time}}"
+  },
+  "toolbar": {
+    "windowLength": "Window length",
+    "moveWindow": "Move the window",
+    "earlier": "Earlier",
+    "later": "Later",
+    "now": "Now",
+    "nowRefreshing": "now (refreshing)",
+    "explainWindow": "Explain this window",
+    "loadingTimeline": "Loading the timeline…",
+    "chartLabel": "Timeline. Pick a moment: arrow keys move 1% of the window, Page Up and Page Down 10%, Home and End jump to the ends.",
+    "lockIncident": "Lock incident"
+  },
+  "incidents": {
+    "title": "Lock incidents ({{n}})",
+    "none": "No session waited on a lock in this window. Lock trees are recorded every 15 seconds while one does (demo: <code>demo/stage-lock-incident.sh</code> stages one).",
+    "upToBlocked": "up to {{n}} blocked",
+    "snapshots_one": "{{count}} snapshot",
+    "snapshots_other": "{{count}} snapshots",
+    "replay": "Replay",
+    "explain": "Explain"
+  },
+  "events": {
+    "title": "Changes and events ({{n}})",
+    "none": "Nothing recorded in this window.",
+    "showFewer": "Show fewer",
+    "showAll": "Show all {{n}}"
+  },
+  "chart": {
+    "moment": "Moment: {{time}}",
+    "noMoment": "No moment picked",
+    "incidentTitle": "Lock incident: up to {{n}} blocked, {{time}}",
+    "noData": " · no data"
+  },
+  "lockTree": {
+    "preparedTransaction": "A prepared transaction",
+    "preparedHint": "two-phase commit, no session — see the Vacuum Horizon tile; ROLLBACK PREPARED or COMMIT PREPARED releases it",
+    "notInActivity": "not in this database's activity (another database, or it ended)",
+    "unknownState": "unknown state",
+    "waitingFor": "waiting for {{what}}",
+    "waiting": "waiting {{duration}}",
+    "transactionOpen": "transaction open {{duration}}",
+    "srBlocking": "Blocking: ",
+    "srBlocked": "Blocked, depth {{depth}}: ",
+    "deadlockCycle": "Every session here is blocked by another — a deadlock cycle caught mid-detection."
+  }
+}

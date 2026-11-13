@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { formatBytes } from "./format";
 import FindingCard from "./FindingCard";
 import CollapsibleGroup from "./CollapsibleGroup";
@@ -8,47 +9,29 @@ import styles from "./TableHealthDetail.module.css";
 // Finer-grained than the flat "table health" category every finding here
 // shares — mirrors Advisor.jsx's id-prefix grouping so related suggestions
 // (e.g. never-vacuumed and dead-tuple accumulation) sit together.
+// Labels are translation keys, translated at render.
 const FINDING_GROUPS = [
-  { prefix: "table-health-never-vacuumed-", label: "Vacuum & Analyze" },
-  { prefix: "table-health-never-analyzed-", label: "Vacuum & Analyze" },
-  { prefix: "table-health-dead-tuples-", label: "Vacuum & Analyze" },
-  { prefix: "table-health-dead-tuple-forecast-", label: "Vacuum & Analyze" },
-  { prefix: "table-health-toast-heavy-", label: "Storage & TOAST" },
-  { prefix: "table-health-wide-column-", label: "Storage & TOAST" },
-  { prefix: "table-health-low-stats-target-", label: "Statistics" },
-  { prefix: "table-health-autovacuum-scale-", label: "Autovacuum & Updates" },
-  { prefix: "table-health-hot-update-ratio-", label: "Autovacuum & Updates" },
+  { prefix: "table-health-never-vacuumed-", label: "detail.groups.vacuumAnalyze" },
+  { prefix: "table-health-never-analyzed-", label: "detail.groups.vacuumAnalyze" },
+  { prefix: "table-health-dead-tuples-", label: "detail.groups.vacuumAnalyze" },
+  { prefix: "table-health-dead-tuple-forecast-", label: "detail.groups.vacuumAnalyze" },
+  { prefix: "table-health-toast-heavy-", label: "detail.groups.storageToast" },
+  { prefix: "table-health-wide-column-", label: "detail.groups.storageToast" },
+  { prefix: "table-health-low-stats-target-", label: "detail.groups.statistics" },
+  { prefix: "table-health-autovacuum-scale-", label: "detail.groups.autovacuumUpdates" },
+  { prefix: "table-health-hot-update-ratio-", label: "detail.groups.autovacuumUpdates" },
 ];
+const OTHER_GROUP = "detail.groups.other";
 
-const COLUMN_HEADERS = [
-  { label: "Column", hint: "Column name." },
-  { label: "Type", hint: "Postgres data type." },
-  {
-    label: "Avg width",
-    hint: "Average on-disk size of this column's values, in bytes. Shows — until the table has been analyzed at least once.",
-  },
-  { label: "Null %", hint: "Share of this table's rows where this column is NULL." },
-  {
-    label: "Distinct",
-    hint: "Estimated number of distinct values (pg_stats.n_distinct). A non-negative number is an absolute count; a negative number is a fraction of all rows (e.g. -0.5 means about half the rows are distinct).",
-  },
-  {
-    label: "Stats target",
-    hint: "How many rows Postgres samples to build this column's planner statistics. \"default\" uses the server-wide default_statistics_target (100 unless changed) rather than a per-column override.",
-  },
-  { label: "Indexed", hint: "Whether this column is part of any index (alone or combined with others)." },
-  {
-    label: "Storage",
-    hint: "How large values in this column can be stored: plain (always inline, never TOASTed), extended/main (may move out-of-line into TOAST, compressed), external (moves out-of-line uncompressed).",
-  },
-];
+// Translation keys under detail.columnHeaders.<id>.{label,hint}.
+const COLUMN_HEADERS = ["column", "type", "avgWidth", "nullPct", "distinct", "statsTarget", "indexed", "storage"];
 
 function groupFindings(findings) {
   const order = [];
   const byLabel = new Map();
   for (const finding of findings) {
     const match = FINDING_GROUPS.find((g) => finding.id.startsWith(g.prefix));
-    const label = match ? match.label : "Other";
+    const label = match ? match.label : OTHER_GROUP;
     if (!byLabel.has(label)) {
       byLabel.set(label, []);
       order.push(label);
@@ -59,6 +42,7 @@ function groupFindings(findings) {
 }
 
 export default function TableHealthDetail({ detail, onArchive, onApply, firstSeenByFindingId = {} }) {
+  const { t } = useTranslation("tableHealth");
   const { findings, columns, storage, autovacuum } = detail;
   const groups = groupFindings(findings);
   const toastPct = storage.total_bytes > 0 ? (100 * storage.toast_bytes) / storage.total_bytes : 0;
@@ -66,72 +50,76 @@ export default function TableHealthDetail({ detail, onArchive, onApply, firstSee
   return (
     <div className={styles.detail}>
       <div className={styles.statGroups}>
-        <StatGroup title="Storage">
-          <Stat label="Heap" hint="This table's own data pages — everything except TOAST and indexes." value={formatBytes(storage.heap_bytes)} />
+        <StatGroup title={t("detail.storage.title")}>
+          <Stat label={t("detail.storage.heap")} hint={t("detail.storage.heapHint")} value={formatBytes(storage.heap_bytes)} />
           <Stat
-            label="TOAST"
+            label={t("detail.storage.toast")}
             value={`${formatBytes(storage.toast_bytes)}${storage.toast_bytes > 0 ? ` (${toastPct.toFixed(0)}%)` : ""}`}
-            hint="Large text/bytea/jsonb values stored out-of-line, compressed, from the main table."
+            hint={t("detail.storage.toastHint")}
           />
           <Stat
-            label="Indexes"
+            label={t("detail.storage.indexes")}
             value={formatBytes(storage.index_bytes)}
-            hint="Combined size of every index on this table. Derived (total minus heap minus TOAST), not its own separate measurement."
+            hint={t("detail.storage.indexesHint")}
           />
-          <Stat label="Total" value={formatBytes(storage.total_bytes)} hint="Everything for this table combined — heap + TOAST + indexes." />
+          <Stat label={t("detail.storage.total")} value={formatBytes(storage.total_bytes)} hint={t("detail.storage.totalHint")} />
         </StatGroup>
 
-        <StatGroup title="Autovacuum & updates">
+        <StatGroup title={t("detail.autovacuum.title")}>
           <Stat
-            label="Autovacuum"
-            value={autovacuum.autovacuum_enabled ? "Enabled" : "Disabled"}
-            hint="Whether autovacuum runs on this table at all — should almost always be Enabled."
+            label={t("detail.autovacuum.autovacuum")}
+            value={autovacuum.autovacuum_enabled ? t("detail.autovacuum.enabled") : t("detail.autovacuum.disabled")}
+            hint={t("detail.autovacuum.autovacuumHint")}
           />
           <Stat
-            label="Vacuum scale factor"
-            value={`${(autovacuum.vacuum_scale_factor * 100).toFixed(0)}%${autovacuum.has_custom_scale_factor ? "" : " (server default)"}`}
-            hint="Fraction of a table's rows that must be dead before autovacuum runs. A table-level override, when set, replaces the server-wide default shown here."
+            label={t("detail.autovacuum.vacuumScaleFactor")}
+            value={`${(autovacuum.vacuum_scale_factor * 100).toFixed(0)}%${
+              autovacuum.has_custom_scale_factor ? "" : ` (${t("detail.autovacuum.serverDefault")})`
+            }`}
+            hint={t("detail.autovacuum.vacuumScaleFactorHint")}
           />
           <Stat
-            label="Analyze scale factor"
+            label={t("detail.autovacuum.analyzeScaleFactor")}
             value={`${(autovacuum.analyze_scale_factor * 100).toFixed(0)}%`}
-            hint="Fraction of a table's rows that must change before autovacuum re-analyzes it (refreshes planner statistics)."
+            hint={t("detail.autovacuum.analyzeScaleFactorHint")}
           />
           <Stat
-            label="Fillfactor"
+            label={t("detail.autovacuum.fillfactor")}
             value={autovacuum.fillfactor}
-            hint="Percent of each page Postgres fills before starting a new one — the rest is headroom for HOT updates."
+            hint={t("detail.autovacuum.fillfactorHint")}
           />
           <Stat
-            label="HOT update ratio"
+            label={t("detail.autovacuum.hotRatio")}
             value={autovacuum.hot_update_ratio != null ? `${(autovacuum.hot_update_ratio * 100).toFixed(0)}%` : "—"}
-            hint="Share of updates that avoided touching any index (Heap-Only Tuple). Low means most updates are paying full index-maintenance cost."
+            hint={t("detail.autovacuum.hotRatioHint")}
           />
           <Stat
-            label="Vacuum status"
+            label={t("detail.autovacuum.vacuumStatus")}
             value={
               autovacuum.vacuum_in_progress
-                ? `Running (${autovacuum.vacuum_phase}${
-                    autovacuum.vacuum_progress_pct != null ? `, ${autovacuum.vacuum_progress_pct.toFixed(0)}%` : ""
-                  })`
-                : "Not running"
+                ? t("detail.autovacuum.running", {
+                    details: `${autovacuum.vacuum_phase}${
+                      autovacuum.vacuum_progress_pct != null ? `, ${autovacuum.vacuum_progress_pct.toFixed(0)}%` : ""
+                    }`,
+                  })
+                : t("detail.autovacuum.notRunning")
             }
-            hint="Whether a VACUUM (manual or autovacuum) is actively running on this table right now, from pg_stat_progress_vacuum. Only reflects the current instant, not history."
+            hint={t("detail.autovacuum.vacuumStatusHint")}
           />
         </StatGroup>
       </div>
 
       {columns.length > 0 && (
         <div className={styles.section}>
-          <h3 className={styles.sectionTitle}>Columns</h3>
+          <h3 className={styles.sectionTitle}>{t("detail.columnsTitle")}</h3>
           <div className={tableStyles.wrap}>
             <table className={`${tableStyles.table} ${styles.columnsTable}`}>
               <thead>
                 <tr>
-                  {COLUMN_HEADERS.map((col) => (
-                    <th key={col.label} scope="col" className={`${tableStyles.th} ${styles.cell}`}>
-                      {col.label}
-                      <HeaderHint text={col.hint} />
+                  {COLUMN_HEADERS.map((id) => (
+                    <th key={id} scope="col" className={`${tableStyles.th} ${styles.cell}`}>
+                      {t(`detail.columnHeaders.${id}.label`)}
+                      <HeaderHint text={t(`detail.columnHeaders.${id}.hint`)} />
                     </th>
                   ))}
                 </tr>
@@ -151,9 +139,11 @@ export default function TableHealthDetail({ detail, onArchive, onApply, firstSee
                       {col.n_distinct != null ? col.n_distinct : "—"}
                     </td>
                     <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary}`}>
-                      {col.attstattarget === -1 || col.attstattarget == null ? "default" : col.attstattarget}
+                      {col.attstattarget === -1 || col.attstattarget == null ? t("detail.default") : col.attstattarget}
                     </td>
-                    <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary}`}>{col.is_indexed ? "Yes" : "—"}</td>
+                    <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary}`}>
+                      {col.is_indexed ? t("detail.yes") : "—"}
+                    </td>
                     <td className={`${tableStyles.td} ${styles.cell} ${styles.secondary}`}>{col.storage}</td>
                   </tr>
                 ))}
@@ -164,13 +154,13 @@ export default function TableHealthDetail({ detail, onArchive, onApply, firstSee
       )}
 
       <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>Suggestions</h3>
+        <h3 className={styles.sectionTitle}>{t("detail.suggestionsTitle")}</h3>
         {findings.length === 0 ? (
-          <p className={styles.empty}>No suggestions for this table.</p>
+          <p className={styles.empty}>{t("detail.noSuggestions")}</p>
         ) : (
           <div className={styles.groups}>
             {groups.map((group) => (
-              <CollapsibleGroup key={group.label} label={group.label} count={group.findings.length} defaultExpanded>
+              <CollapsibleGroup key={group.label} label={t(group.label)} count={group.findings.length} defaultExpanded>
                 {group.findings.map((finding) => (
                   <FindingCard
                     key={finding.id}

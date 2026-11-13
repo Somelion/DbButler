@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
 import { Alert, Card, Skeleton } from "./components";
@@ -23,6 +24,7 @@ const CATEGORY_COLORS = {
 const FALLBACK_COLOR = "var(--unknown-solid)"; // Timeout, Client, Extension, anything unlisted
 
 export default function WaitEventBreakdown({ targetId }) {
+  const { t } = useTranslation("dashboard");
   // Polled through the query cache; the interval pauses in hidden tabs.
   const { data, error, isPending } = useQuery({
     queryKey: targetKey(targetId, "wait-events"),
@@ -32,18 +34,18 @@ export default function WaitEventBreakdown({ targetId }) {
 
   return (
     <Card
-      title="Active Sessions by Wait State"
-      description="What's actually running right now is waiting on, for fast triage."
+      title={t("waitStates.title")}
+      description={t("waitStates.description")}
       actions={
         data && (
           <span className={styles.total}>
             {data.total_active}
-            <span className="sr-only"> active sessions</span>
+            <span className="sr-only"> {t("waitStates.activeSessions", { count: data.total_active })}</span>
           </span>
         )
       }
     >
-      {isPending && <Skeleton lines={2} label="Loading wait states…" />}
+      {isPending && <Skeleton lines={2} label={t("waitStates.loading")} />}
 
       {error && (
         <Alert tone="critical" compact>
@@ -52,7 +54,7 @@ export default function WaitEventBreakdown({ targetId }) {
       )}
 
       {data && data.total_active === 0 && (
-        <p className={styles.empty}>No active sessions right now — everything's idle.</p>
+        <p className={styles.empty}>{t("waitStates.empty")}</p>
       )}
 
       {data && data.total_active > 0 && (

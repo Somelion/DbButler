@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import { useEffect, useRef } from "react";
 import { useThemeSnapshot } from "../cssColors";
 import styles from "./PlanViewer.module.css";
@@ -14,7 +15,7 @@ function effectiveTheme() {
 // for why it lives on its own page. `plan` is EXPLAIN output as a string
 // (text format, or FORMAT JSON serialized). The plan is (re)sent whenever
 // the page says it's ready and whenever plan, query or theme change.
-export default function PlanViewerFrame({ plan, query, title = "Query plan" }) {
+export default function PlanViewerFrame({ plan, query, title = i18n.t("common:planViewer.title") }) {
   const frameRef = useRef(null);
   const latestRef = useRef({ plan, query });
   const themeSnapshot = useThemeSnapshot();

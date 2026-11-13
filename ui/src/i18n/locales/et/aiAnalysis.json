@@ -1,0 +1,30 @@
+{
+  "status": {
+    "pending": "Käib…",
+    "done": "Valmis",
+    "error": "Viga"
+  },
+  "history": {
+    "title": "Analüüside ajalugu",
+    "description": "Kõik päringud, mille oled „Päringuanalüüsist“ tehisarule analüüsimiseks saatnud, uuemad eespool. Ava rida, et näha täielikku EXPLAIN-plaani ja tehisaru vastust.",
+    "loading": "Analüüside laadimine…",
+    "emptyTitle": "Siin pole veel midagi",
+    "emptyText": "Analüüsi alustamiseks vajuta „Päringuanalüüsis“ mõne päringu juures „Analüüsi tehisaruga“.",
+    "querySent": "Saadetud päring",
+    "querySentAnonymized": "Saadetud päring (anonümiseeritud)",
+    "aiRecommendation": "Tehisaru soovitus",
+    "stillRunning": "Veel käib – see rida uueneb ise, kui tehisaru vastab."
+  },
+  "modal": {
+    "title": "Analüüsi tehisaruga",
+    "starting": "Käivitamine…",
+    "run": "Käivita analüüs",
+    "leadTemplate": "Päringu mall – sisesta allpool iga $N kohatäitja väärtus, et näha päringut, mis tegelikult käivitatakse.",
+    "leadAnonymized": "Allolevad tabelite ja veergude nimed anonümiseeritakse enne, kui midagi tehisaru teenusepakkujale saadetakse.",
+    "leadExact": "See on täpselt see päringu tekst, mis saadetakse muutmata kujul tehisaru teenusepakkujale.",
+    "anonymizing": "Anonümiseerimine…",
+    "anonymize": "Anonümiseeri tabelite/veergude nimed",
+    "footnote": "Käivitab sinu andmebaasis EXPLAIN (ANALYZE, BUFFERS) ja saadab siis päringu ning plaani „Seadetes“ määratud tehisaru teenusepakkujale. Juba varjatud on ainult literaalsed väärtused (pg_stat_statements asendab need kujul $1/$2/... enne, kui see rakendus päringut üldse näeb) – anonümiseerimine peidab lisaks tegelikud tabelite/veergude nimed.",
+    "started": "Analüüs käivitati. See töötab taustal – kui see valmis saab, näed teadet ekraanil „Tehisaru analüüs“. Võid sinna ka igal ajal ise vaadata."
+  }
+}

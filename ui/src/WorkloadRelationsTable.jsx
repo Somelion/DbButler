@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import styles from "./WorkloadRelationsTable.module.css";
 import tableStyles from "./components/Table.module.css";
 import { Badge, SortHeader } from "./components";
@@ -17,6 +18,7 @@ const SORTERS = {
 // screen reader, sortable, and easier to scan for "every joined-without-FK
 // pair" than the picture.
 export default function WorkloadRelationsTable({ edges, selectedId, onSelect }) {
+  const { t } = useTranslation("workloadMap");
   const [sortKey, setSortKey] = useState("share");
   const [sortDir, setSortDir] = useState("desc");
 
@@ -33,26 +35,26 @@ export default function WorkloadRelationsTable({ edges, selectedId, onSelect }) 
   return (
     <div className={tableStyles.wrap}>
       <table className={tableStyles.table}>
-        <caption className="sr-only">Relationships between tables, from joins in the tracked queries and declared foreign keys</caption>
+        <caption className="sr-only">{t("table.caption")}</caption>
         <thead>
           <tr>
             <SortHeader column="tables" sortKey={sortKey} sortDir={sortDir} onSort={handleSort}>
-              Tables
+              {t("table.tables")}
             </SortHeader>
             <SortHeader column="kind" sortKey={sortKey} sortDir={sortDir} onSort={handleSort}>
-              Kind
+              {t("table.kind")}
             </SortHeader>
             <th scope="col" className={tableStyles.th}>
-              Join columns
+              {t("table.joinColumns")}
             </th>
             <SortHeader column="share" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} numeric>
-              DB time
+              {t("table.dbTime")}
             </SortHeader>
             <SortHeader column="queries" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} numeric>
-              Queries
+              {t("table.queries")}
             </SortHeader>
             <th scope="col" className={tableStyles.th}>
-              Indexes
+              {t("table.indexes")}
             </th>
           </tr>
         </thead>
@@ -69,7 +71,7 @@ export default function WorkloadRelationsTable({ edges, selectedId, onSelect }) 
                   aria-pressed={edge.id === selectedId}
                   onClick={() => onSelect({ type: "edge", id: edge.id })}
                 >
-                  {edge.source} <span aria-label="and">⇄</span> {edge.target}
+                  {edge.source} <span aria-label={t("panel.and")}>⇄</span> {edge.target}
                 </button>
               </td>
               <td className={tableStyles.td}>
@@ -84,13 +86,15 @@ export default function WorkloadRelationsTable({ edges, selectedId, onSelect }) 
               <td className={`${tableStyles.td} ${tableStyles.numeric}`}>{edge.query_count}</td>
               <td className={tableStyles.td}>
                 {isUnindexedFkEdge(edge) ? (
-                  <Badge tone="attention">FK unindexed</Badge>
+                  <Badge tone="attention">{t("table.fkUnindexed")}</Badge>
                 ) : edge.kind === "no_fk" && !(edge.source_indexed && edge.target_indexed) ? (
                   <Badge tone="attention">
-                    {!edge.source_indexed && !edge.target_indexed ? "neither side" : "one side"} unindexed
+                    {!edge.source_indexed && !edge.target_indexed
+                      ? t("table.neitherSideUnindexed")
+                      : t("table.oneSideUnindexed")}
                   </Badge>
                 ) : (
-                  <span className={styles.ok}>indexed</span>
+                  <span className={styles.ok}>{t("table.indexed")}</span>
                 )}
               </td>
             </tr>

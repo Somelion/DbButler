@@ -43,9 +43,12 @@ class TargetUpdate(BaseModel):
     # set; the router 400s otherwise. password has no "clear" semantic
     # (unlike other write-only secrets in this app) — a blank/omitted value
     # always means "leave it alone". allowed_schemas: omit to leave
-    # untouched, an empty list to clear it back to "no filter".
+    # untouched, an empty list to clear it back to "no filter". username:
+    # the database login DbButler connects as; changing it (with or without
+    # a new password) is tested before it's saved.
     name: str | None = None
     is_active: bool | None = None
+    username: str | None = None
     password: str | None = None
     allowed_schemas: list[str] | None = None
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import styles from "./PlanDiffDialog.module.css";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
@@ -33,11 +34,12 @@ function diffRows(before, after, depth = 0, rows = []) {
   return rows;
 }
 
+// Labels are translation keys, translated at render.
 const STATUS = {
   same: null,
-  changed: { label: "changed", tone: "attention" },
-  removed: { label: "only before", tone: "critical" },
-  added: { label: "only after", tone: "healthy" },
+  changed: { label: "diff.status.changed", tone: "attention" },
+  removed: { label: "diff.status.removed", tone: "critical" },
+  added: { label: "diff.status.added", tone: "healthy" },
 };
 
 const snapshotLabel = (snapshot) => new Date(snapshot.collected_at).toLocaleString();
@@ -46,6 +48,7 @@ const snapshotLabel = (snapshot) => new Date(snapshot.collected_at).toLocaleStri
 // latest captured shape against the one before it; either side can be any
 // recorded capture.
 export default function PlanDiffDialog({ targetId, queryidText, onClose }) {
+  const { t } = useTranslation("planRegressions");
   const open = Boolean(queryidText);
   const historyQuery = useQuery({
     queryKey: targetKey(targetId, "plan-history", queryidText),
@@ -64,14 +67,14 @@ export default function PlanDiffDialog({ targetId, queryidText, onClose }) {
       open={open}
       onClose={onClose}
       size="lg"
-      title="Compare plan shapes"
-      description="Structure only — node types, joins, relations and indexes. Captured by the plan regression job, without costs."
+      title={t("diff.title")}
+      description={t("diff.description")}
     >
       {historyQuery.error && <Alert tone="critical">{historyQuery.error.message}</Alert>}
-      {historyQuery.isPending && open && <Skeleton lines={6} label="Loading plan history…" />}
+      {historyQuery.isPending && open && <Skeleton lines={6} label={t("diff.loading")} />}
       {historyQuery.data && plans.length < 2 && (
         <Alert tone="info" compact>
-          Only one plan shape has been captured for this query so far.
+          {t("diff.onlyOne")}
         </Alert>
       )}
       {plans.length >= 2 && (
@@ -79,7 +82,7 @@ export default function PlanDiffDialog({ targetId, queryidText, onClose }) {
           <code className={styles.query}>{historyQuery.data.query}</code>
           <div className={styles.pickers}>
             {["before", "after"].map((side) => (
-              <Field key={side} label={side === "before" ? "Before" : "After"}>
+              <Field key={side} label={side === "before" ? t("diff.before") : t("diff.after")}>
                 <select
                   value={picked[side]}
                   onChange={(e) => setPicked((p) => ({ ...p, [side]: Number(e.target.value) }))}
@@ -87,7 +90,7 @@ export default function PlanDiffDialog({ targetId, queryidText, onClose }) {
                   {plans.map((snapshot, index) => (
                     <option key={snapshot.fingerprint_hash + snapshot.collected_at} value={index}>
                       {snapshotLabel(snapshot)}
-                      {index === 0 ? " (latest)" : ""}
+                      {index === 0 ? ` (${t("diff.latest")})` : ""}
                     </option>
                   ))}
                 </select>
@@ -95,14 +98,14 @@ export default function PlanDiffDialog({ targetId, queryidText, onClose }) {
             ))}
           </div>
           <p className={styles.summary} role="status">
-            {changedCount === 0 ? "The two shapes are identical." : `${changedCount} node${changedCount === 1 ? "" : "s"} differ.`}
+            {changedCount === 0 ? t("diff.identical") : t("diff.differ", { count: changedCount })}
           </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th scope="col">Before</th>
-                  <th scope="col">After</th>
+                  <th scope="col">{t("diff.before")}</th>
+                  <th scope="col">{t("diff.after")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -115,7 +118,7 @@ export default function PlanDiffDialog({ targetId, queryidText, onClose }) {
                       <span className={styles.node}>{row.right || "—"}</span>
                       {STATUS[row.status] && (
                         <Badge tone={STATUS[row.status].tone} className={styles.badge}>
-                          {STATUS[row.status].label}
+                          {t(STATUS[row.status].label)}
                         </Badge>
                       )}
                     </td>

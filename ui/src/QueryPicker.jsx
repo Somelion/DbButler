@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { Checkbox } from "./components";
 import styles from "./QueryPicker.module.css";
@@ -10,6 +11,7 @@ import styles from "./QueryPicker.module.css";
 // the two selection modes read from the same list rather than showing it
 // twice.
 export default function QueryPicker({ queries, selected, onToggle, onClear, maxSelected, focusedQueryId, onFocus }) {
+  const { t } = useTranslation("queries");
   const [search, setSearch] = useState("");
   const idPrefix = useId();
 
@@ -29,8 +31,8 @@ export default function QueryPicker({ queries, selected, onToggle, onClear, maxS
                 type="button"
                 className={styles.chip}
                 onClick={() => onToggle(id)}
-                title={`Remove from comparison: ${label}`}
-                aria-label={`Remove from comparison: ${label}`}
+                title={t("picker.remove", { label })}
+                aria-label={t("picker.remove", { label })}
               >
                 <span className={styles.chipText}>{label}</span>
                 <X size={13} className={styles.chipIcon} aria-hidden="true" />
@@ -38,7 +40,7 @@ export default function QueryPicker({ queries, selected, onToggle, onClear, maxS
             );
           })}
           <button type="button" className="button-link" onClick={onClear}>
-            Clear
+            {t("picker.clear")}
           </button>
         </div>
       )}
@@ -47,14 +49,14 @@ export default function QueryPicker({ queries, selected, onToggle, onClear, maxS
         type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        aria-label="Search tracked queries"
-        placeholder={`Search ${queries.length} tracked quer${queries.length === 1 ? "y" : "ies"}…`}
+        aria-label={t("picker.searchLabel")}
+        placeholder={t("picker.searchPlaceholder", { count: queries.length })}
       />
 
       {filtered.length === 0 ? (
-        <p className={styles.noMatch}>No matching queries.</p>
+        <p className={styles.noMatch}>{t("picker.noMatch")}</p>
       ) : (
-        <ul className={styles.list} aria-label="Tracked queries">
+        <ul className={styles.list} aria-label={t("picker.listLabel")}>
           {filtered.map((q) => {
             const active = selected.has(q.queryid);
             const disabled = !active && selected.size >= maxSelected;
@@ -75,7 +77,7 @@ export default function QueryPicker({ queries, selected, onToggle, onClear, maxS
                     {q.query}
                   </span>
                 </Checkbox>
-                <span className={styles.calls}>{q.calls.toLocaleString()} calls</span>
+                <span className={styles.calls}>{t("picker.calls", { count: q.calls, formatted: q.calls.toLocaleString() })}</span>
                 <button
                   type="button"
                   className={`${isFocused ? "button-primary" : "button-secondary"} button-sm ${styles.deepDive}`}
@@ -83,7 +85,7 @@ export default function QueryPicker({ queries, selected, onToggle, onClear, maxS
                   aria-describedby={textId}
                   onClick={() => onFocus(q.queryid)}
                 >
-                  {isFocused ? "Deep-diving" : "Deep-dive"}
+                  {isFocused ? t("picker.deepDiving") : t("picker.deepDive")}
                 </button>
               </li>
             );
@@ -91,7 +93,7 @@ export default function QueryPicker({ queries, selected, onToggle, onClear, maxS
         </ul>
       )}
 
-      <p className={styles.hint}>Compare up to {maxSelected} queries at once.</p>
+      <p className={styles.hint}>{t("picker.hint", { max: maxSelected })}</p>
     </div>
   );
 }

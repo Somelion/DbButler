@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api } from "./api";
 import { formatMs } from "./format";
 import FindingCard from "./FindingCard";
@@ -10,6 +11,7 @@ import { Alert, Card, Dialog, Field, PlanViewerFrame } from "./components";
 import styles from "./ExplainView.module.css";
 
 export default function ExplainView({ targetId, seedQuery, onSeedConsumed }) {
+  const { t } = useTranslation("queries");
   const [queryText, setQueryText] = useState("");
   const [paramValues, setParamValues] = useState({});
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -52,10 +54,10 @@ export default function ExplainView({ targetId, seedQuery, onSeedConsumed }) {
   return (
     <Card
       title="EXPLAIN ANALYZE"
-      description="Paste a read-only SELECT query — this actually runs it, so only SELECT / WITH queries are accepted."
+      description={t("explain.description")}
     >
       <form className={styles.form} onSubmit={handleSubmit}>
-        <Field label="Query">
+        <Field label={t("explain.query")}>
           <textarea
             className={styles.queryInput}
             value={queryText}
@@ -73,7 +75,7 @@ export default function ExplainView({ targetId, seedQuery, onSeedConsumed }) {
 
         <div className={styles.actions}>
           <button type="submit" className="button-primary" disabled={!canRun}>
-            {explain.isPending ? "Running…" : "Run EXPLAIN ANALYZE"}
+            {explain.isPending ? t("explain.running") : t("explain.run")}
           </button>
         </div>
       </form>
@@ -83,11 +85,13 @@ export default function ExplainView({ targetId, seedQuery, onSeedConsumed }) {
       {result && (
         <div className={styles.result}>
           <p className={styles.meta}>
-            Execution time: {result.execution_time_ms != null ? formatMs(result.execution_time_ms) : "—"}
+            {t("explain.executionTime", {
+              time: result.execution_time_ms != null ? formatMs(result.execution_time_ms) : "—",
+            })}
           </p>
 
           {result.findings.length === 0 ? (
-            <p className={styles.empty}>No red flags found in this plan.</p>
+            <p className={styles.empty}>{t("explain.noFindings")}</p>
           ) : (
             <div className={styles.findings}>
               {result.findings.map((finding) => (
@@ -99,12 +103,12 @@ export default function ExplainView({ targetId, seedQuery, onSeedConsumed }) {
           <div className={styles.actions}>
             <button type="button" className="button-secondary button-sm" onClick={() => setViewerOpen(true)}>
               <Workflow size={13} aria-hidden="true" />
-              Open in plan viewer
+              {t("explain.openViewer")}
             </button>
           </div>
 
           <details>
-            <summary className={styles.rawSummary}>Raw plan</summary>
+            <summary className={styles.rawSummary}>{t("explain.rawPlan")}</summary>
             <pre className={styles.rawPlan}>{result.plan_text}</pre>
           </details>
         </div>
@@ -114,8 +118,8 @@ export default function ExplainView({ targetId, seedQuery, onSeedConsumed }) {
         open={viewerOpen && Boolean(result)}
         onClose={() => setViewerOpen(false)}
         size="xl"
-        title="Plan viewer"
-        description="pev2 by Dalibo — node timings, buffers and the critical path of this EXPLAIN ANALYZE run."
+        title={t("explain.viewerTitle")}
+        description={t("explain.viewerDescription")}
       >
         {result && <PlanViewerFrame plan={result.plan_text} query={explain.variables ?? ""} />}
       </Dialog>

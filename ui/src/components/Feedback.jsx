@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import { severityMeta } from "./Badge";
 import styles from "./Feedback.module.css";
 import tone from "./tone.module.css";
@@ -37,7 +38,7 @@ export function EmptyState({ icon: Icon, title, children, action, className }) {
 
 // Loading placeholder: `lines` shimmering bars (the last one shorter), or a
 // single block when given a height. Announced once as "Loading…".
-export function Skeleton({ lines = 3, height, width, label = "Loading…", className }) {
+export function Skeleton({ lines = 3, height, width, label = i18n.t("common:actions.loading"), className }) {
   if (height) {
     return (
       <div role="status" className={className}>

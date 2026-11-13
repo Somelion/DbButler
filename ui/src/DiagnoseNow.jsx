@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Stethoscope } from "lucide-react";
 import { api } from "./api";
 import { Alert, Card, SeverityIcon, Skeleton } from "./components";
@@ -8,6 +9,7 @@ import { useFirstSeenMap } from "./useFirstSeenMap";
 import styles from "./DiagnoseNow.module.css";
 
 export default function DiagnoseNow({ targetId }) {
+  const { t } = useTranslation("dashboard");
   // The last successful run stays on screen while a re-run is in flight or
   // after a re-run fails. A stale diagnosis for a different target is worse
   // than showing nothing — DashboardScreen is keyed by target, so switching
@@ -26,12 +28,12 @@ export default function DiagnoseNow({ targetId }) {
 
   return (
     <Card
-      title="Why is my database slow?"
-      description="Runs the same checklist a DBA would, in order — locks, cache, bloat, then top queries."
+      title={t("diagnose.title")}
+      description={t("diagnose.description")}
       actions={
         <button type="button" className="button-primary" onClick={() => diagnosis.mutate()} disabled={running}>
           <Stethoscope size={14} aria-hidden="true" />
-          {running ? "Diagnosing…" : "Diagnose Now"}
+          {running ? t("diagnose.running") : t("diagnose.button")}
         </button>
       }
     >
@@ -41,17 +43,17 @@ export default function DiagnoseNow({ targetId }) {
         </Alert>
       )}
 
-      {running && !result && <Skeleton lines={4} label="Running diagnosis…" />}
+      {running && !result && <Skeleton lines={4} label={t("diagnose.loading")} />}
 
       {result && (
         <div className={styles.result}>
           {result.top_finding ? (
             <FindingCard finding={result.top_finding} firstSeenAt={firstSeenByFindingId[result.top_finding.id]} />
           ) : (
-            <p className={styles.muted}>Nothing stands out right now.</p>
+            <p className={styles.muted}>{t("diagnose.nothingStandsOut")}</p>
           )}
 
-          <ol className={styles.steps} aria-label="Diagnosis steps">
+          <ol className={styles.steps} aria-label={t("diagnose.steps")}>
             {result.steps.map((step) => (
               <li key={step.step_number} className={styles.step}>
                 {/* Icon shape + its accessible label carry the status, not just its colour. */}
@@ -67,7 +69,7 @@ export default function DiagnoseNow({ targetId }) {
 
           {result.top_queries.length > 0 && (
             <div className={styles.queries}>
-              <h3 className={styles.queriesTitle}>Slowest queries right now</h3>
+              <h3 className={styles.queriesTitle}>{t("diagnose.slowestQueries")}</h3>
               <ul className={styles.queryList}>
                 {result.top_queries.slice(0, 3).map((q, i) => (
                   <li key={i} title={q.query} className={styles.query}>

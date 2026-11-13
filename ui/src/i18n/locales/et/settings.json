@@ -1,0 +1,92 @@
+{
+  "enabled": "Lubatud",
+  "alreadySet": "•••• juba määratud – jäta tühjaks, et see alles jätta",
+  "jobs": {
+    "collection_cycle": {
+      "label": "Kiired mõõdikud",
+      "description": "Vahemälu tabamus, ühenduste arv, suurim tabeli paisumine, andmebaasi suurus."
+    },
+    "table_metrics_cycle": {
+      "label": "Tabelipõhised mõõdikud",
+      "description": "Iga tabeli surnud ridade % ja suurus – nende peal töötab „Trendide“ tabelivalik."
+    },
+    "plan_regression_cycle": {
+      "label": "Plaanide taandarengu kogumine",
+      "description": "Salvestab iga jälgitava päringu EXPLAIN-plaani kuju – selle peal töötab ekraan „Plaanide taandareng“."
+    },
+    "live_findings_cycle": {
+      "label": "Jooksvate leidude ajalugu",
+      "description": "Salvestab töölaua ja „Diagnoosi kohe“ jooksvad leiud koos esmakordse ilmumise ajaga ning käivitab allpool seadistatud hoiatused."
+    },
+    "retention_cycle": {
+      "label": "Mõõdikute säilitamine",
+      "description": "Kustutab üle 30 päeva vanused mõõdikuväärtused."
+    },
+    "deep_scan": {
+      "label": "Süvaskannimine",
+      "description": "Käivitab iga aktiivse andmebaasi peal indeksinõustaja, skeemi linteri ja seadistusnõustaja ning salvestab, mis on veel lahendamata ja mis ajast."
+    },
+    "weekly_report": {
+      "label": "Nädalaaruanne",
+      "description": "Koostab iga andmebaasi nädala tervisearuande (Jälgi → Nädalaaruanded) ja, kui see on allpool sisse lülitatud, postitab selle kokkuvõtte veebikonksu."
+    }
+  },
+  "scheduler": {
+    "title": "Ajastaja",
+    "description": "Kui tihti iga taustatöö käivitub. Salvestamine rakendub kohe – serverit pole vaja taaskäivitada.",
+    "loading": "Taustatööde laadimine…",
+    "lastUpdated": "viimati muudetud {{time}}",
+    "saved": "salvestatud",
+    "interval": "Intervall (sekundites)",
+    "cron": "Ajakava (cron)"
+  },
+  "ai": {
+    "title": "Tehisaru päringuanalüüs",
+    "description": "Siin saad valida tehisaru teenusepakkuja, keda kasutab „Päringuanalüüsi“ nupp „Analüüsi tehisaruga“. Sinu päringu tekst ja selle EXPLAIN-plaan saadetakse sellele teenusepakkujale – kui pilveteenuse puhul on see murekoht, kasuta analüüsiaknas anonümiseerimise valikut.",
+    "loading": "Tehisaru seadete laadimine…",
+    "provider": "Teenusepakkuja",
+    "providerGemini": "Google Gemini (pilves, tasuta pakett)",
+    "providerLocal": "Kohalik mudel (OpenAI-ühilduv otspunkt, nt Ollama)",
+    "endpointUrl": "Otspunkti URL",
+    "modelName": "Mudeli nimi",
+    "modelHint": "Google kaotab mudelinimesid üsna tihti ära – kui analüüs hakkab andma viga „model not found“, vaata <a>kehtivate mudelite loendit</a> ja uuenda seda välja.",
+    "apiKey": "API-võti",
+    "apiKeyOptional": "API-võti (valikuline)",
+    "apiKeyPlaceholder": "Kleebi siia oma API-võti"
+  },
+  "alerts": {
+    "title": "Tegutsemist nõudvad hoiatused",
+    "description": "Saadab veebikonksu kohe, kui leid esimest korda avaneb valitud või kõrgema raskusastmega. Selle taga on ülal olev töö „Jooksvate leidude ajalugu“, nii et probleemist teatatakse üks kord, kui see algab, mitte igal tsüklil, kuni see lahendamata on. Kleebi Slacki, Discordi või Microsoft Teamsi veebikonksu URL ja õige sõnumivorming tuvastatakse automaatselt – eraldi seadet pole vaja valida.",
+    "loading": "Hoiatuste seadete laadimine…",
+    "webhookUrl": "Veebikonksu URL",
+    "detected": "Tuvastatud:",
+    "kind": {
+      "slack": "Slack",
+      "discord": "Discord",
+      "teams": "Microsoft Teams",
+      "generic": "Tavaline JSON (Mattermost ja teised Slacki vorminguga ühilduvad teenused töötavad ka)"
+    },
+    "minSeverity": "Minimaalne raskusaste",
+    "criticalOnly": "Ainult kriitilised",
+    "attentionAndCritical": "Tähelepanu ja kriitilised",
+    "reportWebhook": "Postita sellesse veebikonksu ka iga nädalaaruande kokkuvõte (sõltumata ülal olevast valikust „Lubatud“)",
+    "sending": "Saatmine…",
+    "sendTest": "Saada testhoiatus",
+    "testSent": "Testhoiatus saadetud – vaata, kas see jõudis veebikonksu sihtkohta."
+  },
+  "integrations": {
+    "title": "Liidestused",
+    "description": "Ainult lugemisõigusega ligipääs masinatele, igaühel oma võti (token), mis on määratud serveri failis .env (APP_MCP_TOKEN, APP_METRICS_TOKEN) – kumbki ei pääse ülejäänud API-le ligi.",
+    "loading": "Liidestuste laadimine…",
+    "on": "sees",
+    "off": "väljas",
+    "mcpTitle": "Tehisaru agendid (MCP)",
+    "mcpText_one": "Võimaldab Claude Code'il, Cursoril või mis tahes MCP-kliendil küsida „mis selle andmebaasiga viga on?“ {{count}} eelseadistatud, ainult lugemiseks mõeldud tööriista kaudu. Ükski tööriist ei käivita talle antud SQL-i ja päringu tekst saadetakse välja nii, et literaalsed väärtused on maskitud.",
+    "mcpText_other": "Võimaldab Claude Code'il, Cursoril või mis tahes MCP-kliendil küsida „mis selle andmebaasiga viga on?“ {{count}} eelseadistatud, ainult lugemiseks mõeldud tööriista kaudu. Ükski tööriist ei käivita talle antud SQL-i ja päringu tekst saadetakse välja nii, et literaalsed väärtused on maskitud.",
+    "mcpOff": "Sisselülitamiseks määra failis .env APP_MCP_TOKEN ja taaskäivita server.",
+    "tools": "Tööriistad: {{tools}}.",
+    "prometheusText": "Kogutud mõõdikud, avatud leidude arv ja lukuootused iga andmebaasi kohta – Grafana ja Alertmanageri jaoks. Saadaval ka aadressil /metrics serveri enda pordis.",
+    "metricsOff": "Sisselülitamiseks määra failis .env APP_METRICS_TOKEN ja taaskäivita server.",
+    "publicUrl": "Määra failis .env APP_PUBLIC_URL väärtuseks aadress, millelt DbButlerit avatakse: siis viitab nädalaaruande veebikonksu sõnum aruandele ja ülal olevad näited kasutavad seda aadressi."
+  }
+}

@@ -1,5 +1,6 @@
 import { useSearchParams } from "react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import styles from "./TrendsScreen.module.css";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
@@ -9,10 +10,11 @@ import MultiTrendChart, { MULTI_TREND_PALETTE } from "./MultiTrendChart";
 import TablePicker from "./TablePicker";
 import { formatMetricValue } from "./format";
 
+// `labelKey`s are translation keys (trends namespace), resolved at render time.
 const RANGE_OPTIONS = [
-  { value: 24, label: "24 hours" },
-  { value: 24 * 7, label: "7 days" },
-  { value: 24 * 30, label: "30 days" },
+  { value: 24, labelKey: "range.h24" },
+  { value: 24 * 7, labelKey: "range.d7" },
+  { value: 24 * 30, labelKey: "range.d30" },
 ];
 const DEFAULT_HOURS = 24;
 
@@ -25,9 +27,11 @@ const THRESHOLDS = {
 };
 
 const TABLE_METRIC_OPTIONS = [
-  { value: "table_dead_pct", label: "Dead Tuple %" },
-  { value: "table_size_bytes", label: "Size" },
+  { value: "table_dead_pct", labelKey: "tableMetric.deadPct" },
+  { value: "table_size_bytes", labelKey: "tableMetric.size" },
 ];
+
+const translateOptions = (options, t) => options.map(({ value, labelKey }) => ({ value, label: t(labelKey) }));
 const DEFAULT_TABLE_METRIC = "table_dead_pct";
 
 const DEFAULT_TABLE_SELECTION = 5;
@@ -38,16 +42,17 @@ const DEFAULT_TABLE_SELECTION = 5;
 // ceiling to head toward (wraparound), a plain 30-day projection otherwise
 // (size). Null when a series has no forecast, so TrendChart's default
 // (no footer) applies unchanged.
-function forecastFooter(series) {
+function forecastFooter(series, t) {
   const forecast = series.forecast;
   if (!forecast) return null;
 
   const text =
     forecast.days_to_threshold != null
-      ? `At this rate, ~${Math.round(forecast.days_to_threshold)} day${
-          Math.round(forecast.days_to_threshold) === 1 ? "" : "s"
-        } until ${forecast.threshold_label}.`
-      : `At this rate, ~${formatMetricValue(forecast.projected_value_30d, series.unit)} in 30 days.`;
+      ? t("forecast.daysUntil", {
+          count: Math.round(forecast.days_to_threshold),
+          threshold: forecast.threshold_label,
+        })
+      : t("forecast.in30Days", { value: formatMetricValue(forecast.projected_value_30d, series.unit) });
 
   return <span className={styles.forecast}>{text}</span>;
 }
@@ -75,6 +80,7 @@ function readView(searchParams) {
 const tableKey = (t) => `${t.schema_name}.${t.table_name}`;
 
 export default function TrendsScreen({ targetId }) {
+  const { t } = useTranslation("trends");
   const [searchParams, setSearchParams] = useSearchParams();
   const { hours, tableMetric, pickedTables } = readView(searchParams);
 
@@ -158,25 +164,25 @@ export default function TrendsScreen({ targetId }) {
 
   const chartSeries = tableTrends
     ? selectedList
-        .map((key) => tableTrends.tables.find((t) => tableKey(t) === key))
+        .map((key) => tableTrends.tables.find((table) => tableKey(table) === key))
         .filter(Boolean)
-        .map((t) => ({ name: tableKey(t), points: t.points }))
+        .map((table) => ({ name: tableKey(table), points: table.points }))
     : [];
 
   return (
     <div className={styles.screen}>
       <div className={styles.toolbar}>
         <SegmentedControl
-          label="Time range"
-          options={RANGE_OPTIONS}
+          label={t("range.label")}
+          options={translateOptions(RANGE_OPTIONS, t)}
           value={hours}
           onChange={(value) => updateParams({ hours: value === DEFAULT_HOURS ? null : value })}
         />
       </div>
 
-      <Card title="Database trends">
+      <Card title={t("database.title")}>
         {trendsQuery.error && <Alert tone="critical">{trendsQuery.error.message}</Alert>}
-        {trendsQuery.isPending && <Skeleton lines={4} label="Loading trends…" />}
+        {trendsQuery.isPending && <Skeleton lines={4} label={t("database.loading")} />}
         {trendsQuery.data && (
           <div className={styles.chartGrid}>
             {trendsQuery.data.series.map((s) => {
@@ -189,7 +195,7 @@ export default function TrendsScreen({ targetId }) {
                   points={s.points}
                   thresholdMin={thresholdMin}
                   thresholdMax={thresholdMax}
-                  footer={forecastFooter(s)}
+                  footer={forecastFooter(s, t)}
                 />
               );
             })}
@@ -198,13 +204,13 @@ export default function TrendsScreen({ targetId }) {
       </Card>
 
       <Card
-        title="Wait events"
-        description="Active sessions grouped by what they were waiting on, sampled every few minutes — useful for spotting when a lock or I/O storm happened, after the fact."
+        title={t("waitEvents.title")}
+        description={t("waitEvents.description")}
       >
         {waitEventsQuery.error && <Alert tone="critical">{waitEventsQuery.error.message}</Alert>}
-        {waitEventsQuery.isPending && <Skeleton height={220} label="Loading wait events…" />}
+        {waitEventsQuery.isPending && <Skeleton height={220} label={t("waitEvents.loading")} />}
         {waitEventsQuery.data && waitEventsQuery.data.series.length === 0 && (
-          <EmptyState title="No wait event history yet." />
+          <EmptyState title={t("waitEvents.empty")} />
         )}
         {waitEventsQuery.data && waitEventsQuery.data.series.length > 0 && (
           <MultiTrendChart
@@ -215,21 +221,21 @@ export default function TrendsScreen({ targetId }) {
       </Card>
 
       <Card
-        title="Table trends"
+        title={t("tables.title")}
         actions={
           <SegmentedControl
-            label="Table metric"
+            label={t("tableMetric.label")}
             size="sm"
-            options={TABLE_METRIC_OPTIONS}
+            options={translateOptions(TABLE_METRIC_OPTIONS, t)}
             value={tableMetric}
             onChange={changeMetric}
           />
         }
       >
         {summaryQuery.error && <Alert tone="critical">{summaryQuery.error.message}</Alert>}
-        {summaryQuery.isPending && <Skeleton lines={5} label="Loading tables…" />}
+        {summaryQuery.isPending && <Skeleton lines={5} label={t("tables.loading")} />}
 
-        {summary && summary.tables.length === 0 && <EmptyState title="No table history yet." />}
+        {summary && summary.tables.length === 0 && <EmptyState title={t("tables.empty")} />}
 
         {summary && summary.tables.length > 0 && (
           <>
@@ -245,11 +251,11 @@ export default function TrendsScreen({ targetId }) {
             {tableTrendsQuery.error && <Alert tone="critical">{tableTrendsQuery.error.message}</Alert>}
 
             {summaryIsCurrent && selectedList.length === 0 && (
-              <p className={styles.note}>Select at least one table above to see its trend.</p>
+              <p className={styles.note}>{t("tables.selectHint")}</p>
             )}
 
             {selectedList.length > 0 && tableTrendsQuery.isPending && (
-              <Skeleton height={220} label="Loading table trends…" />
+              <Skeleton height={220} label={t("tables.loadingTrends")} />
             )}
 
             {selectedList.length > 0 && tableTrends && (

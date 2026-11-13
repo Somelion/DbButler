@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import { formatRelativeTime } from "./format";
@@ -9,39 +10,17 @@ const SCHEDULER_JOBS_KEY = ["scheduler-jobs"];
 const AI_SETTINGS_KEY = ["settings", "ai"];
 const ALERT_SETTINGS_KEY = ["settings", "alerts"];
 
-const JOB_META = {
-  collection_cycle: {
-    label: "Fast metrics",
-    description: "Cache hit rate, connection count, worst table bloat, database size.",
-  },
-  table_metrics_cycle: {
-    label: "Per-table metrics",
-    description: "Per-table dead-tuple % and size, behind Trends' per-table picker.",
-  },
-  plan_regression_cycle: {
-    label: "Plan regression capture",
-    description: "Captures each tracked query's EXPLAIN plan shape, behind the Plan Regressions screen.",
-  },
-  live_findings_cycle: {
-    label: "Live findings history",
-    description:
-      "Persists Dashboard/Diagnose Now's live findings with first-seen tracking, and drives Actionable Alerting below.",
-  },
-  retention_cycle: {
-    label: "Metric retention",
-    description: "Prunes metric samples older than 30 days.",
-  },
-  deep_scan: {
-    label: "Deep scan",
-    description:
-      "Runs Index Advisor, Schema Lint, and Configuration Advisor against every active target and " +
-      "records what's still open, since when.",
-  },
-  weekly_report: {
-    label: "Weekly report",
-    description: "Builds each database's weekly health report (Monitor → Weekly Reports) and, if switched on below, posts its summary to the webhook.",
-  },
-};
+// Jobs with a label and description under settings:jobs.<job_name>;
+// translated at render so a language switch applies.
+const KNOWN_JOBS = new Set([
+  "collection_cycle",
+  "table_metrics_cycle",
+  "plan_regression_cycle",
+  "live_findings_cycle",
+  "retention_cycle",
+  "deep_scan",
+  "weekly_report",
+]);
 
 export default function Settings() {
   return (
@@ -65,6 +44,7 @@ function hostOf(url) {
 // How to connect an AI agent (MCP) and Prometheus. The tokens live in the
 // server's .env and are never shown here — only whether each one is set.
 function IntegrationSettings() {
+  const { t } = useTranslation("settings");
   const { data, error, isPending } = useQuery({
     queryKey: ["settings", "integrations"],
     queryFn: ({ signal }) => api.getIntegrations({ signal }),
@@ -83,43 +63,42 @@ function IntegrationSettings() {
   ].join("\n");
 
   return (
-    <Card
-      title="Integrations"
-      description="Read-only access for machines, each with its own token set in the server's .env (APP_MCP_TOKEN, APP_METRICS_TOKEN) — neither can use the rest of the API."
-    >
+    <Card title={t("integrations.title")} description={t("integrations.description")}>
       {error && (
         <Alert tone="critical" compact>
           {error.message}
         </Alert>
       )}
-      {isPending && <Skeleton lines={4} label="Loading integrations…" />}
+      {isPending && <Skeleton lines={4} label={t("integrations.loading")} />}
       {data && (
         <div className={styles.integrations}>
           <section aria-labelledby="mcp-heading">
             <h3 id="mcp-heading" className={styles.integrationTitle}>
-              AI agents (MCP) <Badge tone={data.mcp_enabled ? "healthy" : "neutral"}>{data.mcp_enabled ? "on" : "off"}</Badge>
+              {t("integrations.mcpTitle")}{" "}
+              <Badge tone={data.mcp_enabled ? "healthy" : "neutral"}>
+                {data.mcp_enabled ? t("integrations.on") : t("integrations.off")}
+              </Badge>
             </h3>
             <p className={styles.integrationText}>
-              Lets Claude Code, Cursor or any MCP client ask &quot;what&apos;s wrong with this database?&quot; through{" "}
-              {data.mcp_tools.length} preset read-only tools. No tool runs SQL it&apos;s given, and query text goes out
-              with literal values masked.
-              {!data.mcp_enabled && " Set APP_MCP_TOKEN in .env and restart the backend to switch it on."}
+              {t("integrations.mcpText", { count: data.mcp_tools.length })}
+              {!data.mcp_enabled && ` ${t("integrations.mcpOff")}`}
             </p>
             <div className={styles.snippet}>
               <code>{mcpCommand}</code>
               <CopyButton text={mcpCommand} />
             </div>
-            <p className={styles.integrationText}>Tools: {data.mcp_tools.join(", ")}.</p>
+            <p className={styles.integrationText}>{t("integrations.tools", { tools: data.mcp_tools.join(", ") })}</p>
           </section>
           <section aria-labelledby="prometheus-heading">
             <h3 id="prometheus-heading" className={styles.integrationTitle}>
               Prometheus{" "}
-              <Badge tone={data.metrics_enabled ? "healthy" : "neutral"}>{data.metrics_enabled ? "on" : "off"}</Badge>
+              <Badge tone={data.metrics_enabled ? "healthy" : "neutral"}>
+                {data.metrics_enabled ? t("integrations.on") : t("integrations.off")}
+              </Badge>
             </h3>
             <p className={styles.integrationText}>
-              Collected metrics, open-finding counts and lock waits per database, for Grafana and Alertmanager. Also
-              served at /metrics on the backend&apos;s own port.
-              {!data.metrics_enabled && " Set APP_METRICS_TOKEN in .env and restart the backend to switch it on."}
+              {t("integrations.prometheusText")}
+              {!data.metrics_enabled && ` ${t("integrations.metricsOff")}`}
             </p>
             <div className={styles.snippet}>
               <pre>{scrapeConfig}</pre>
@@ -128,8 +107,7 @@ function IntegrationSettings() {
           </section>
           {!data.public_url && (
             <Alert tone="info" compact>
-              Set APP_PUBLIC_URL in .env to the address people open DbButler at: the weekly report&apos;s webhook
-              message then links to the report, and the snippets above use it.
+              {t("integrations.publicUrl")}
             </Alert>
           )}
         </div>
@@ -139,6 +117,7 @@ function IntegrationSettings() {
 }
 
 function SchedulerSettings() {
+  const { t } = useTranslation("settings");
   const queryClient = useQueryClient();
   const [saveError, setSaveError] = useState(null);
 
@@ -156,17 +135,14 @@ function SchedulerSettings() {
   const shownError = saveError ?? error?.message;
 
   return (
-    <Card
-      title="Scheduler"
-      description="How often each background job runs. Saving takes effect immediately — no backend restart needed."
-    >
+    <Card title={t("scheduler.title")} description={t("scheduler.description")}>
       {shownError && (
         <Alert tone="critical" compact>
           {shownError}
         </Alert>
       )}
 
-      {isPending && <Skeleton lines={4} label="Loading scheduler jobs…" />}
+      {isPending && <Skeleton lines={4} label={t("scheduler.loading")} />}
 
       {data && (
         <div className={styles.jobList}>
@@ -180,7 +156,10 @@ function SchedulerSettings() {
 }
 
 function JobRow({ job, onUpdated, setError }) {
-  const meta = JOB_META[job.job_name] ?? { label: job.job_name, description: "" };
+  const { t } = useTranslation("settings");
+  const meta = KNOWN_JOBS.has(job.job_name)
+    ? { label: t(`jobs.${job.job_name}.label`), description: t(`jobs.${job.job_name}.description`) }
+    : { label: job.job_name, description: "" };
   const [intervalSeconds, setIntervalSeconds] = useState(job.interval_seconds ?? 60);
   const [cronExpr, setCronExpr] = useState(job.cron_expr ?? "");
   const [enabled, setEnabled] = useState(job.enabled);
@@ -213,18 +192,18 @@ function JobRow({ job, onUpdated, setError }) {
         <h3 className={styles.jobTitle}>{meta.label}</h3>
         <span className={styles.jobDescription}>{meta.description}</span>
         <span className={styles.jobMeta}>
-          last updated {formatRelativeTime(job.updated_at)}
-          <span role="status">{justSaved && " · saved"}</span>
+          {t("scheduler.lastUpdated", { time: formatRelativeTime(job.updated_at) })}
+          <span role="status">{justSaved && ` · ${t("scheduler.saved")}`}</span>
         </span>
       </div>
 
       <div className={styles.jobControls}>
         <Checkbox checked={enabled} onChange={(e) => setEnabled(e.target.checked)}>
-          Enabled
+          {t("enabled")}
         </Checkbox>
 
         {job.job_kind === "interval" ? (
-          <Field label="Interval (seconds)" className={styles.intervalField}>
+          <Field label={t("scheduler.interval")} className={styles.intervalField}>
             <input
               type="number"
               min="1"
@@ -233,7 +212,7 @@ function JobRow({ job, onUpdated, setError }) {
             />
           </Field>
         ) : (
-          <Field label="Schedule (cron)" className={styles.cronField}>
+          <Field label={t("scheduler.cron")} className={styles.cronField}>
             <input
               type="text"
               value={cronExpr}
@@ -245,7 +224,7 @@ function JobRow({ job, onUpdated, setError }) {
         )}
 
         <button type="submit" className="button-primary button-sm" disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("common:actions.saving") : t("common:actions.save")}
         </button>
       </div>
     </form>
@@ -253,35 +232,37 @@ function JobRow({ job, onUpdated, setError }) {
 }
 
 function AiProviderSettings() {
+  const { t } = useTranslation("settings");
   const { data: settings, error, isPending } = useQuery({
     queryKey: AI_SETTINGS_KEY,
     queryFn: ({ signal }) => api.getAiSettings({ signal }),
   });
 
   return (
-    <Card
-      title="AI Query Analysis"
-      description={
-        <>
-          Configures the AI provider used by Query Intelligence's "Analyze with AI" button. Your query text and its
-          EXPLAIN plan are sent to this provider — use the Anonymize option in the analysis window if that's a concern
-          for a cloud provider.
-        </>
-      }
-    >
+    <Card title={t("ai.title")} description={t("ai.description")}>
       {error && (
         <Alert tone="critical" compact>
           {error.message}
         </Alert>
       )}
-      {isPending && <Skeleton lines={4} label="Loading AI settings…" />}
+      {isPending && <Skeleton lines={4} label={t("ai.loading")} />}
       {/* The form seeds its fields from the loaded settings once, on mount. */}
       {settings && <AiProviderForm settings={settings} />}
     </Card>
   );
 }
 
+// The link inside the "Model name" hint; Trans fills in its text.
+function ModelListLink({ children }) {
+  return (
+    <a href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noreferrer">
+      {children}
+    </a>
+  );
+}
+
 function AiProviderForm({ settings }) {
+  const { t } = useTranslation("settings");
   const queryClient = useQueryClient();
   const [provider, setProvider] = useState(settings.provider);
   const [apiKey, setApiKey] = useState("");
@@ -320,15 +301,15 @@ function AiProviderForm({ settings }) {
         </Alert>
       )}
 
-      <Field label="Provider">
+      <Field label={t("ai.provider")}>
         <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-          <option value="gemini">Google Gemini (cloud, free tier)</option>
-          <option value="local">Local model (OpenAI-compatible endpoint, e.g. Ollama)</option>
+          <option value="gemini">{t("ai.providerGemini")}</option>
+          <option value="local">{t("ai.providerLocal")}</option>
         </select>
       </Field>
 
       {provider === "local" && (
-        <Field label="Endpoint URL">
+        <Field label={t("ai.endpointUrl")}>
           <input
             type="text"
             value={endpointUrl}
@@ -340,17 +321,14 @@ function AiProviderForm({ settings }) {
       )}
 
       <Field
-        label="Model name"
+        label={t("ai.modelName")}
         hint={
           provider === "gemini" ? (
-            <>
-              Google retires model names fairly often — if analysis starts failing with a "model not found" error,
-              check{" "}
-              <a href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noreferrer">
-                the current model list
-              </a>{" "}
-              and update this field.
-            </>
+            <Trans
+              t={t}
+              i18nKey="ai.modelHint"
+              components={{ a: <ModelListLink /> }}
+            />
           ) : undefined
         }
       >
@@ -363,24 +341,24 @@ function AiProviderForm({ settings }) {
         />
       </Field>
 
-      <Field label={provider === "gemini" ? "API key" : "API key (optional)"}>
+      <Field label={provider === "gemini" ? t("ai.apiKey") : t("ai.apiKeyOptional")}>
         <input
           type="password"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder={settings.has_api_key ? "•••• already set — leave blank to keep it" : "Paste your API key"}
+          placeholder={settings.has_api_key ? t("alreadySet") : t("ai.apiKeyPlaceholder")}
           autoComplete="off"
         />
       </Field>
 
       <div className={styles.actions}>
         <button type="submit" className="button-primary button-sm" disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("common:actions.saving") : t("common:actions.save")}
         </button>
       </div>
       {justSaved && (
         <Alert tone="healthy" compact>
-          Saved.
+          {t("common:actions.saved")}
         </Alert>
       )}
     </form>
@@ -403,37 +381,29 @@ function detectWebhookKind(url) {
   return match ? match.kind : "generic";
 }
 
+// Translation keys (settings namespace), resolved at render.
 const WEBHOOK_KIND_LABEL = {
-  slack: "Slack",
-  discord: "Discord",
-  teams: "Microsoft Teams",
-  generic: "Generic JSON (Mattermost and others compatible with Slack's format still work)",
+  slack: "alerts.kind.slack",
+  discord: "alerts.kind.discord",
+  teams: "alerts.kind.teams",
+  generic: "alerts.kind.generic",
 };
 
 function AlertSettings() {
+  const { t } = useTranslation("settings");
   const { data: settings, error, isPending } = useQuery({
     queryKey: ALERT_SETTINGS_KEY,
     queryFn: ({ signal }) => api.getAlertSettings({ signal }),
   });
 
   return (
-    <Card
-      title="Actionable Alerting"
-      description={
-        <>
-          Sends a webhook the moment a finding first opens at or above the chosen severity — driven by the "Live
-          findings history" job above, so a problem is reported once when it starts, not every cycle it stays open.
-          Paste a Slack, Discord, or Microsoft Teams webhook URL and the right payload format is detected
-          automatically — no separate setting to pick.
-        </>
-      }
-    >
+    <Card title={t("alerts.title")} description={t("alerts.description")}>
       {error && (
         <Alert tone="critical" compact>
           {error.message}
         </Alert>
       )}
-      {isPending && <Skeleton lines={4} label="Loading alert settings…" />}
+      {isPending && <Skeleton lines={4} label={t("alerts.loading")} />}
       {/* The form seeds its fields from the loaded settings once, on mount. */}
       {settings && <AlertForm settings={settings} />}
     </Card>
@@ -441,6 +411,7 @@ function AlertSettings() {
 }
 
 function AlertForm({ settings }) {
+  const { t } = useTranslation("settings");
   const queryClient = useQueryClient();
   const [enabled, setEnabled] = useState(settings.enabled);
   const [webhookUrl, setWebhookUrl] = useState("");
@@ -498,15 +469,16 @@ function AlertForm({ settings }) {
       )}
 
       <Checkbox checked={enabled} onChange={(e) => setEnabled(e.target.checked)}>
-        Enabled
+        {t("enabled")}
       </Checkbox>
 
       <Field
-        label="Webhook URL"
+        label={t("alerts.webhookUrl")}
         hint={
           detectedKind ? (
             <>
-              Detected: <strong className={styles.detected}>{WEBHOOK_KIND_LABEL[detectedKind]}</strong>
+              {t("alerts.detected")}{" "}
+              <strong className={styles.detected}>{t(WEBHOOK_KIND_LABEL[detectedKind])}</strong>
             </>
           ) : undefined
         }
@@ -515,42 +487,40 @@ function AlertForm({ settings }) {
           type="password"
           value={webhookUrl}
           onChange={(e) => setWebhookUrl(e.target.value)}
-          placeholder={
-            settings.has_webhook_url ? "•••• already set — leave blank to keep it" : "https://hooks.slack.com/services/..."
-          }
+          placeholder={settings.has_webhook_url ? t("alreadySet") : "https://hooks.slack.com/services/..."}
           autoComplete="off"
         />
       </Field>
 
-      <Field label="Minimum severity">
+      <Field label={t("alerts.minSeverity")}>
         <select value={minSeverity} onChange={(e) => setMinSeverity(e.target.value)}>
-          <option value="critical">Critical only</option>
-          <option value="attention">Attention and critical</option>
+          <option value="critical">{t("alerts.criticalOnly")}</option>
+          <option value="attention">{t("alerts.attentionAndCritical")}</option>
         </select>
       </Field>
 
       <Checkbox checked={reportWebhook} onChange={(e) => setReportWebhook(e.target.checked)}>
-        Also post each weekly report&apos;s summary to this webhook (independent of the Enabled switch above)
+        {t("alerts.reportWebhook")}
       </Checkbox>
 
       <div className={styles.actions}>
         <button type="submit" className="button-primary button-sm" disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("common:actions.saving") : t("common:actions.save")}
         </button>
         <button type="button" className="button-secondary button-sm" onClick={handleTest} disabled={testing}>
-          {testing ? "Sending…" : "Send test alert"}
+          {testing ? t("alerts.sending") : t("alerts.sendTest")}
         </button>
       </div>
 
       {justSaved && (
         <Alert tone="healthy" compact>
-          Saved.
+          {t("common:actions.saved")}
         </Alert>
       )}
 
       {testResult && (
         <Alert tone={testResult.ok ? "healthy" : "critical"} compact>
-          {testResult.ok ? "Test alert sent — check your webhook's destination." : testResult.message}
+          {testResult.ok ? t("alerts.testSent") : testResult.message}
         </Alert>
       )}
     </form>

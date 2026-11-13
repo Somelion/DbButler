@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import { Bot, ChevronLeft, ChevronRight, Pause, Play, Rewind, SkipBack, SkipForward } from "lucide-react";
@@ -12,11 +13,12 @@ import { Alert, Badge, Card, Dialog, EmptyState, SegmentedControl, SeverityBadge
 import LockTreeView from "./LockTreeView";
 import TimelineChart, { MARKER_KINDS } from "./TimelineChart";
 
+// labelKey is a key in the timeMachine namespace, translated at render.
 const RANGE_OPTIONS = [
-  { value: 1, label: "1h" },
-  { value: 6, label: "6h" },
-  { value: 24, label: "24h" },
-  { value: 168, label: "7d" },
+  { value: 1, labelKey: "ranges.1h" },
+  { value: 6, labelKey: "ranges.6h" },
+  { value: 24, labelKey: "ranges.24h" },
+  { value: 168, labelKey: "ranges.7d" },
 ];
 const DEFAULT_HOURS = 24;
 const LIVE_REFRESH_MS = 60_000;
@@ -27,14 +29,25 @@ const REPLAY_GAP_MS = 60_000;
 const EXPLAIN_MARGIN_MS = 5 * 60_000;
 const MARKER_LIST_LIMIT = 40;
 
-const formatDateTime = (value) =>
-  new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+// Date and time in the UI language; built per render so a language
+// switch takes effect.
+function useFormatDateTime() {
+  const { i18n } = useTranslation();
+  const format = new Intl.DateTimeFormat(i18n.language, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  return (value) => format.format(new Date(value));
+}
 
-const formatDuration = (ms) => {
+const formatDuration = (ms, t) => {
   const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
-  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+  if (s < 60) return t("duration.seconds", { s });
+  if (s < 3600) return t("duration.minutes", { m: Math.floor(s / 60), s: s % 60 });
+  return t("duration.hours", { h: Math.floor(s / 3600), m: Math.floor((s % 3600) / 60) });
 };
 
 function validDate(value) {
@@ -71,21 +84,22 @@ function useTimeParams() {
 }
 
 function ExplainDialog({ result, error, pending, onClose, open }) {
+  const { t } = useTranslation("timeMachine");
   return (
     <Dialog
       open={open}
       onClose={onClose}
       size="lg"
-      title="What happened? (AI)"
-      description="Written by your configured AI provider from the facts below — counts, table and lock names, finding titles. No query text or data was sent."
+      title={t("explain.title")}
+      description={t("explain.description")}
     >
-      {pending && <Skeleton lines={5} label="Asking the AI — this can take a minute or two…" />}
+      {pending && <Skeleton lines={5} label={t("explain.asking")} />}
       {error && <Alert tone="critical">{error.message}</Alert>}
       {result && (
         <>
           <p className={styles.narrative}>{result.narrative}</p>
           <details>
-            <summary className={styles.factsSummary}>Exactly what was sent</summary>
+            <summary className={styles.factsSummary}>{t("explain.whatWasSent")}</summary>
             <pre className={styles.facts}>{result.facts}</pre>
           </details>
         </>
@@ -95,20 +109,21 @@ function ExplainDialog({ result, error, pending, onClose, open }) {
 }
 
 function MomentPanel({ targetId, at, moment, replay }) {
+  const { t } = useTranslation("timeMachine");
+  const formatDateTime = useFormatDateTime();
   if (!at) {
     return (
-      <Card title="Pick a moment">
-        <EmptyState icon={Rewind} title="Nothing selected">
-          Click the timeline (or focus it and use the arrow keys), or pick a lock incident or event on the left, to see
-          who blocked whom, what ran and what had just changed.
+      <Card title={t("moment.pickTitle")}>
+        <EmptyState icon={Rewind} title={t("moment.nothingSelected")}>
+          {t("moment.pickHint")}
         </EmptyState>
       </Card>
     );
   }
   const data = moment.data;
   return (
-    <Card title={`At ${formatDateTime(at)}`}>
-      <div className={styles.replay} role="group" aria-label="Step through lock snapshots">
+    <Card title={t("moment.title", { time: formatDateTime(at) })}>
+      <div className={styles.replay} role="group" aria-label={t("moment.stepThrough")}>
         <button
           type="button"
           className="button-secondary button-sm"
@@ -116,7 +131,7 @@ function MomentPanel({ targetId, at, moment, replay }) {
           onClick={() => replay.goTo(data.previous_snapshot_at)}
         >
           <SkipBack size={13} aria-hidden="true" />
-          Previous snapshot
+          {t("moment.previousSnapshot")}
         </button>
         <button
           type="button"
@@ -125,7 +140,7 @@ function MomentPanel({ targetId, at, moment, replay }) {
           onClick={replay.toggle}
         >
           {replay.playing ? <Pause size={13} aria-hidden="true" /> : <Play size={13} aria-hidden="true" />}
-          {replay.playing ? "Pause" : "Play"}
+          {replay.playing ? t("moment.pause") : t("moment.play")}
         </button>
         <button
           type="button"
@@ -133,55 +148,55 @@ function MomentPanel({ targetId, at, moment, replay }) {
           disabled={!data?.next_snapshot_at}
           onClick={() => replay.goTo(data.next_snapshot_at)}
         >
-          Next snapshot
+          {t("moment.nextSnapshot")}
           <SkipForward size={13} aria-hidden="true" />
         </button>
       </div>
 
       {moment.error && <Alert tone="critical">{moment.error.message}</Alert>}
-      {moment.isPending && <Skeleton lines={6} label="Loading this moment…" />}
+      {moment.isPending && <Skeleton lines={6} label={t("moment.loading")} />}
 
       {data && (
         <>
           <section className={styles.section} aria-labelledby="tm-locks">
             <h3 id="tm-locks" className={styles.sectionTitle}>
-              Blocking
+              {t("moment.blocking")}
             </h3>
             {data.lock_tree ? (
               <>
                 <p className={styles.muted} role="status">
-                  {data.lock_tree.blocked_count} session{data.lock_tree.blocked_count === 1 ? "" : "s"} blocked
-                  {data.lock_tree.max_wait_seconds != null && `, longest wait ${data.lock_tree.max_wait_seconds}s`} —
-                  snapshot at {formatDateTime(data.lock_tree.collected_at)}. Query literals are masked.
+                  {t("moment.sessionsBlocked", { count: data.lock_tree.blocked_count })}
+                  {data.lock_tree.max_wait_seconds != null &&
+                    `, ${t("longestWait", { seconds: data.lock_tree.max_wait_seconds })}`}
+                  {t("moment.snapshotAt", { time: formatDateTime(data.lock_tree.collected_at) })}
                 </p>
                 <LockTreeView tree={data.lock_tree} />
               </>
             ) : (
               <p className={styles.muted} role="status">
-                No session was waiting on a lock at this moment (snapshots are taken every 15 seconds while one is).
+                {t("moment.noLockWait")}
               </p>
             )}
           </section>
 
           <section className={styles.section} aria-labelledby="tm-queries">
             <h3 id="tm-queries" className={styles.sectionTitle}>
-              Top queries in this interval
+              {t("moment.topQueries")}
             </h3>
             {data.top_queries.length === 0 ? (
-              <p className={styles.muted}>No Query History interval covers this moment.</p>
+              <p className={styles.muted}>{t("moment.noQueryInterval")}</p>
             ) : (
               <div className={tableStyles.wrap}>
                 <table className={tableStyles.table}>
                   <caption className="sr-only">
-                    Tracked queries by DB time in the collection interval ending{" "}
-                    {formatDateTime(data.query_interval_end)}
+                    {t("moment.queriesCaption", { time: formatDateTime(data.query_interval_end) })}
                   </caption>
                   <thead>
                     <tr>
-                      <th scope="col" className={tableStyles.th}>Query</th>
-                      <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>Calls</th>
-                      <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>Mean</th>
-                      <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>DB time</th>
+                      <th scope="col" className={tableStyles.th}>{t("moment.colQuery")}</th>
+                      <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>{t("moment.colCalls")}</th>
+                      <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>{t("moment.colMean")}</th>
+                      <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>{t("moment.colDbTime")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -205,15 +220,15 @@ function MomentPanel({ targetId, at, moment, replay }) {
 
           <section className={styles.section} aria-labelledby="tm-nearby">
             <h3 id="tm-nearby" className={styles.sectionTitle}>
-              Changes within 30 minutes
+              {t("moment.nearby")}
             </h3>
             {data.nearby.length === 0 ? (
-              <p className={styles.muted}>None recorded.</p>
+              <p className={styles.muted}>{t("moment.noneRecorded")}</p>
             ) : (
               <ul className={styles.list}>
                 {data.nearby.map((m, index) => (
                   <li key={`${m.kind}-${m.at}-${index}`} className={styles.listItem}>
-                    <Badge tone="neutral">{MARKER_KINDS[m.kind]?.label ?? m.kind}</Badge>
+                    <Badge tone="neutral">{MARKER_KINDS[m.kind] ? t(MARKER_KINDS[m.kind].labelKey) : m.kind}</Badge>
                     <span>
                       {formatDateTime(m.at)} — {m.title}
                       {m.detail && <span className={styles.muted}> · {m.detail}</span>}
@@ -226,17 +241,18 @@ function MomentPanel({ targetId, at, moment, replay }) {
 
           <section className={styles.section} aria-labelledby="tm-findings">
             <h3 id="tm-findings" className={styles.sectionTitle}>
-              Findings open at this moment
+              {t("moment.openFindings")}
             </h3>
             {data.open_findings.length === 0 ? (
-              <p className={styles.muted}>None from the deep scan.</p>
+              <p className={styles.muted}>{t("moment.noOpenFindings")}</p>
             ) : (
               <ul className={styles.list}>
                 {data.open_findings.map((f) => (
                   <li key={f.id} className={styles.listItem}>
                     <SeverityBadge severity={f.severity} />
                     <span>
-                      {f.title} <span className={styles.muted}>· since {formatDateTime(f.since)}</span>
+                      {f.title}{" "}
+                      <span className={styles.muted}>· {t("moment.since", { time: formatDateTime(f.since) })}</span>
                     </span>
                   </li>
                 ))}
@@ -253,6 +269,9 @@ function MomentPanel({ targetId, at, moment, replay }) {
 // lock incidents, plan changes, findings and server events — and, for any
 // moment, who blocked whom, what ran and what had just changed.
 export default function TimeMachineScreen({ targetId }) {
+  const { t } = useTranslation("timeMachine");
+  const formatDateTime = useFormatDateTime();
+  const rangeOptions = RANGE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }));
   const { hours, until, at, update } = useTimeParams();
   const [playing, setPlaying] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
@@ -343,27 +362,27 @@ export default function TimeMachineScreen({ targetId }) {
       <Card>
         <div className={styles.toolbar}>
           <SegmentedControl
-            label="Window length"
-            options={RANGE_OPTIONS}
+            label={t("toolbar.windowLength")}
+            options={rangeOptions}
             value={hours}
             onChange={(value) => update({ hours: value === DEFAULT_HOURS ? null : value })}
           />
-          <div className={styles.pan} role="group" aria-label="Move the window">
+          <div className={styles.pan} role="group" aria-label={t("toolbar.moveWindow")}>
             <button type="button" className="button-secondary button-sm" onClick={() => pan(-1)}>
               <ChevronLeft size={13} aria-hidden="true" />
-              Earlier
+              {t("toolbar.earlier")}
             </button>
             <button type="button" className="button-secondary button-sm" onClick={() => pan(1)} disabled={!until}>
-              Later
+              {t("toolbar.later")}
               <ChevronRight size={13} aria-hidden="true" />
             </button>
             <button type="button" className="button-secondary button-sm" onClick={() => update({ until: null })} disabled={!until}>
-              Now
+              {t("toolbar.now")}
             </button>
           </div>
           {data && (
             <span className={styles.muted}>
-              {formatDateTime(data.start)} – {until ? formatDateTime(data.end) : "now (refreshing)"}
+              {formatDateTime(data.start)} – {until ? formatDateTime(data.end) : t("toolbar.nowRefreshing")}
             </span>
           )}
           {data && hours <= 24 && (
@@ -373,13 +392,13 @@ export default function TimeMachineScreen({ targetId }) {
               onClick={() => explainWindow(data.start, data.end)}
             >
               <Bot size={13} aria-hidden="true" />
-              Explain this window
+              {t("toolbar.explainWindow")}
             </button>
           )}
         </div>
 
         {timeline.error && <Alert tone="critical">{timeline.error.message}</Alert>}
-        {timeline.isPending && <Skeleton height={300} label="Loading the timeline…" />}
+        {timeline.isPending && <Skeleton height={300} label={t("toolbar.loadingTimeline")} />}
         {data && (
           <>
             <TimelineChart
@@ -393,14 +412,14 @@ export default function TimeMachineScreen({ targetId }) {
                 setPlaying(false);
                 update({ at: date });
               }}
-              label="Timeline. Pick a moment: arrow keys move 1% of the window, Page Up and Page Down 10%, Home and End jump to the ends."
+              label={t("toolbar.chartLabel")}
             />
             <div className={styles.legend} aria-hidden="true">
-              <span className={styles.legendBand} /> Lock incident
+              <span className={styles.legendBand} /> {t("toolbar.lockIncident")}
               {Object.entries(MARKER_KINDS).map(([kind, meta]) => (
                 <span key={kind} className={styles.legendItem}>
                   <span className={`${styles.legendDot} ${styles[`dot_${kind}`]}`} />
-                  {meta.label}
+                  {t(meta.labelKey)}
                 </span>
               ))}
             </div>
@@ -410,11 +429,10 @@ export default function TimeMachineScreen({ targetId }) {
 
       <div className={styles.columns}>
         <div className={styles.side}>
-          <Card title={`Lock incidents (${data?.incidents.length ?? 0})`}>
+          <Card title={t("incidents.title", { n: data?.incidents.length ?? 0 })}>
             {data && data.incidents.length === 0 && (
               <p className={styles.muted}>
-                No session waited on a lock in this window. Lock trees are recorded every 15 seconds while one does
-                (demo: <code>demo/stage-lock-incident.sh</code> stages one).
+                <Trans t={t} i18nKey="incidents.none" components={{ code: <code /> }} />
               </p>
             )}
             <ul className={styles.list}>
@@ -424,14 +442,15 @@ export default function TimeMachineScreen({ targetId }) {
                   <li key={incident.start} className={styles.incident}>
                     <span className={styles.incidentTitle}>{formatDateTime(incident.start)}</span>
                     <span className={styles.muted}>
-                      ~{formatDuration(durationMs + 15_000)} · up to {incident.max_blocked} blocked
-                      {incident.max_wait_seconds != null && ` · longest wait ${incident.max_wait_seconds}s`} ·{" "}
-                      {incident.snapshots} snapshot{incident.snapshots === 1 ? "" : "s"}
+                      ~{formatDuration(durationMs + 15_000, t)} · {t("incidents.upToBlocked", { n: incident.max_blocked })}
+                      {incident.max_wait_seconds != null &&
+                        ` · ${t("longestWait", { seconds: incident.max_wait_seconds })}`}{" "}
+                      · {t("incidents.snapshots", { count: incident.snapshots })}
                     </span>
                     <span className={styles.incidentActions}>
                       <button type="button" className="button-secondary button-sm" onClick={() => startReplay(incident)}>
                         <Play size={13} aria-hidden="true" />
-                        Replay
+                        {t("incidents.replay")}
                       </button>
                       <button
                         type="button"
@@ -444,7 +463,7 @@ export default function TimeMachineScreen({ targetId }) {
                         }
                       >
                         <Bot size={13} aria-hidden="true" />
-                        Explain
+                        {t("incidents.explain")}
                       </button>
                     </span>
                   </li>
@@ -453,8 +472,8 @@ export default function TimeMachineScreen({ targetId }) {
             </ul>
           </Card>
 
-          <Card title={`Changes and events (${markers.length})`}>
-            {data && markers.length === 0 && <p className={styles.muted}>Nothing recorded in this window.</p>}
+          <Card title={t("events.title", { n: markers.length })}>
+            {data && markers.length === 0 && <p className={styles.muted}>{t("events.none")}</p>}
             <ul className={styles.list}>
               {shownMarkers.map((m, index) => (
                 <li key={`${m.kind}-${m.at}-${index}`}>
@@ -477,7 +496,7 @@ export default function TimeMachineScreen({ targetId }) {
             </ul>
             {markers.length > MARKER_LIST_LIMIT && (
               <button type="button" className="button-link" onClick={() => setShowAllMarkers((v) => !v)}>
-                {showAllMarkers ? "Show fewer" : `Show all ${markers.length}`}
+                {showAllMarkers ? t("events.showFewer") : t("events.showAll", { n: markers.length })}
               </button>
             )}
           </Card>

@@ -1,0 +1,186 @@
+{
+  "edgeKinds": {
+    "fk": {
+      "label": "FK, joined",
+      "description": "Joined in the workload, and a declared foreign key covers the join."
+    },
+    "no_fk": {
+      "label": "Joined, no FK",
+      "description": "Joined in the workload on columns no foreign key covers — a missing constraint, or a join that may need an index on the join column."
+    },
+    "fk_unused": {
+      "label": "FK, never joined",
+      "description": "Foreign key declared, but no tracked query joins on it — a dead relationship, or an FK index that costs writes without serving reads."
+    }
+  },
+  "colorModes": {
+    "health": "Health",
+    "seq": "Seq-scan heat",
+    "writes": "Write heat"
+  },
+  "colorModeDescriptions": {
+    "health": "Worst open finding on the table (from the nightly deep scan).",
+    "seq": "Rows read by sequential scans in the window — tables read in full, often.",
+    "writes": "Rows inserted, updated and deleted in the window."
+  },
+  "severityLabels": {
+    "critical": "Critical findings",
+    "attention": "Needs attention",
+    "none": "No open findings"
+  },
+  "ranges": {
+    "24": "24h",
+    "168": "7d",
+    "720": "30d"
+  },
+  "rangeLabels": {
+    "24": "24 hours",
+    "168": "7 days",
+    "720": "30 days"
+  },
+  "rangeLabelsLast": {
+    "24": "24 hours",
+    "168": "7 days",
+    "720": "30 days"
+  },
+  "views": {
+    "map": "2D map",
+    "3d": "3D map",
+    "list": "Relationships"
+  },
+  "coverage": {
+    "needsGenericPlan_one": "{{count}} parameterized query needs PostgreSQL 16+ to be planned",
+    "needsGenericPlan_other": "{{count}} parameterized queries need PostgreSQL 16+ to be planned",
+    "explainFailed_one": "{{count}} couldn't be planned (utility statements such as SET or COMMIT, mostly)",
+    "explainFailed_other": "{{count}} couldn't be planned (utility statements such as SET or COMMIT, mostly)",
+    "notPlannedYet_one": "{{count}} not planned yet",
+    "notPlannedYet_other": "{{count}} not planned yet",
+    "builtFrom": "Built from {{ok}} of {{total}} tracked queries",
+    "covering": ", covering {{coverage}}% of their DB time",
+    "plansLastRead": "Plans last read {{when}}.",
+    "noPlansYet": "No plans read yet.",
+    "trackedExplained": "Tracked queries are the top 50 by total time in pg_stat_statements.",
+    "meterLabel": "Share of tracked DB time the map covers"
+  },
+  "legend": {
+    "relationships": "Relationships",
+    "nodes": "Nodes",
+    "nodesExplained": "Size: table size. Colour: {{description}} Faded: only on the map through a foreign key.",
+    "low": "low",
+    "high": "high"
+  },
+  "slider": {
+    "now": "now",
+    "hoursAgo_one": "{{count}} hour ago ({{date}})",
+    "hoursAgo_other": "{{count}} hours ago ({{date}})",
+    "daysAgo_one": "{{count}} day ago ({{date}})",
+    "daysAgo_other": "{{count}} days ago ({{date}})",
+    "windowEnds": "Window ends:",
+    "valueText": "Window ends {{when}}"
+  },
+  "search": {
+    "manyMatches_one": "{{count}} tables match \"{{term}}\" — type more of the name.",
+    "manyMatches_other": "{{count}} tables match \"{{term}}\" — type more of the name.",
+    "noMatch": "No table \"{{term}}\" on the map.",
+    "label": "Find a table on the map",
+    "placeholder": "Find a table…"
+  },
+  "toolbar": {
+    "timeRange": "Time range",
+    "view": "View",
+    "colorBy": "Colour tables by",
+    "fullScreen": "Full screen",
+    "exitFullScreen": "Exit full screen",
+    "exitFullScreenTitle": "Exit full screen (Esc)"
+  },
+  "screen": {
+    "building": "Building the workload map…",
+    "emptyNoQueries": "No queries are tracked yet. The map is built from the top 50 queries in pg_stat_statements, which DbButler starts tracking within a few minutes of connecting.",
+    "emptyNonePlanned": "None of the tracked queries has been planned yet. Their plans are read every 5 minutes (the plan regression job on the Settings screen) — check back shortly.",
+    "emptyNoUserTables": "No user tables to show: the tracked queries only touch system catalogs, or tables outside this connection's schema filter.",
+    "fullScreenLabel": "Workload Map, full screen",
+    "showingPast": "Showing the {{range}} up to {{until}}: the queries tracked then, weighted by the time they took in that window. Join columns come from each query's current plan.",
+    "lifetimeWeights": "No tracked query ran in the last {{range}}, so weights use each query's total since pg_stat_statements was last reset.",
+    "truncated_one": "Showing the {{count}} tables carrying the most DB time; {{more}} more are left off.",
+    "truncated_other": "Showing the {{count}} tables carrying the most DB time; {{more}} more are left off.",
+    "emptyTitle": "Nothing to map yet",
+    "graphLabel": "Workload map: {{tables}} tables and {{edges}} relationships. The Relationships view lists the same information as a table.",
+    "graph3dLabel": "3D workload map: {{tables}} tables, higher means more DB time. Drag to rotate, scroll to zoom. The Relationships view lists the same information as a table.",
+    "loading3d": "Loading the 3D view…",
+    "note3d": "3D: height is the table's share of DB time, each schema is its own cluster, and relationships are told apart by colour only. Drag to rotate, scroll to zoom."
+  },
+  "graph": {
+    "unindexedFk": "unindexed FK",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fit": "Fit the whole map",
+    "dbShare": "{{share}}% of DB time",
+    "queries_one": "{{count}} query",
+    "queries_other": "{{count}} queries",
+    "nodeLabel": "{{name}} — {{share}}% of DB time",
+    "noWebgl": "This browser has no WebGL, which the 3D view needs. The 2D map and the Relationships table show the same data."
+  },
+  "panel": {
+    "label": "Selection details",
+    "close": "Close details",
+    "and": "and",
+    "queryMeta_one": "{{time}} DB time · {{calls}} call",
+    "queryMeta_other": "{{time}} DB time · {{calls}} calls",
+    "filtersOn": "filters on {{columns}}",
+    "openQueryHistory": "Open in Query History",
+    "size": "Size",
+    "liveRows": "Live rows",
+    "deadRows": "Dead rows",
+    "dbShare": "Share of DB time",
+    "seqRowsRead": "Seq-scan rows read",
+    "rowsWritten": "Rows written",
+    "hotUpdates": "HOT updates",
+    "partitions": "Partitions / chunks",
+    "openTableHealth": "Open in Table Health",
+    "indexAdvisor": "Index Advisor",
+    "relationships": "Relationships ({{n}})",
+    "notJoined": "Not joined with any other table in the tracked queries.",
+    "unindexed": "unindexed",
+    "loadingDetails": "Loading table details…",
+    "tableQueries": "Queries touching this table ({{n}})",
+    "noTableQueries": "No tracked query touches this table — it's on the map through a foreign key.",
+    "indexes": "Indexes ({{n}})",
+    "hypertableNote": "TimescaleDB hypertable: scans of the per-chunk indexes aren't included in these counts.",
+    "noIndexes": "No indexes.",
+    "primaryKey": "primary key",
+    "unique": "unique",
+    "neverScanned": "never scanned",
+    "indexMeta_one": "{{scans}} scan · {{size}}",
+    "indexMeta_other": "{{scans}} scans · {{size}}",
+    "openFindings": "Open findings ({{n}})",
+    "noFindings": "None from the last deep scan.",
+    "joinColumns": "Join columns",
+    "joinLine": "{{types}} join · {{strategies}} · {{share}}% of tracked DB time",
+    "strategyNotShown": "strategy not shown",
+    "foreignKey": "Foreign key",
+    "fkIndexed": "The FK columns on {{child}} are indexed.",
+    "fkNotIndexed": "No index on {{child}} ({{columns}}). Joins from {{parent}}, and every DELETE or key update on {{parent}}, have to scan {{child}}. <link>See Index Advisor</link>.",
+    "noFkTitle": "Join conditions without a foreign key",
+    "indexed": "indexed",
+    "noLeadingIndex": "no index leads with the join column",
+    "costInWhatIf": "cost an index in What-if",
+    "noFkHint": "If one side is meant to reference the other, declaring the foreign key documents it and lets PostgreSQL enforce it. A side without an index is scanned on every join.",
+    "edgeQueries": "Queries joining these tables ({{n}})",
+    "noEdgeQueries": "No tracked query joins these tables.",
+    "notOnMap": "Not on the map",
+    "notOnMapHint": "The selected item isn't part of this time range's map."
+  },
+  "table": {
+    "caption": "Relationships between tables, from joins in the tracked queries and declared foreign keys",
+    "tables": "Tables",
+    "kind": "Kind",
+    "joinColumns": "Join columns",
+    "dbTime": "DB time",
+    "queries": "Queries",
+    "indexes": "Indexes",
+    "fkUnindexed": "FK unindexed",
+    "neitherSideUnindexed": "neither side unindexed",
+    "oneSideUnindexed": "one side unindexed",
+    "indexed": "indexed"
+  }
+}

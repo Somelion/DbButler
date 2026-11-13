@@ -1,4 +1,6 @@
+import i18n from "./i18n";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { Maximize2, Minimize2, Network, Search } from "lucide-react";
@@ -15,18 +17,10 @@ import WorkloadRelationsTable from "./WorkloadRelationsTable";
 import WorkloadSidePanel from "./WorkloadSidePanel";
 import { COLOR_MODES, COLOR_MODE_DESCRIPTIONS, EDGE_KINDS, EDGE_KIND_KEYS } from "./workloadKinds";
 
-const RANGE_OPTIONS = [
-  { value: 24, label: "24h" },
-  { value: 168, label: "7d" },
-  { value: 720, label: "30d" },
-];
+// Labels are translation keys (workloadMap:ranges.* / views.*), read at render.
+const RANGE_OPTIONS = [{ value: 24 }, { value: 168 }, { value: 720 }];
 const DEFAULT_HOURS = 168;
-const VIEW_ITEMS = [
-  { key: "map", label: "2D map" },
-  { key: "3d", label: "3D map" },
-  { key: "list", label: "Relationships" },
-];
-const RANGE_LABEL = { 24: "24 hours", 168: "7 days", 720: "30 days" };
+const VIEW_ITEMS = [{ key: "map" }, { key: "3d" }, { key: "list" }];
 const MAX_HISTORY_HOURS = 720; // the store keeps 30 days
 
 // View state lives in the URL so a map can be shared or reloaded as-is:
@@ -68,39 +62,38 @@ function useMapParams(searchParams) {
 }
 
 function CoverageMeter({ meta }) {
+  const { t } = useTranslation("workloadMap");
   const counts = meta.query_status_counts;
   const coverage = meta.coverage_pct;
   const notes = [];
   if (counts.needs_generic_plan > 0) {
-    notes.push(
-      `${counts.needs_generic_plan} parameterized quer${counts.needs_generic_plan === 1 ? "y needs" : "ies need"} PostgreSQL 16+ to be planned`
-    );
+    notes.push(t("coverage.needsGenericPlan", { count: counts.needs_generic_plan }));
   }
   if (counts.explain_failed > 0) {
-    notes.push(`${counts.explain_failed} couldn't be planned (utility statements such as SET or COMMIT, mostly)`);
+    notes.push(t("coverage.explainFailed", { count: counts.explain_failed }));
   }
-  if (counts.not_planned_yet > 0) notes.push(`${counts.not_planned_yet} not planned yet`);
+  if (counts.not_planned_yet > 0) notes.push(t("coverage.notPlannedYet", { count: counts.not_planned_yet }));
 
   return (
     <div className={styles.coverage}>
       <div className={styles.coverageText}>
         <span className={styles.coverageHeadline}>
-          Built from {counts.ok} of {meta.tracked_queries} tracked queries
-          {coverage != null && <>, covering {coverage}% of their DB time</>}
+          {t("coverage.builtFrom", { ok: counts.ok, total: meta.tracked_queries })}
+          {coverage != null && t("coverage.covering", { coverage })}
         </span>
         {notes.length > 0 && <span className={styles.muted}>{notes.join(" · ")}.</span>}
         <span className={styles.muted}>
           {meta.last_captured_at
-            ? `Plans last read ${formatRelativeTime(meta.last_captured_at)}.`
-            : "No plans read yet."}{" "}
-          Tracked queries are the top 50 by total time in pg_stat_statements.
+            ? t("coverage.plansLastRead", { when: formatRelativeTime(meta.last_captured_at) })
+            : t("coverage.noPlansYet")}{" "}
+          {t("coverage.trackedExplained")}
         </span>
       </div>
       {coverage != null && (
         <div
           className={styles.meter}
           role="meter"
-          aria-label="Share of tracked DB time the map covers"
+          aria-label={t("coverage.meterLabel")}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={coverage}
@@ -122,10 +115,11 @@ function EdgeSample({ kind }) {
 }
 
 function Legend({ visibleKinds, onToggleKind, colorBy, counts }) {
+  const { t } = useTranslation("workloadMap");
   return (
     <div className={styles.legend}>
       <fieldset className={styles.legendGroup}>
-        <legend className={styles.legendTitle}>Relationships</legend>
+        <legend className={styles.legendTitle}>{t("legend.relationships")}</legend>
         {EDGE_KIND_KEYS.map((kind) => (
           <Checkbox key={kind} checked={visibleKinds.has(kind)} onChange={() => onToggleKind(kind)}>
             <EdgeSample kind={kind} />
@@ -134,20 +128,24 @@ function Legend({ visibleKinds, onToggleKind, colorBy, counts }) {
         ))}
       </fieldset>
       <div className={styles.legendGroup}>
-        <span className={styles.legendTitle}>Nodes</span>
+        <span className={styles.legendTitle}>{t("legend.nodes")}</span>
         <span className={styles.muted}>
-          Size: table size. Colour: {COLOR_MODE_DESCRIPTIONS[colorBy]} Faded: only on the map through a foreign key.
+          {t("legend.nodesExplained", { description: COLOR_MODE_DESCRIPTIONS[colorBy] })}
         </span>
         {colorBy === "health" && (
           <span className={styles.swatches}>
-            <span className={`${styles.swatch} ${styles.swatchCritical}`} aria-hidden="true" /> Critical
-            <span className={`${styles.swatch} ${styles.swatchAttention}`} aria-hidden="true" /> Attention
-            <span className={`${styles.swatch} ${styles.swatchHealthy}`} aria-hidden="true" /> No open findings
+            <span className={`${styles.swatch} ${styles.swatchCritical}`} aria-hidden="true" />{" "}
+            {t("common:severity.critical")}
+            <span className={`${styles.swatch} ${styles.swatchAttention}`} aria-hidden="true" />{" "}
+            {t("common:severity.attention")}
+            <span className={`${styles.swatch} ${styles.swatchHealthy}`} aria-hidden="true" />{" "}
+            {t("severityLabels.none")}
           </span>
         )}
         {colorBy !== "health" && (
           <span className={styles.swatches}>
-            low <span className={`${styles.heatScale} ${styles[`heat_${colorBy}`]}`} aria-hidden="true" /> high
+            {t("legend.low")} <span className={`${styles.heatScale} ${styles[`heat_${colorBy}`]}`} aria-hidden="true" />{" "}
+            {t("legend.high")}
           </span>
         )}
       </div>
@@ -160,17 +158,27 @@ function Legend({ visibleKinds, onToggleKind, colorBy, counts }) {
 // URL only changes when the slider is released (or on keyboard input), so
 // dragging doesn't fire a request per step.
 function TimeSlider({ hours, until, onCommit }) {
+  const { t } = useTranslation("workloadMap");
   const [now] = useState(() => Date.now());
   const maxBack = MAX_HISTORY_HOURS - hours;
   const committed = until ? Math.min(maxBack, Math.max(0, Math.round((now - until.getTime()) / 3_600_000))) : 0;
   const [draft, setDraft] = useState(null);
   const hoursAgo = draft ?? committed;
+  const date =
+    hoursAgo === 0
+      ? null
+      : new Date(now - hoursAgo * 3_600_000).toLocaleString(i18n.language, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
   const label =
     hoursAgo === 0
-      ? "now"
-      : `${hoursAgo >= 48 ? `${Math.round(hoursAgo / 24)} days` : `${hoursAgo} hours`} ago (${new Date(
-          now - hoursAgo * 3_600_000
-        ).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })})`;
+      ? t("slider.now")
+      : hoursAgo >= 48
+        ? t("slider.daysAgo", { count: Math.round(hoursAgo / 24), date })
+        : t("slider.hoursAgo", { count: hoursAgo, date });
 
   const commit = () => {
     if (draft == null) return;
@@ -181,7 +189,7 @@ function TimeSlider({ hours, until, onCommit }) {
   return (
     <div className={styles.timeSlider}>
       <label htmlFor="workload-until" className={styles.sliderLabel}>
-        Window ends: <span className={styles.sliderValue}>{label}</span>
+        {t("slider.windowEnds")} <span className={styles.sliderValue}>{label}</span>
       </label>
       <input
         id="workload-until"
@@ -190,7 +198,7 @@ function TimeSlider({ hours, until, onCommit }) {
         max={maxBack}
         step={1}
         value={maxBack - hoursAgo}
-        aria-valuetext={`Window ends ${label}`}
+        aria-valuetext={t("slider.valueText", { when: label })}
         onChange={(e) => setDraft(maxBack - Number(e.target.value))}
         onPointerUp={commit}
         onKeyUp={commit}
@@ -259,6 +267,7 @@ function useFullScreen() {
 }
 
 export default function WorkloadMapScreen({ targetId }) {
+  const { t } = useTranslation("workloadMap");
   const [searchParams, setSearchParams] = useSearchParams();
   const { hours, until, view: requestedView, colorBy, visibleKinds, selection } = useMapParams(searchParams);
   // The 3D map is behind a feature flag (APP_FEATURE_WORKLOAD_3D in .env):
@@ -271,7 +280,11 @@ export default function WorkloadMapScreen({ targetId }) {
   });
   const has3d = featuresQuery.data?.workload_map_3d === true;
   const view = requestedView === "3d" && !has3d ? "map" : requestedView;
-  const viewItems = has3d ? VIEW_ITEMS : VIEW_ITEMS.filter((item) => item.key !== "3d");
+  const viewItems = (has3d ? VIEW_ITEMS : VIEW_ITEMS.filter((item) => item.key !== "3d")).map((item) => ({
+    ...item,
+    label: t(`views.${item.key}`),
+  }));
+  const rangeOptions = RANGE_OPTIONS.map((option) => ({ ...option, label: t(`ranges.${option.value}`) }));
   const [search, setSearch] = useState("");
   const [searchMiss, setSearchMiss] = useState(null);
   const fullScreen = useFullScreen();
@@ -321,22 +334,21 @@ export default function WorkloadMapScreen({ targetId }) {
       setSearchMiss(null);
       select({ type: "table", id: match.id });
     } else {
-      setSearchMiss(
-        partial.length > 1 ? `${partial.length} tables match "${search.trim()}" — type more of the name.` : `No table "${search.trim()}" on the map.`
-      );
+      // Kept as data and worded at render, so it follows a language switch.
+      setSearchMiss({ count: partial.length, term: search.trim() });
     }
   };
 
   const toolbar = (
     <div className={styles.toolbar}>
       <SegmentedControl
-        label="Time range"
-        options={RANGE_OPTIONS}
+        label={t("toolbar.timeRange")}
+        options={rangeOptions}
         value={hours}
         onChange={(value) => updateParams({ hours: value === DEFAULT_HOURS ? null : value })}
       />
       <Tabs
-        label="View"
+        label={t("toolbar.view")}
         idPrefix="workload-view"
         items={viewItems}
         value={view}
@@ -344,7 +356,7 @@ export default function WorkloadMapScreen({ targetId }) {
       />
       {view !== "list" && (
         <SegmentedControl
-          label="Colour tables by"
+          label={t("toolbar.colorBy")}
           size="sm"
           options={COLOR_MODES}
           value={colorBy}
@@ -353,13 +365,13 @@ export default function WorkloadMapScreen({ targetId }) {
       )}
       <form className={styles.search} onSubmit={handleSearch} role="search">
         <label htmlFor="workload-search" className="sr-only">
-          Find a table on the map
+          {t("search.label")}
         </label>
         <input
           id="workload-search"
           type="search"
           list="workload-tables"
-          placeholder="Find a table…"
+          placeholder={t("search.placeholder")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -370,7 +382,7 @@ export default function WorkloadMapScreen({ targetId }) {
         </datalist>
         <button type="submit" className="button-secondary button-sm">
           <Search size={13} aria-hidden="true" />
-          Find
+          {t("common:actions.find")}
         </button>
       </form>
       <button
@@ -378,10 +390,10 @@ export default function WorkloadMapScreen({ targetId }) {
         className="button-secondary button-sm"
         onClick={fullScreen.on ? fullScreen.exit : fullScreen.enter}
         aria-pressed={fullScreen.on}
-        title={fullScreen.on ? "Exit full screen (Esc)" : "Full screen"}
+        title={fullScreen.on ? t("toolbar.exitFullScreenTitle") : t("toolbar.fullScreen")}
       >
         {fullScreen.on ? <Minimize2 size={13} aria-hidden="true" /> : <Maximize2 size={13} aria-hidden="true" />}
-        {fullScreen.on ? "Exit full screen" : "Full screen"}
+        {fullScreen.on ? t("toolbar.exitFullScreen") : t("toolbar.fullScreen")}
       </button>
     </div>
   );
@@ -390,7 +402,7 @@ export default function WorkloadMapScreen({ targetId }) {
     return (
       <Card>
         {toolbar}
-        <Skeleton height={480} label="Building the workload map…" />
+        <Skeleton height={480} label={t("screen.building")} />
       </Card>
     );
   }
@@ -408,23 +420,25 @@ export default function WorkloadMapScreen({ targetId }) {
   const empty = graph.nodes.length === 0;
   const emptyMessage =
     meta.tracked_queries === 0
-      ? "No queries are tracked yet. The map is built from the top 50 queries in pg_stat_statements, which DbButler starts tracking within a few minutes of connecting."
+      ? t("screen.emptyNoQueries")
       : meta.query_status_counts.ok === 0
-        ? "None of the tracked queries has been planned yet. Their plans are read every 5 minutes (the plan regression job on the Settings screen) — check back shortly."
-        : "No user tables to show: the tracked queries only touch system catalogs, or tables outside this connection's schema filter.";
+        ? t("screen.emptyNonePlanned")
+        : t("screen.emptyNoUserTables");
 
   return (
     <div
       className={`${styles.screen} ${fullScreen.on ? styles.fullscreen : ""}`}
       role={fullScreen.on ? "dialog" : undefined}
       aria-modal={fullScreen.on ? "true" : undefined}
-      aria-label={fullScreen.on ? "Workload Map, full screen" : undefined}
+      aria-label={fullScreen.on ? t("screen.fullScreenLabel") : undefined}
     >
       <Card className={styles.controlsCard}>
         {toolbar}
         {searchMiss && (
           <Alert tone="info" compact>
-            {searchMiss}
+            {searchMiss.count > 1
+              ? t("search.manyMatches", { count: searchMiss.count, term: searchMiss.term })
+              : t("search.noMatch", { term: searchMiss.term })}
           </Alert>
         )}
         {graphQuery.error && <Alert tone="critical">{graphQuery.error.message}</Alert>}
@@ -436,8 +450,7 @@ export default function WorkloadMapScreen({ targetId }) {
         />
         {until && (
           <Alert tone="info" compact>
-            Showing the {RANGE_LABEL[hours]} up to {until.toLocaleString()}: the queries tracked then, weighted by the
-            time they took in that window. Join columns come from each query's current plan.
+            {t("screen.showingPast", { range: t(`rangeLabels.${hours}`), until: until.toLocaleString() })}
           </Alert>
         )}
         <div className={styles.coverageBlock}>
@@ -445,21 +458,19 @@ export default function WorkloadMapScreen({ targetId }) {
         </div>
         {meta.weight_basis === "lifetime" && (
           <Alert tone="info" compact>
-            No tracked query ran in the last {RANGE_LABEL[hours]}, so weights use each query's total since
-            pg_stat_statements was last reset.
+            {t("screen.lifetimeWeights", { range: t(`rangeLabelsLast.${hours}`) })}
           </Alert>
         )}
         {meta.truncated_nodes > 0 && (
           <Alert tone="attention" compact>
-            Showing the {graph.nodes.length} tables carrying the most DB time; {meta.truncated_nodes} more are left
-            off.
+            {t("screen.truncated", { count: graph.nodes.length, more: meta.truncated_nodes })}
           </Alert>
         )}
       </Card>
 
       {empty ? (
         <Card>
-          <EmptyState icon={Network} title="Nothing to map yet">
+          <EmptyState icon={Network} title={t("screen.emptyTitle")}>
             {emptyMessage}
           </EmptyState>
         </Card>
@@ -476,10 +487,10 @@ export default function WorkloadMapScreen({ targetId }) {
                     visibleKinds={visibleKinds}
                     selection={selection}
                     onSelect={select}
-                    label={`Workload map: ${graph.nodes.length} tables and ${graph.edges.length} relationships. The Relationships view lists the same information as a table.`}
+                    label={t("screen.graphLabel", { tables: graph.nodes.length, edges: graph.edges.length })}
                   />
                 ) : (
-                  <Suspense fallback={<Skeleton height={480} label="Loading the 3D view…" />}>
+                  <Suspense fallback={<Skeleton height={480} label={t("screen.loading3d")} />}>
                     <WorkloadGraph3D
                       nodes={graph.nodes}
                       edges={graph.edges}
@@ -487,16 +498,11 @@ export default function WorkloadMapScreen({ targetId }) {
                       visibleKinds={visibleKinds}
                       selection={selection}
                       onSelect={select}
-                      label={`3D workload map: ${graph.nodes.length} tables, higher means more DB time. Drag to rotate, scroll to zoom. The Relationships view lists the same information as a table.`}
+                      label={t("screen.graph3dLabel", { tables: graph.nodes.length })}
                     />
                   </Suspense>
                 )}
-                {view === "3d" && (
-                  <p className={styles.note}>
-                    3D: height is the table's share of DB time, each schema is its own cluster, and relationships are
-                    told apart by colour only. Drag to rotate, scroll to zoom.
-                  </p>
-                )}
+                {view === "3d" && <p className={styles.note}>{t("screen.note3d")}</p>}
                 <Legend
                   visibleKinds={visibleKinds}
                   onToggleKind={toggleKind}

@@ -1,0 +1,34 @@
+{
+  "sessions_one": "{{count}} session",
+  "sessions_other": "{{count}} sessions",
+  "loading": "Loading sessions…",
+  "empty": "No other sessions right now.",
+  "byApplication": "Sessions by application",
+  "unsetApplication": "(unset)",
+  "lockChains_one": "Lock chain",
+  "lockChains_other": "Lock chains",
+  "blockedDepth": "Blocked, depth {{depth}}:",
+  "blockingRoot": "Blocking root:",
+  "waitingOn": "waiting on {{lock}}",
+  "chainBlockedBy_one": "(blocked by {{pids}})",
+  "chainBlockedBy_other": "(blocked by {{pids}})",
+  "stateUnknown": "unknown",
+  "blockedBy_one": "blocked by {{pids}}",
+  "blockedBy_other": "blocked by {{pids}}",
+  "blocking": "blocking {{pids}}",
+  "cancel": "Cancel",
+  "cancelAria": "Cancel query of session {{pid}}",
+  "terminate": "Terminate",
+  "terminateAria": "Terminate session {{pid}}",
+  "confirmTerminate": {
+    "title": "Terminate session {{pid}}?",
+    "message": "Closes this backend's connection (pg_terminate_backend). Any open transaction is rolled back and the client gets disconnected.",
+    "confirm": "Terminate"
+  },
+  "confirmCancel": {
+    "title": "Cancel the query for session {{pid}}?",
+    "message": "Stops the statement this session is running (pg_cancel_backend). The connection itself stays open.",
+    "confirm": "Cancel query",
+    "keep": "Keep running"
+  }
+}

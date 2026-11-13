@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { ChevronDown, Plus } from "lucide-react";
 import styles from "./TargetSwitcher.module.css";
 import { Popover, StatusDot, popoverStyles } from "./components";
@@ -10,23 +11,21 @@ import { Popover, StatusDot, popoverStyles } from "./components";
 // here; rename/pause/remove stay on the Connections screen rather than
 // duplicating management actions into a quick-access dropdown.
 export default function TargetSwitcher({ targets, activeTargetId, onSelect, onManage }) {
+  const { t } = useTranslation();
   if (targets.length === 0) return null;
 
-  const active = targets.find((t) => t.id === activeTargetId) ?? null;
+  const active = targets.find((target) => target.id === activeTargetId) ?? null;
+  const statusLabel = (target) => (target?.last_test_ok ? t("nav.connected") : t("nav.notConnected"));
 
   return (
     <Popover
-      ariaLabel={`Database: ${active ? active.name : "none selected"}. Switch database`}
-      panelLabel="Databases"
+      ariaLabel={t("switcher.ariaLabel", { name: active ? active.name : t("switcher.noneSelected") })}
+      panelLabel={t("switcher.databases")}
       buttonClassName={styles.trigger}
       label={
         <>
-          <StatusDot
-            tone={active?.last_test_ok ? "healthy" : "unknown"}
-            label={active?.last_test_ok ? "Connected" : "Not connected"}
-            hideLabel
-          />
-          <span className={styles.triggerName}>{active ? active.name : "Select a database"}</span>
+          <StatusDot tone={active?.last_test_ok ? "healthy" : "unknown"} label={statusLabel(active)} hideLabel />
+          <span className={styles.triggerName}>{active ? active.name : t("switcher.select")}</span>
           <ChevronDown size={14} className={styles.chevron} aria-hidden="true" />
         </>
       }
@@ -34,27 +33,23 @@ export default function TargetSwitcher({ targets, activeTargetId, onSelect, onMa
     >
       {({ close }) => (
         <>
-          {targets.map((t) => (
+          {targets.map((target) => (
             <button
-              key={t.id}
+              key={target.id}
               type="button"
               className={popoverStyles.option}
-              aria-current={t.id === activeTargetId ? "true" : undefined}
+              aria-current={target.id === activeTargetId ? "true" : undefined}
               onClick={() => {
                 close();
-                onSelect(t.id);
+                onSelect(target.id);
               }}
             >
-              <StatusDot
-                tone={t.last_test_ok ? "healthy" : "unknown"}
-                label={t.last_test_ok ? "Connected" : "Not connected"}
-                hideLabel
-              />
+              <StatusDot tone={target.last_test_ok ? "healthy" : "unknown"} label={statusLabel(target)} hideLabel />
               <span className={styles.optionText}>
-                <span className={styles.optionName}>{t.name}</span>
+                <span className={styles.optionName}>{target.name}</span>
                 <span className={styles.optionAddress}>
-                  {t.host}:{t.port}/{t.dbname}
-                  {!t.is_active && " · paused"}
+                  {target.host}:{target.port}/{target.dbname}
+                  {!target.is_active && ` · ${t("switcher.paused")}`}
                 </span>
               </span>
             </button>
@@ -71,7 +66,7 @@ export default function TargetSwitcher({ targets, activeTargetId, onSelect, onMa
             }}
           >
             <Plus size={14} aria-hidden="true" />
-            Add / manage connections
+            {t("switcher.manage")}
           </button>
         </>
       )}

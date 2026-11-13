@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { Download, FileText, Printer, RefreshCw } from "lucide-react";
@@ -9,9 +10,7 @@ import { formatRelativeTime } from "./format";
 import { targetKey } from "./queryClient";
 import { Alert, Badge, Card, EmptyState, SeverityBadge, Skeleton } from "./components";
 
-const dateFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" });
-
-const period = (report) =>
+const period = (report, dateFormat) =>
   `${dateFormat.format(new Date(report.period_start))} – ${dateFormat.format(new Date(report.period_end))}`;
 
 function downloadHtml(html, fileName) {
@@ -30,6 +29,8 @@ function downloadHtml(html, fileName) {
 // Monday (Settings → Scheduler) or on demand, viewable, printable to PDF
 // and downloadable as a self-contained HTML file.
 export default function ReportsScreen({ targetId, target }) {
+  const { t, i18n } = useTranslation("reports");
+  const dateFormat = new Intl.DateTimeFormat(i18n.language, { day: "numeric", month: "short", year: "numeric" });
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const frameRef = useRef(null);
@@ -73,12 +74,12 @@ export default function ReportsScreen({ targetId, target }) {
   return (
     <div className={styles.screen}>
       <Card
-        title="Weekly reports"
-        description="A week of this database on one page. Generated every Monday at 07:00 (change it under Settings → Scheduler); the summary can also go to your alert webhook (Settings → Alerts)."
+        title={t("title")}
+        description={t("description")}
         actions={
           <button type="button" className="button-secondary" onClick={() => generate.mutate()} disabled={generate.isPending}>
             <RefreshCw size={14} aria-hidden="true" />
-            {generate.isPending ? "Generating…" : "Generate for the last 7 days"}
+            {generate.isPending ? t("generating") : t("generate")}
           </button>
         }
         flush
@@ -89,25 +90,25 @@ export default function ReportsScreen({ targetId, target }) {
           </Alert>
         )}
         {listQuery.isPending ? (
-          <Skeleton lines={4} label="Loading reports…" />
+          <Skeleton lines={4} label={t("loadingList")} />
         ) : listQuery.error ? (
           <Alert tone="critical">{listQuery.error.message}</Alert>
         ) : reports.length === 0 ? (
-          <EmptyState icon={FileText} title="No reports yet">
-            The first one is generated next Monday — or generate one now.
+          <EmptyState icon={FileText} title={t("emptyTitle")}>
+            {t("emptyHint")}
           </EmptyState>
         ) : (
           <div className={tableStyles.wrap}>
             <table className={tableStyles.table}>
-              <caption className="sr-only">Generated reports, newest first</caption>
+              <caption className="sr-only">{t("caption")}</caption>
               <thead>
                 <tr>
-                  <th scope="col" className={tableStyles.th}>Week</th>
-                  <th scope="col" className={tableStyles.th}>Status</th>
-                  <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>Open critical / attention</th>
-                  <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>New / resolved</th>
-                  <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>Lock incidents</th>
-                  <th scope="col" className={tableStyles.th}>Generated</th>
+                  <th scope="col" className={tableStyles.th}>{t("columns.week")}</th>
+                  <th scope="col" className={tableStyles.th}>{t("columns.status")}</th>
+                  <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>{t("columns.openCriticalAttention")}</th>
+                  <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>{t("columns.newResolved")}</th>
+                  <th scope="col" className={`${tableStyles.th} ${tableStyles.numeric}`}>{t("columns.lockIncidents")}</th>
+                  <th scope="col" className={tableStyles.th}>{t("columns.generated")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -119,7 +120,7 @@ export default function ReportsScreen({ targetId, target }) {
                   >
                     <td className={tableStyles.td}>
                       <button type="button" className="button-link" onClick={() => select(report.id)}>
-                        {period(report)}
+                        {period(report, dateFormat)}
                       </button>
                     </td>
                     <td className={tableStyles.td}>
@@ -134,7 +135,7 @@ export default function ReportsScreen({ targetId, target }) {
                     <td className={`${tableStyles.td} ${tableStyles.numeric}`}>{report.lock_incidents}</td>
                     <td className={tableStyles.td}>
                       {formatRelativeTime(report.generated_at)}{" "}
-                      {report.trigger === "manual" && <Badge tone="neutral">on demand</Badge>}
+                      {report.trigger === "manual" && <Badge tone="neutral">{t("onDemand")}</Badge>}
                     </td>
                   </tr>
                 ))}
@@ -146,7 +147,7 @@ export default function ReportsScreen({ targetId, target }) {
 
       {active && (
         <Card
-          title={`Report: ${period(active)}`}
+          title={t("reportTitle", { period: period(active, dateFormat) })}
           actions={
             <>
               <button
@@ -156,7 +157,7 @@ export default function ReportsScreen({ targetId, target }) {
                 onClick={() => frameRef.current?.contentWindow?.print()}
               >
                 <Printer size={14} aria-hidden="true" />
-                Print / save as PDF
+                {t("print")}
               </button>
               <button
                 type="button"
@@ -165,7 +166,7 @@ export default function ReportsScreen({ targetId, target }) {
                 onClick={() => downloadHtml(htmlQuery.data, fileName)}
               >
                 <Download size={14} aria-hidden="true" />
-                Download HTML
+                {t("download")}
               </button>
             </>
           }
@@ -173,14 +174,14 @@ export default function ReportsScreen({ targetId, target }) {
           {htmlQuery.error ? (
             <Alert tone="critical">{htmlQuery.error.message}</Alert>
           ) : !htmlQuery.data ? (
-            <Skeleton height={480} label="Loading the report…" />
+            <Skeleton height={480} label={t("loadingReport")} />
           ) : (
             // No scripts run inside: the page is static HTML and CSS. Same
             // origin only so the Print button can reach its window.
             <iframe
               ref={frameRef}
               className={styles.frame}
-              title={`Weekly report, ${period(active)}`}
+              title={t("frameTitle", { period: period(active, dateFormat) })}
               sandbox="allow-same-origin allow-modals"
               srcDoc={htmlQuery.data}
             />

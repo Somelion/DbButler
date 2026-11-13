@@ -1,5 +1,7 @@
+import i18n from "./i18n";
 import { useId } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Circle, CornerDownRight } from "lucide-react";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
@@ -10,6 +12,7 @@ import styles from "./Activity.module.css";
 const POLL_INTERVAL_MS = 5000;
 
 export default function Activity({ targetId }) {
+  const { t } = useTranslation("activity");
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const activityKey = targetKey(targetId, "activity");
@@ -33,17 +36,16 @@ export default function Activity({ targetId }) {
     const confirmed = await confirm(
       terminate
         ? {
-            title: `Terminate session ${pid}?`,
-            message:
-              "Closes this backend's connection (pg_terminate_backend). Any open transaction is rolled back and the client gets disconnected.",
-            confirmLabel: "Terminate",
+            title: t("confirmTerminate.title", { pid }),
+            message: t("confirmTerminate.message"),
+            confirmLabel: t("confirmTerminate.confirm"),
             tone: "danger",
           }
         : {
-            title: `Cancel the query for session ${pid}?`,
-            message: "Stops the statement this session is running (pg_cancel_backend). The connection itself stays open.",
-            confirmLabel: "Cancel query",
-            cancelLabel: "Keep running",
+            title: t("confirmCancel.title", { pid }),
+            message: t("confirmCancel.message"),
+            confirmLabel: t("confirmCancel.confirm"),
+            cancelLabel: t("confirmCancel.keep"),
           }
     );
     if (!confirmed) return;
@@ -54,9 +56,7 @@ export default function Activity({ targetId }) {
     <Card
       actions={
         !isPending && (
-          <span className={styles.meta}>
-            {sessions.length} session{sessions.length === 1 ? "" : "s"}
-          </span>
+          <span className={styles.meta}>{t("sessions", { count: sessions.length })}</span>
         )
       }
     >
@@ -70,8 +70,8 @@ export default function Activity({ targetId }) {
           {actionMutation.error.message}
         </Alert>
       )}
-      {isPending && <Skeleton lines={4} label="Loading sessions…" />}
-      {data && sessions.length === 0 && <EmptyState title="No other sessions right now." />}
+      {isPending && <Skeleton lines={4} label={t("loading")} />}
+      {data && sessions.length === 0 && <EmptyState title={t("empty")} />}
       <ApplicationBreakdown sessions={sessions} />
       <LockChains sessions={sessions} />
       {sessions.length > 0 && (
@@ -91,16 +91,17 @@ export default function Activity({ targetId }) {
 // distinct application to break down; a single-app target gets no value
 // from a one-item bar.
 function ApplicationBreakdown({ sessions }) {
+  const { t } = useTranslation("activity");
   const counts = new Map();
   for (const session of sessions) {
-    const name = session.application_name || "(unset)";
+    const name = session.application_name || t("unsetApplication");
     counts.set(name, (counts.get(name) || 0) + 1);
   }
   const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
   if (entries.length < 2) return null;
 
   return (
-    <ul className={styles.breakdown} aria-label="Sessions by application">
+    <ul className={styles.breakdown} aria-label={t("byApplication")}>
       {entries.map(([name, count]) => (
         <li key={name}>
           <Badge tone="neutral">
@@ -114,8 +115,8 @@ function ApplicationBreakdown({ sessions }) {
 
 function formatDuration(seconds) {
   if (seconds == null) return "—";
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  if (seconds < 60) return i18n.t("common:time.durationSeconds", { s: seconds });
+  return i18n.t("common:time.durationMinutes", { m: Math.floor(seconds / 60), s: seconds % 60 });
 }
 
 // Renders each independent blocking chain root-first, with everyone that
@@ -126,6 +127,7 @@ function formatDuration(seconds) {
 // takes in practice — good enough for a visual grouping without a second,
 // heavier pg_locks self-join to derive exact direct-parent edges.
 function LockChains({ sessions }) {
+  const { t } = useTranslation("activity");
   const headingId = useId();
   const roots = sessions.filter((s) => s.blocked_by_pids.length === 0 && s.blocking_pids.length > 0);
   const blocked = sessions
@@ -137,7 +139,7 @@ function LockChains({ sessions }) {
   return (
     <section className={`${styles.lockChains} ${tone.critical}`} aria-labelledby={headingId}>
       <h3 id={headingId} className={styles.lockChainsTitle}>
-        Lock chain{roots.length === 1 ? "" : "s"}
+        {t("lockChains", { count: roots.length })}
       </h3>
       <ul className={styles.lockChainList}>
         {roots.map((root) => (
@@ -155,6 +157,7 @@ function LockChains({ sessions }) {
 // the icon is decorative, so the role and depth are spelled out for screen
 // readers instead.
 function LockChainLine({ session, depth }) {
+  const { t } = useTranslation("activity");
   return (
     <li className={styles.lockChainLine} style={{ "--depth": depth }}>
       {depth > 0 ? (
@@ -162,16 +165,26 @@ function LockChainLine({ session, depth }) {
       ) : (
         <Circle size={8} className={`${styles.lockChainIcon} ${styles.rootIcon}`} aria-hidden="true" />
       )}
-      <span className="sr-only">{depth > 0 ? `Blocked, depth ${depth}:` : "Blocking root:"}</span>
+      <span className="sr-only">{depth > 0 ? t("blockedDepth", { depth }) : t("blockingRoot")}</span>
       <span className={styles.chainPid}>pid {session.pid}</span>
       <span className={styles.chainUser}>{session.usename}</span>
-      {session.waiting_lock && <span className={styles.chainWaiting}>waiting on {session.waiting_lock}</span>}
-      {depth > 0 && <span className={styles.chainBlockedBy}>(blocked by {session.blocked_by_pids.join(", ")})</span>}
+      {session.waiting_lock && (
+        <span className={styles.chainWaiting}>{t("waitingOn", { lock: session.waiting_lock })}</span>
+      )}
+      {depth > 0 && (
+        <span className={styles.chainBlockedBy}>
+          {t("chainBlockedBy", {
+            count: session.blocked_by_pids.length,
+            pids: session.blocked_by_pids.join(", "),
+          })}
+        </span>
+      )}
     </li>
   );
 }
 
 function SessionRow({ session, busy, onAction }) {
+  const { t } = useTranslation("activity");
   const isBlocked = session.blocked_by_pids.length > 0;
   const isBlocking = session.blocking_pids.length > 0;
   // Tints the card; the "blocked by" / "blocking" text below carries the
@@ -184,9 +197,15 @@ function SessionRow({ session, busy, onAction }) {
         <div className={styles.sessionInfo}>
           <span className={styles.sessionPid}>pid {session.pid}</span>
           <span className={styles.sessionUser}>{session.usename}</span>
-          <span className={styles.statePill}>{session.state ?? "unknown"}</span>
-          {isBlocked && <span className={styles.blockedBy}>blocked by {session.blocked_by_pids.join(", ")}</span>}
-          {isBlocking && <span className={styles.blocking}>blocking {session.blocking_pids.join(", ")}</span>}
+          <span className={styles.statePill}>{session.state ?? t("stateUnknown")}</span>
+          {isBlocked && (
+            <span className={styles.blockedBy}>
+              {t("blockedBy", { count: session.blocked_by_pids.length, pids: session.blocked_by_pids.join(", ") })}
+            </span>
+          )}
+          {isBlocking && (
+            <span className={styles.blocking}>{t("blocking", { pids: session.blocking_pids.join(", ") })}</span>
+          )}
         </div>
         <div className={styles.sessionActions}>
           <span className={styles.duration}>{formatDuration(session.query_duration_seconds)}</span>
@@ -194,19 +213,19 @@ function SessionRow({ session, busy, onAction }) {
             type="button"
             className="button-secondary"
             disabled={busy}
-            aria-label={`Cancel query of session ${session.pid}`}
+            aria-label={t("cancelAria", { pid: session.pid })}
             onClick={() => onAction(session.pid, "cancel")}
           >
-            Cancel
+            {t("cancel")}
           </button>
           <button
             type="button"
             className="button-danger"
             disabled={busy}
-            aria-label={`Terminate session ${session.pid}`}
+            aria-label={t("terminateAria", { pid: session.pid })}
             onClick={() => onAction(session.pid, "terminate")}
           >
-            Terminate
+            {t("terminate")}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
@@ -13,11 +14,12 @@ import styles from "./HealthOverview.module.css";
 
 const POLL_INTERVAL_MS = 15000;
 
+// Translation keys (dashboard namespace), resolved at render time.
 const OVERALL_LABEL = {
-  healthy: "All good",
-  attention: "Needs attention",
-  critical: "Needs attention now",
-  unknown: "Collecting data…",
+  healthy: "overall.healthy",
+  attention: "overall.attention",
+  critical: "overall.critical",
+  unknown: "overall.unknown",
 };
 
 const EMPTY_HIDDEN = new Set();
@@ -28,30 +30,35 @@ const EMPTY_HIDDEN = new Set();
 // findings are reused verbatim from their Advisor modules, so their
 // `category` carries the " advisor" suffix the tile's own key doesn't).
 // `advisorTab` becomes the Advisor URL's tab segment (/t/:id/advisor/:tab).
+// The link label ("Open <screen>") comes from the view's screen name.
 const CATEGORY_DESTINATIONS = {
-  connections: { view: "activity", label: "Open Activity" },
-  locks: { view: "activity", label: "Open Activity" },
-  bloat: { view: "table-health", label: "Open Table Health" },
-  cache: { view: "trends", label: "Open Trends" },
-  checkpoints: { view: "config-tuning", label: "Open Config Tuning" },
-  wraparound: { view: "table-health", label: "Open Table Health" },
-  autovacuum: { view: "table-health", label: "Open Table Health" },
-  "xmin horizon": { view: "activity", label: "Open Activity" },
-  replication: { view: "advisor", advisorTab: "replication", label: "Open Advisor" },
-  "replication advisor": { view: "advisor", advisorTab: "replication", label: "Open Advisor" },
-  backup: { view: "advisor", advisorTab: "backup", label: "Open Advisor" },
-  "backup advisor": { view: "advisor", advisorTab: "backup", label: "Open Advisor" },
-  pooler: { view: "connections", label: "Open Connections" },
-  "query intelligence": { view: "query-intelligence", label: "Open Query Intelligence" },
+  connections: { view: "activity" },
+  locks: { view: "activity" },
+  bloat: { view: "table-health" },
+  cache: { view: "trends" },
+  checkpoints: { view: "config-tuning" },
+  wraparound: { view: "table-health" },
+  autovacuum: { view: "table-health" },
+  "xmin horizon": { view: "activity" },
+  replication: { view: "advisor", advisorTab: "replication" },
+  "replication advisor": { view: "advisor", advisorTab: "replication" },
+  backup: { view: "advisor", advisorTab: "backup" },
+  "backup advisor": { view: "advisor", advisorTab: "backup" },
+  pooler: { view: "connections" },
+  "query intelligence": { view: "query-intelligence" },
 };
 
 const destinationPath = (destination, targetId) =>
   destination ? screenPath(destination.view, targetId, destination.advisorTab) : undefined;
 
+const destinationLabel = (destination, t) =>
+  destination ? t("health.open", { screen: t(`common:screens.${destination.view}`) }) : undefined;
+
 // Severity as a tone class name; anything unrecognised reads as "unknown".
 const toneFor = (severity) => (SEVERITY[severity] ? severity : "unknown");
 
 export default function HealthOverview({ targetId, hiddenCategories = EMPTY_HIDDEN }) {
+  const { t } = useTranslation("dashboard");
   const queryClient = useQueryClient();
   const findingsHeadingId = useId();
   const [firstSeenByFindingId] = useFirstSeenMap(targetId);
@@ -72,11 +79,11 @@ export default function HealthOverview({ targetId, hiddenCategories = EMPTY_HIDD
       .vacuumTable(targetId, finding.schema_name, finding.table_name, true)
       .then(() => queryClient.invalidateQueries({ queryKey: dashboardKey }));
 
-  if (isPending) return <Skeleton lines={4} label="Loading health overview…" />;
+  if (isPending) return <Skeleton lines={4} label={t("health.loading")} />;
 
   // A failed poll keeps the last good data on screen under the error.
   if (!data) {
-    return <Alert tone="critical">{error?.message ?? "Couldn't load the health overview."}</Alert>;
+    return <Alert tone="critical">{error?.message ?? t("health.loadError")}</Alert>;
   }
 
   const overallTone = toneFor(data.overall_severity);
@@ -88,7 +95,7 @@ export default function HealthOverview({ targetId, hiddenCategories = EMPTY_HIDD
 
       <div className={`${styles.overall} ${tone[overallTone]}`}>
         <SeverityIcon severity={overallTone} size={16} />
-        <span className={styles.overallLabel}>{OVERALL_LABEL[data.overall_severity] ?? "Status unknown"}</span>
+        <span className={styles.overallLabel}>{t(OVERALL_LABEL[data.overall_severity] ?? "overall.statusUnknown")}</span>
       </div>
 
       {visibleCategories.length > 0 && (
@@ -102,7 +109,7 @@ export default function HealthOverview({ targetId, hiddenCategories = EMPTY_HIDD
       {data.findings.length > 0 && (
         <section className={styles.findings} aria-labelledby={findingsHeadingId}>
           <h2 id={findingsHeadingId} className={styles.findingsTitle}>
-            Findings
+            {t("health.findings")}
           </h2>
           {data.findings.map((finding) => {
             const destination = CATEGORY_DESTINATIONS[finding.category];
@@ -112,7 +119,7 @@ export default function HealthOverview({ targetId, hiddenCategories = EMPTY_HIDD
                 finding={finding}
                 firstSeenAt={firstSeenByFindingId[finding.id]}
                 navigateTo={destinationPath(destination, targetId)}
-                navigateLabel={destination?.label}
+                navigateLabel={destinationLabel(destination, t)}
                 onVacuum={finding.schema_name && finding.table_name ? () => handleVacuum(finding) : undefined}
               />
             );
@@ -124,6 +131,7 @@ export default function HealthOverview({ targetId, hiddenCategories = EMPTY_HIDD
 }
 
 function CategoryTile({ category, targetId }) {
+  const { t } = useTranslation("dashboard");
   const destination = CATEGORY_DESTINATIONS[category.key];
   return (
     <li className={styles.tile}>
@@ -136,7 +144,8 @@ function CategoryTile({ category, targetId }) {
         <span className={styles.tileDetail}>{category.detail}</span>
         {destination && (
           <Link to={destinationPath(destination, targetId)} className={styles.tileLink}>
-            View<span className="sr-only"> {category.label}</span>
+            {t("health.view")}
+            <span className="sr-only"> {category.label}</span>
             <ArrowRight size={12} aria-hidden="true" />
           </Link>
         )}

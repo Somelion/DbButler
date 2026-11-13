@@ -1,0 +1,92 @@
+{
+  "enabled": "Enabled",
+  "alreadySet": "•••• already set — leave blank to keep it",
+  "jobs": {
+    "collection_cycle": {
+      "label": "Fast metrics",
+      "description": "Cache hit rate, connection count, worst table bloat, database size."
+    },
+    "table_metrics_cycle": {
+      "label": "Per-table metrics",
+      "description": "Per-table dead-tuple % and size, behind Trends' per-table picker."
+    },
+    "plan_regression_cycle": {
+      "label": "Plan regression capture",
+      "description": "Captures each tracked query's EXPLAIN plan shape, behind the Plan Regressions screen."
+    },
+    "live_findings_cycle": {
+      "label": "Live findings history",
+      "description": "Persists Dashboard/Diagnose Now's live findings with first-seen tracking, and drives Actionable Alerting below."
+    },
+    "retention_cycle": {
+      "label": "Metric retention",
+      "description": "Prunes metric samples older than 30 days."
+    },
+    "deep_scan": {
+      "label": "Deep scan",
+      "description": "Runs Index Advisor, Schema Lint, and Configuration Advisor against every active target and records what's still open, since when."
+    },
+    "weekly_report": {
+      "label": "Weekly report",
+      "description": "Builds each database's weekly health report (Monitor → Weekly Reports) and, if switched on below, posts its summary to the webhook."
+    }
+  },
+  "scheduler": {
+    "title": "Scheduler",
+    "description": "How often each background job runs. Saving takes effect immediately — no backend restart needed.",
+    "loading": "Loading scheduler jobs…",
+    "lastUpdated": "last updated {{time}}",
+    "saved": "saved",
+    "interval": "Interval (seconds)",
+    "cron": "Schedule (cron)"
+  },
+  "ai": {
+    "title": "AI Query Analysis",
+    "description": "Configures the AI provider used by Query Intelligence's \"Analyze with AI\" button. Your query text and its EXPLAIN plan are sent to this provider — use the Anonymize option in the analysis window if that's a concern for a cloud provider.",
+    "loading": "Loading AI settings…",
+    "provider": "Provider",
+    "providerGemini": "Google Gemini (cloud, free tier)",
+    "providerLocal": "Local model (OpenAI-compatible endpoint, e.g. Ollama)",
+    "endpointUrl": "Endpoint URL",
+    "modelName": "Model name",
+    "modelHint": "Google retires model names fairly often — if analysis starts failing with a \"model not found\" error, check <a>the current model list</a> and update this field.",
+    "apiKey": "API key",
+    "apiKeyOptional": "API key (optional)",
+    "apiKeyPlaceholder": "Paste your API key"
+  },
+  "alerts": {
+    "title": "Actionable Alerting",
+    "description": "Sends a webhook the moment a finding first opens at or above the chosen severity — driven by the \"Live findings history\" job above, so a problem is reported once when it starts, not every cycle it stays open. Paste a Slack, Discord, or Microsoft Teams webhook URL and the right payload format is detected automatically — no separate setting to pick.",
+    "loading": "Loading alert settings…",
+    "webhookUrl": "Webhook URL",
+    "detected": "Detected:",
+    "kind": {
+      "slack": "Slack",
+      "discord": "Discord",
+      "teams": "Microsoft Teams",
+      "generic": "Generic JSON (Mattermost and others compatible with Slack's format still work)"
+    },
+    "minSeverity": "Minimum severity",
+    "criticalOnly": "Critical only",
+    "attentionAndCritical": "Attention and critical",
+    "reportWebhook": "Also post each weekly report's summary to this webhook (independent of the Enabled switch above)",
+    "sending": "Sending…",
+    "sendTest": "Send test alert",
+    "testSent": "Test alert sent — check your webhook's destination."
+  },
+  "integrations": {
+    "title": "Integrations",
+    "description": "Read-only access for machines, each with its own token set in the server's .env (APP_MCP_TOKEN, APP_METRICS_TOKEN) — neither can use the rest of the API.",
+    "loading": "Loading integrations…",
+    "on": "on",
+    "off": "off",
+    "mcpTitle": "AI agents (MCP)",
+    "mcpText_one": "Lets Claude Code, Cursor or any MCP client ask \"what's wrong with this database?\" through {{count}} preset read-only tool. No tool runs SQL it's given, and query text goes out with literal values masked.",
+    "mcpText_other": "Lets Claude Code, Cursor or any MCP client ask \"what's wrong with this database?\" through {{count}} preset read-only tools. No tool runs SQL it's given, and query text goes out with literal values masked.",
+    "mcpOff": "Set APP_MCP_TOKEN in .env and restart the backend to switch it on.",
+    "tools": "Tools: {{tools}}.",
+    "prometheusText": "Collected metrics, open-finding counts and lock waits per database, for Grafana and Alertmanager. Also served at /metrics on the backend's own port.",
+    "metricsOff": "Set APP_METRICS_TOKEN in .env and restart the backend to switch it on.",
+    "publicUrl": "Set APP_PUBLIC_URL in .env to the address people open DbButler at: the weekly report's webhook message then links to the report, and the snippets above use it."
+  }
+}

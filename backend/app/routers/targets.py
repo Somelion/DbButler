@@ -77,46 +77,80 @@ def create_target(payload: TargetCreate):
 
 @router.patch("/{target_id}", response_model=TargetOut)
 def update_target(target_id: uuid.UUID, payload: TargetUpdate):
-    """Rename, pause-resume (is_active), and/or replace the stored password
-    for a saved connection — deliberately separate from deleting it. Pausing
-    stops the scheduler's background collection/deep-scan/alerting for this
-    one target (scheduler.py::_active_targets filters on is_active) without
-    losing its saved credentials or history. COALESCE leaves whichever
-    field wasn't sent untouched, so a rename-only or pause-only call
-    doesn't need to resend the others. A password update re-tests
-    immediately with it (same reasoning as retest_target below) so
-    last_test_ok reflects reality right away rather than waiting for a
-    separate manual "Test again" click — this is also the fix for a target
-    whose stored password can no longer be decrypted (see
-    target_conn.py::connect_to_target's InvalidToken handling).
+    """Rename, pause-resume (is_active), change the login (username and/or
+    password) and/or the schema allowlist of a saved connection —
+    deliberately separate from deleting it. Pausing stops the scheduler's
+    background collection/deep-scan/alerting for this one target
+    (scheduler.py::_active_targets filters on is_active) without losing its
+    saved credentials or history. COALESCE leaves whichever field wasn't
+    sent untouched, so a rename-only or pause-only call doesn't need to
+    resend the others.
+
+    A login change re-tests immediately with the new credentials (same
+    reasoning as retest_target below) so last_test_ok reflects reality right
+    away rather than waiting for a separate manual "Test again" click — this
+    is also the fix for a target whose stored password can no longer be
+    decrypted (see target_conn.py::connect_to_target's InvalidToken
+    handling). A new username without a new password keeps the stored
+    password. A login that fails the test isn't saved (422 with the
+    reason): the working login stays, so a typo can't break monitoring.
 
     allowed_schemas follows the same COALESCE convention: omitted/null
     leaves the existing allowlist untouched, an empty list clears it back
     to "no filter" (app/schema_filter.py)."""
+    username = payload.username.strip() if payload.username is not None else None
+    if payload.username is not None and not username:
+        raise HTTPException(status_code=400, detail="The database user can't be empty.")
     if (
         payload.name is None
         and payload.is_active is None
         and not payload.password
+        and username is None
         and payload.allowed_schemas is None
     ):
         raise HTTPException(
-            status_code=400, detail="Nothing to update — send name, is_active, password, and/or allowed_schemas."
+            status_code=400,
+            detail="Nothing to update — send name, is_active, username, password, and/or allowed_schemas.",
         )
 
     with store_conn() as conn, conn.cursor() as cur:
-        if payload.password:
-            cur.execute("SELECT host, port, dbname, username, sslmode FROM targets WHERE id = %s", (target_id,))
+        if payload.password or username is not None:
+            cur.execute(
+                "SELECT host, port, dbname, username, encrypted_password, sslmode FROM targets WHERE id = %s",
+                (target_id,),
+            )
             row = cur.fetchone()
             if row is None:
                 raise HTTPException(status_code=404, detail="Target not found")
-            host, port, dbname, username, sslmode = row
-            result = test_connection(host, port, dbname, username, payload.password, sslmode)
+            host, port, dbname, current_username, enc_password, sslmode = row
+            new_username = username or current_username
+            if payload.password:
+                password = payload.password
+            else:
+                try:
+                    password = decrypt(enc_password)
+                except InvalidToken as exc:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="The stored password can no longer be decrypted (the server's encryption key "
+                        "changed since it was saved) — enter the password together with the new user.",
+                    ) from exc
+            result = test_connection(host, port, dbname, new_username, password, sslmode)
+            if not result["ok"]:
+                # Keep the login that's there: a typo in the new user or
+                # password must not break monitoring of a working database.
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Couldn't connect as {new_username}: {result.get('message') or 'unknown error'} "
+                    "Nothing was changed.",
+                )
             cur.execute(
                 f"""
                 UPDATE targets
                 SET name = COALESCE(%s, name),
                     is_active = COALESCE(%s, is_active),
                     allowed_schemas = COALESCE(%s, allowed_schemas),
+                    username = %s,
                     encrypted_password = %s,
                     detected_pg_version = %s,
                     last_test_ok = %s,
@@ -129,7 +163,8 @@ def update_target(target_id: uuid.UUID, payload: TargetUpdate):
                     payload.name,
                     payload.is_active,
                     payload.allowed_schemas,
-                    encrypt(payload.password),
+                    new_username,
+                    encrypt(password),
                     result.get("pg_version"),
                     result["ok"],
                     result.get("message"),

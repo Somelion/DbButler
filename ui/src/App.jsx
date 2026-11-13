@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useNavigate, useOutletContext, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "./App.module.css";
+import i18n from "./i18n";
 import NavRail from "./NavRail";
 import ScreenHeader from "./ScreenHeader";
 import TargetSwitcher from "./TargetSwitcher";
@@ -34,7 +35,7 @@ const WorkloadMapScreen = lazy(() => import("./WorkloadMapScreen"));
 
 function LazyWorkloadMap(props) {
   return (
-    <Suspense fallback={<Skeleton height={420} label="Loading the Workload Map…" />}>
+    <Suspense fallback={<Skeleton height={420} label={i18n.t("common:shell.loadingWorkloadMap")} />}>
       <WorkloadMapScreen {...props} />
     </Suspense>
   );
@@ -77,7 +78,7 @@ export default function App() {
       <div className={styles.app}>
         <NavRail connected={false} activeTarget={null} />
         <main className={styles.main}>
-          <Skeleton lines={4} label="Loading connections…" />
+          <Skeleton lines={4} label={i18n.t("common:shell.loadingConnections")} />
         </main>
       </div>
     );
@@ -181,11 +182,7 @@ function Shell({ targets, loadError }) {
       }
       if (newlyDone > 0) {
         setAiAnalysisUnseen((n) => n + newlyDone);
-        toast(
-          newlyDone === 1
-            ? "An AI query analysis is ready — check the AI Analysis screen."
-            : `${newlyDone} AI query analyses are ready — check the AI Analysis screen.`
-        );
+        toast(i18n.t("common:shell.aiReady", { count: newlyDone }));
       }
     });
   }, [connected, target?.id, queryClient, toast]);
@@ -218,14 +215,14 @@ function Shell({ targets, loadError }) {
   return (
     <div className={styles.app}>
       <a href="#main-content" className={styles.skipLink}>
-        Skip to content
+        {i18n.t("common:nav.skipToContent")}
       </a>
       <NavRail connected={connected} activeTarget={target} badges={{ "ai-analysis": aiAnalysisUnseen }} />
       <main id="main-content" className={styles.main} tabIndex={-1}>
         <div className={styles.topbar}>
           <div className={styles.topbarInner}>
             <ScreenHeader
-              title={screen.label}
+              title={i18n.t(`common:screens.${screen.key}`, { defaultValue: screen.label })}
               subtitle={subtitle}
               mode={mode}
               onModeChange={screen.showMode ? setMode : null}

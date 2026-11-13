@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import { X } from "lucide-react";
 import styles from "./Toast.module.css";
@@ -34,7 +35,7 @@ export function ToastProvider({ children }) {
         {toasts.map((t) => (
           <div key={t.id} className={styles.toast}>
             <span className={styles.message}>{t.message}</span>
-            <button type="button" className={styles.dismiss} onClick={() => dismiss(t.id)} aria-label="Dismiss">
+            <button type="button" className={styles.dismiss} onClick={() => dismiss(t.id)} aria-label={i18n.t("common:actions.dismiss")}>
               <X size={14} aria-hidden="true" />
             </button>
           </div>

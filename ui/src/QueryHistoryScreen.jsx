@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { History } from "lucide-react";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
@@ -10,17 +11,18 @@ import QueryPicker from "./QueryPicker";
 import { Alert, Card, EmptyState, SegmentedControl, Skeleton } from "./components";
 import styles from "./QueryHistoryScreen.module.css";
 
+// Labels are translation keys, translated at render.
 const RANGE_OPTIONS = [
-  { value: 24, label: "24 hours" },
-  { value: 24 * 7, label: "7 days" },
-  { value: 24 * 30, label: "30 days" },
+  { value: 24, label: "history.range.24h" },
+  { value: 24 * 7, label: "history.range.7d" },
+  { value: 24 * 30, label: "history.range.30d" },
 ];
 const DEFAULT_HOURS = 24;
 
 const COMPARE_METRIC_OPTIONS = [
-  { value: "mean_exec_ms", label: "Avg Latency" },
-  { value: "calls", label: "Calls" },
-  { value: "rows_per_call", label: "Rows / Call" },
+  { value: "mean_exec_ms", label: "history.metric.meanExecMs" },
+  { value: "calls", label: "history.metric.calls" },
+  { value: "rows_per_call", label: "history.metric.rowsPerCall" },
 ];
 const DEFAULT_METRIC = "mean_exec_ms";
 
@@ -64,7 +66,10 @@ function parseQueryIdList(param) {
 // carries over to a database where those queryids mean nothing; ids that
 // aren't in this target's tracked list are dropped once it has loaded.
 export default function QueryHistoryScreen({ targetId }) {
+  const { t } = useTranslation("queries");
   const [searchParams, setSearchParams] = useSearchParams();
+  const rangeOptions = RANGE_OPTIONS.map((o) => ({ ...o, label: t(o.label) }));
+  const compareMetricOptions = COMPARE_METRIC_OPTIONS.map((o) => ({ ...o, label: t(o.label) }));
 
   const hoursParam = Number(searchParams.get("hours"));
   const hours = RANGE_OPTIONS.some((o) => o.value === hoursParam) ? hoursParam : DEFAULT_HOURS;
@@ -152,7 +157,7 @@ export default function QueryHistoryScreen({ targetId }) {
     }));
 
   const focusedSeries = focusedQueryId != null ? seriesByQueryId.get(focusedQueryId) : null;
-  const focusedText = focusedSeries?.query ?? summaryById.get(focusedQueryId)?.query ?? "Loading…";
+  const focusedText = focusedSeries?.query ?? summaryById.get(focusedQueryId)?.query ?? t("common:actions.loading");
   const focusedCallsPoints = focusedSeries ? focusedSeries.points.map((p) => ({ ts: p.ts, value: p.calls })) : [];
   const focusedLatencyPoints = focusedSeries
     ? focusedSeries.points.map((p) => ({ ts: p.ts, value: p.mean_exec_ms }))
@@ -163,11 +168,11 @@ export default function QueryHistoryScreen({ targetId }) {
   return (
     <div className={styles.screen}>
       <Card
-        title="Tracked queries"
+        title={t("history.trackedTitle")}
         actions={
           <SegmentedControl
-            label="Time range"
-            options={RANGE_OPTIONS}
+            label={t("history.timeRange")}
+            options={rangeOptions}
             value={hours}
             onChange={(value) => updateParams({ hours: value === DEFAULT_HOURS ? null : value })}
           />
@@ -176,12 +181,11 @@ export default function QueryHistoryScreen({ targetId }) {
         {summaryQuery.error && <Alert tone="critical">{summaryQuery.error.message}</Alert>}
         {historyQuery.error && <Alert tone="critical">{historyQuery.error.message}</Alert>}
 
-        {summaryQuery.isPending && <Skeleton lines={5} label="Loading tracked queries…" />}
+        {summaryQuery.isPending && <Skeleton lines={5} label={t("history.loadingTracked")} />}
 
         {summary && summary.queries.length === 0 && (
-          <EmptyState icon={History} title="No query history yet">
-            This fills in once the query history collector has run a few cycles (every 5 minutes) against
-            queries with recent activity in pg_stat_statements.
+          <EmptyState icon={History} title={t("history.emptyTitle")}>
+            {t("history.emptyBody")}
           </EmptyState>
         )}
 
@@ -200,18 +204,18 @@ export default function QueryHistoryScreen({ targetId }) {
 
       {selectedIds.length > 0 && (
         <Card
-          title="Compare queries"
+          title={t("history.compareTitle")}
           actions={
             <SegmentedControl
-              label="Compare metric"
-              options={COMPARE_METRIC_OPTIONS}
+              label={t("history.compareMetric")}
+              options={compareMetricOptions}
               value={compareMetric}
               onChange={(value) => updateParams({ metric: value === DEFAULT_METRIC ? null : value })}
             />
           }
         >
           {historyLoading ? (
-            <Skeleton height={180} label="Loading query history…" />
+            <Skeleton height={180} label={t("history.loadingHistory")} />
           ) : (
             <MultiTrendChart unit={compareMetric === "mean_exec_ms" ? "ms" : ""} series={compareSeries} />
           )}
@@ -219,17 +223,17 @@ export default function QueryHistoryScreen({ targetId }) {
       )}
 
       {focusedQueryId != null && (
-        <Card title="Query deep-dive">
+        <Card title={t("history.deepDiveTitle")}>
           <p title={focusedText} className={styles.focusedQuery}>
             {focusedText}
           </p>
           {historyLoading ? (
-            <Skeleton height={180} label="Loading query history…" />
+            <Skeleton height={180} label={t("history.loadingHistory")} />
           ) : (
             <div className={styles.charts}>
-              <TrendChart label="Calls per interval" unit="" points={focusedCallsPoints} />
+              <TrendChart label={t("history.callsChart")} unit="" points={focusedCallsPoints} />
               <TrendChart
-                label="Average latency per interval"
+                label={t("history.latencyChart")}
                 unit="ms"
                 points={focusedLatencyPoints}
                 thresholdMin={0}
@@ -237,12 +241,7 @@ export default function QueryHistoryScreen({ targetId }) {
               />
             </div>
           )}
-          <p className={styles.footnote}>
-            The shaded band on the latency chart is this query's own normal range (average ±{" "}
-            {ANOMALY_STDDEV_MULTIPLIER}× standard deviation, computed from the history shown) — a point above it
-            means that 5-minute collection interval ran unusually slow on average, not necessarily any single
-            execution within it.
-          </p>
+          <p className={styles.footnote}>{t("history.footnote", { multiplier: ANOMALY_STDDEV_MULTIPLIER })}</p>
         </Card>
       )}
     </div>

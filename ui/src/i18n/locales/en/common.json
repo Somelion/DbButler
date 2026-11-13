@@ -1,0 +1,123 @@
+{
+  "actions": {
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "cancel": "Cancel",
+    "close": "Close",
+    "closeDialog": "Close dialog",
+    "dismiss": "Dismiss",
+    "confirm": "Confirm",
+    "areYouSure": "Are you sure?",
+    "apply": "Apply",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Copy failed",
+    "copiedAnnouncement": "Copied to clipboard",
+    "copyFailedAnnouncement": "Copy failed, select the text manually",
+    "copyBlocked": "Your browser blocked clipboard access — select the text and copy it manually.",
+    "retry": "Try again",
+    "refresh": "Refresh",
+    "archive": "Archive",
+    "restore": "Restore",
+    "delete": "Delete",
+    "remove": "Remove",
+    "find": "Find",
+    "loading": "Loading…",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "selectAll": "Select all",
+    "selectNone": "Select none"
+  },
+  "severity": {
+    "critical": "Critical",
+    "attention": "Attention",
+    "healthy": "Healthy",
+    "info": "Info",
+    "unknown": "Unknown"
+  },
+  "time": {
+    "never": "never",
+    "durationSeconds": "{{s}}s",
+    "durationMinutes": "{{m}}m {{s}}s",
+    "secondsAgo_one": "{{count}}s ago",
+    "secondsAgo_other": "{{count}}s ago",
+    "minutesAgo_one": "{{count}}m ago",
+    "minutesAgo_other": "{{count}}m ago",
+    "hoursAgo_one": "{{count}}h ago",
+    "hoursAgo_other": "{{count}}h ago",
+    "daysAgo_one": "{{count}}d ago",
+    "daysAgo_other": "{{count}}d ago"
+  },
+  "screens": {
+    "dashboard": "Dashboard",
+    "activity": "Activity",
+    "trends": "Trends",
+    "time-machine": "Time Machine",
+    "reports": "Weekly Reports",
+    "workload-map": "Workload Map",
+    "table-health": "Table Health",
+    "query-intelligence": "Query Intelligence",
+    "query-history": "Query History",
+    "plan-regressions": "Plan Regressions",
+    "ai-analysis": "AI Analysis",
+    "advisor": "Advisor",
+    "what-if": "What-if Indexes",
+    "migration-lint": "Migration Linter",
+    "config-tuning": "Config Tuning",
+    "index-testing": "Index Testing",
+    "archive": "Archive",
+    "connections": "Connections",
+    "settings": "Settings"
+  },
+  "navGroups": {
+    "monitor": "Monitor",
+    "analyze": "Analyze",
+    "advise": "Advise",
+    "configure": "Configure"
+  },
+  "nav": {
+    "main": "Main",
+    "new": "new",
+    "connectFirst": "Connect a database first",
+    "connected": "Connected",
+    "notConnected": "Not connected",
+    "noDatabase": "No database",
+    "skipToContent": "Skip to content"
+  },
+  "header": {
+    "detailLevel": "Detail level",
+    "simple": "Simple",
+    "advanced": "Advanced",
+    "theme": "Theme",
+    "themeSystem": "Match system theme",
+    "themeLight": "Light theme",
+    "themeDark": "Dark theme",
+    "language": "Language"
+  },
+  "shell": {
+    "loadingConnections": "Loading connections…",
+    "loadingWorkloadMap": "Loading the Workload Map…",
+    "aiReady_one": "An AI query analysis is ready — check the AI Analysis screen.",
+    "aiReady_other": "{{count}} AI query analyses are ready — check the AI Analysis screen."
+  },
+  "auth": {
+    "checkingAccess": "Checking access…",
+    "intro": "Enter the access token this instance was set up with — the <code>APP_AUTH_TOKEN</code> value in its <code>.env</code> file.",
+    "token": "Access token",
+    "checking": "Checking…",
+    "continue": "Continue"
+  },
+  "switcher": {
+    "ariaLabel": "Database: {{name}}. Switch database",
+    "noneSelected": "none selected",
+    "databases": "Databases",
+    "select": "Select a database",
+    "paused": "paused",
+    "manage": "Add / manage connections"
+  },
+  "planViewer": {
+    "title": "Query plan"
+  },
+  "loadingScreen": "Loading the {{screen}}…"
+}

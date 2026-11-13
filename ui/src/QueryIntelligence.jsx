@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { SearchCode } from "lucide-react";
 import { api } from "./api";
 import { formatMs } from "./format";
@@ -10,24 +11,17 @@ import tableStyles from "./components/Table.module.css";
 import styles from "./QueryIntelligence.module.css";
 
 const POLL_INTERVAL_MS = 15000;
+// `text` names the translation keys intelligence.columns.<text>.{label,help}.
 const COLUMNS = [
-  {
-    key: "query",
-    label: "Query",
-    help: "Normalized query text — literal values are replaced with $1, $2, ... by pg_stat_statements.",
-  },
-  { key: "calls", label: "Calls", numeric: true, help: "How many times this query has run since stats were last reset." },
-  {
-    key: "total_exec_ms",
-    label: "Total",
-    numeric: true,
-    help: "Total time spent executing this query across all its calls combined — the best single number for \"which query costs the most.\"",
-  },
-  { key: "mean_exec_ms", label: "Mean", numeric: true, help: "Average execution time per call." },
-  { key: "rows", label: "Rows", numeric: true, help: "Total rows returned or affected across all calls combined." },
+  { key: "query", text: "query" },
+  { key: "calls", text: "calls", numeric: true },
+  { key: "total_exec_ms", text: "total", numeric: true },
+  { key: "mean_exec_ms", text: "mean", numeric: true },
+  { key: "rows", text: "rows", numeric: true },
 ];
 
 export default function QueryIntelligence({ targetId, onExplain, onAnalyzeWithAi }) {
+  const { t } = useTranslation("queries");
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [resetting, setResetting] = useState(false);
@@ -44,9 +38,9 @@ export default function QueryIntelligence({ targetId, onExplain, onAnalyzeWithAi
 
   const handleReset = async () => {
     const ok = await confirm({
-      title: "Reset query statistics?",
-      message: "This clears pg_stat_statements for the whole server. The top-queries list will start empty again.",
-      confirmLabel: "Reset stats",
+      title: t("intelligence.resetConfirmTitle"),
+      message: t("intelligence.resetConfirmMessage"),
+      confirmLabel: t("intelligence.resetConfirmLabel"),
       tone: "danger",
     });
     if (!ok) return;
@@ -87,11 +81,11 @@ export default function QueryIntelligence({ targetId, onExplain, onAnalyzeWithAi
   // named for what it lists.
   return (
     <Card
-      title="Top queries"
+      title={t("intelligence.title")}
       actions={
         data?.enabled && (
           <button type="button" className="button-secondary button-sm" onClick={handleReset} disabled={resetting}>
-            {resetting ? "Resetting…" : "Reset query stats"}
+            {resetting ? t("intelligence.resetting") : t("intelligence.reset")}
           </button>
         )
       }
@@ -99,7 +93,7 @@ export default function QueryIntelligence({ targetId, onExplain, onAnalyzeWithAi
       {error && <Alert tone="critical">{error.message}</Alert>}
       {resetError && <Alert tone="critical">{resetError}</Alert>}
 
-      {isPending && <Skeleton lines={5} label="Loading query statistics…" />}
+      {isPending && <Skeleton lines={5} label={t("intelligence.loading")} />}
 
       {data && !data.enabled && (
         <Alert tone="info" compact>
@@ -108,7 +102,7 @@ export default function QueryIntelligence({ targetId, onExplain, onAnalyzeWithAi
       )}
 
       {data && data.enabled && data.queries.length === 0 && (
-        <EmptyState icon={SearchCode} title="No query activity recorded yet." />
+        <EmptyState icon={SearchCode} title={t("intelligence.empty")} />
       )}
 
       {data && data.enabled && data.queries.length > 0 && (
@@ -124,13 +118,13 @@ export default function QueryIntelligence({ targetId, onExplain, onAnalyzeWithAi
                     sortDir={sortDir}
                     onSort={handleSort}
                     numeric={col.numeric}
-                    hint={<HeaderHint text={col.help} />}
+                    hint={<HeaderHint text={t(`intelligence.columns.${col.text}.help`)} />}
                   >
-                    {col.label}
+                    {t(`intelligence.columns.${col.text}.label`)}
                   </SortHeader>
                 ))}
                 <th scope="col" className={tableStyles.th}>
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t("intelligence.actions")}</span>
                 </th>
               </tr>
             </thead>
@@ -155,14 +149,14 @@ export default function QueryIntelligence({ targetId, onExplain, onAnalyzeWithAi
                   <td className={tableStyles.td}>
                     <div className={styles.rowActions}>
                       <button type="button" className="button-secondary button-sm" onClick={() => onExplain?.(q.query)}>
-                        Load into Explain
+                        {t("intelligence.loadIntoExplain")}
                       </button>
                       <button
                         type="button"
                         className="button-secondary button-sm"
                         onClick={() => onAnalyzeWithAi?.(q.query)}
                       >
-                        Analyze with AI
+                        {t("intelligence.analyzeWithAi")}
                       </button>
                     </div>
                   </td>

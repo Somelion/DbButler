@@ -1,0 +1,102 @@
+{
+  "ranges": {
+    "1h": "1 t",
+    "6h": "6 t",
+    "24h": "24 t",
+    "7d": "7 p"
+  },
+  "duration": {
+    "seconds": "{{s}} s",
+    "minutes": "{{m}} min {{s}} s",
+    "hours": "{{h}} t {{m}} min"
+  },
+  "longestWait": "pikim ootus {{seconds}} s",
+  "markers": {
+    "plan_change": "Plaan muutus",
+    "finding_opened": "Leid avati",
+    "finding_resolved": "Leid lahendati",
+    "restart": "Taaskäivitus",
+    "stats_reset": "Statistika lähtestati",
+    "config_change": "Seadistus muutus"
+  },
+  "explain": {
+    "title": "Mis juhtus? (tehisaru)",
+    "description": "Selle kirjutas sinu seadistatud tehisaru teenus allolevate faktide põhjal – arvud, tabelite ja lukkude nimed, leidude pealkirjad. Päringute teksti ega andmeid ei saadetud.",
+    "asking": "Küsin tehisarult – see võib võtta minuti või paar…",
+    "whatWasSent": "Täpselt see, mis saadeti"
+  },
+  "moment": {
+    "pickTitle": "Vali hetk",
+    "nothingSelected": "Midagi pole valitud",
+    "pickHint": "Klõpsa ajateljel (või vii fookus sinna ja kasuta nooleklahve) või vali vasakult lukuintsident või sündmus, et näha, kes keda blokeeris, mis käis ja mis oli just muutunud.",
+    "title": "Hetk: {{time}}",
+    "stepThrough": "Liigu lukkude hetktõmmiste vahel",
+    "previousSnapshot": "Eelmine hetktõmmis",
+    "pause": "Peata",
+    "play": "Esita",
+    "nextSnapshot": "Järgmine hetktõmmis",
+    "loading": "Selle hetke laadimine…",
+    "blocking": "Blokeerimine",
+    "sessionsBlocked_one": "{{count}} seanss blokeeritud",
+    "sessionsBlocked_other": "{{count}} seanssi blokeeritud",
+    "snapshotAt": " – hetktõmmis seisuga {{time}}. Päringute literaalid on maskitud.",
+    "noLockWait": "Sel hetkel ükski seanss lukku ei oodanud (kui ootab, tehakse hetktõmmis iga 15 sekundi järel).",
+    "topQueries": "Suurimad päringud selles intervallis",
+    "noQueryInterval": "Päringuajaloos pole seda hetke katvat intervalli.",
+    "queriesCaption": "Jälgitud päringud andmebaasiaja järgi kogumisintervallis, mis lõppes {{time}}",
+    "colQuery": "Päring",
+    "colCalls": "Käivitusi",
+    "colMean": "Keskmine",
+    "colDbTime": "Andmebaasiaeg",
+    "nearby": "Muudatused 30 minuti jooksul",
+    "noneRecorded": "Midagi pole registreeritud.",
+    "openFindings": "Sel hetkel avatud leiud",
+    "noOpenFindings": "Süvaskannimine ei leidnud ühtegi.",
+    "since": "alates {{time}}"
+  },
+  "toolbar": {
+    "windowLength": "Ajavahemiku pikkus",
+    "moveWindow": "Nihuta ajavahemikku",
+    "earlier": "Varasem",
+    "later": "Hilisem",
+    "now": "Praegu",
+    "nowRefreshing": "praegu (värskeneb)",
+    "explainWindow": "Selgita seda vahemikku",
+    "loadingTimeline": "Ajatelje laadimine…",
+    "chartLabel": "Ajatelg. Vali hetk: nooleklahvid liigutavad 1% ajavahemikust, Page Up ja Page Down 10%, Home ja End viivad algusesse ja lõppu.",
+    "lockIncident": "Lukuintsident"
+  },
+  "incidents": {
+    "title": "Lukuintsidendid ({{n}})",
+    "none": "Selles ajavahemikus ükski seanss lukku ei oodanud. Kui ootab, salvestatakse lukupuu iga 15 sekundi järel (demo: <code>demo/stage-lock-incident.sh</code> tekitab ühe).",
+    "upToBlocked": "kuni {{n}} blokeeritud",
+    "snapshots_one": "{{count}} hetktõmmis",
+    "snapshots_other": "{{count}} hetktõmmist",
+    "replay": "Taasesita",
+    "explain": "Selgita"
+  },
+  "events": {
+    "title": "Muudatused ja sündmused ({{n}})",
+    "none": "Selles ajavahemikus pole midagi registreeritud.",
+    "showFewer": "Näita vähem",
+    "showAll": "Näita kõiki {{n}}"
+  },
+  "chart": {
+    "moment": "Hetk: {{time}}",
+    "noMoment": "Hetk on valimata",
+    "incidentTitle": "Lukuintsident: kuni {{n}} blokeeritud, {{time}}",
+    "noData": " · andmed puuduvad"
+  },
+  "lockTree": {
+    "preparedTransaction": "Ettevalmistatud tehing",
+    "preparedHint": "kahefaasiline kinnitamine, seanssi pole – vaata paani „Vacuum Horizon“; selle vabastab ROLLBACK PREPARED või COMMIT PREPARED",
+    "notInActivity": "pole selle andmebaasi tegevustes (teises andmebaasis või juba lõppenud)",
+    "unknownState": "teadmata olek",
+    "waitingFor": "ootab: {{what}}",
+    "waiting": "ootab juba {{duration}}",
+    "transactionOpen": "tehing avatud {{duration}}",
+    "srBlocking": "Blokeerib: ",
+    "srBlocked": "Blokeeritud, sügavus {{depth}}: ",
+    "deadlockCycle": "Siin blokeerib iga seanssi mõni teine – ummikseisu tsükkel, mis jäi pildile enne tuvastamist."
+  }
+}

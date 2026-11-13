@@ -1,3 +1,5 @@
+import i18n from "./i18n";
+import { useTranslation } from "react-i18next";
 import styles from "./MultiTrendChart.module.css";
 import { formatMetricValue } from "./format";
 import { findNearestPoint, useTimeChartInteraction } from "./useTimeChartInteraction";
@@ -26,18 +28,19 @@ export const MULTI_TREND_PALETTE = [
 ];
 
 function formatTick(ts) {
-  return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleString(i18n.language, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 const colorAt = (i) => MULTI_TREND_PALETTE[i % MULTI_TREND_PALETTE.length];
 
 export default function MultiTrendChart({ unit, series }) {
+  const { t } = useTranslation("trends");
   const allPoints = series.flatMap((s) => s.points);
 
   if (allPoints.length < 2) {
     return (
       <div className={styles.placeholder}>
-        <span className={styles.placeholderText}>Not enough data yet.</span>
+        <span className={styles.placeholderText}>{t("chart.notEnoughData")}</span>
       </div>
     );
   }
@@ -50,6 +53,7 @@ export default function MultiTrendChart({ unit, series }) {
 }
 
 function Chart({ unit, series, fullMin, fullMax }) {
+  const { t } = useTranslation("trends");
   const { svgRef, min, max, isZoomed, resetZoom, isDragging, dragBoxX1, dragBoxX2, hoverT, handlers } =
     useTimeChartInteraction({ fullMin, fullMax, width: W, padLeft: PAD_L, padRight: PAD_R });
 
@@ -67,10 +71,10 @@ function Chart({ unit, series, fullMin, fullMax }) {
   if (visibleValues.length === 0) {
     return (
       <div className={styles.placeholder}>
-        <span className={styles.placeholderText}>No data in this range.</span>
+        <span className={styles.placeholderText}>{t("chart.noDataInRange")}</span>
         {isZoomed && (
           <button type="button" className="button-secondary button-sm" onClick={resetZoom}>
-            Reset zoom
+            {t("chart.resetZoom")}
           </button>
         )}
       </div>
@@ -102,18 +106,21 @@ function Chart({ unit, series, fullMin, fullMax }) {
   // lines (the legend below repeats each series' latest value as text too).
   const latestBySeries = series.map((s) => {
     const last = s.points[s.points.length - 1];
-    return `${s.name} ${last ? formatMetricValue(last.value, unit) : "no data"}`;
+    return `${s.name} ${last ? formatMetricValue(last.value, unit) : t("chart.noData")}`;
   });
-  const summary =
-    `Trend of ${series.length} series, ${formatTick(min)} to ${formatTick(max)}. ` +
-    `Latest: ${latestBySeries.join(", ")}.`;
+  const summary = t("chart.multiSummary", {
+    count: series.length,
+    from: formatTick(min),
+    to: formatTick(max),
+    latest: latestBySeries.join(", "),
+  });
 
   return (
     <div className={styles.root}>
       <div className={styles.plot}>
         {isZoomed && (
           <button type="button" className={`button-secondary ${styles.resetZoom}`} onClick={resetZoom}>
-            Reset zoom
+            {t("chart.resetZoom")}
           </button>
         )}
         <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={styles.svg} role="img" aria-label={summary} {...handlers}>
@@ -209,7 +216,7 @@ function Chart({ unit, series, fullMin, fullMax }) {
         )}
       </div>
 
-      <ul className={styles.legend} aria-label="Legend">
+      <ul className={styles.legend} aria-label={t("chart.legend")}>
         {series.map((s, i) => {
           const last = s.points[s.points.length - 1];
           return (

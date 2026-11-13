@@ -1,0 +1,202 @@
+{
+  "estimatedRowsHint": "Estimated from PostgreSQL's table statistics: the activity counters were reset (pg_stat_reset, a crash or a restore) and the table hasn't been vacuumed or analyzed since. The dead count only covers changes since the reset. Run ANALYZE on the table for exact numbers.",
+  "columns": {
+    "table": {
+      "label": "Table",
+      "help": "Table name — grouped by schema below."
+    },
+    "rows": {
+      "label": "Rows (live/dead)",
+      "help": "Estimated live row count and dead (deleted or updated but not yet reclaimed by VACUUM) row count for this table, from pg_stat_user_tables."
+    },
+    "deadPct": {
+      "label": "Dead %",
+      "help": "Percent of this table's rows that are dead (deleted or updated but not yet reclaimed by VACUUM). High values mean autovacuum is falling behind."
+    },
+    "lastVacuum": {
+      "label": "Last vacuum",
+      "help": "When this table was last vacuumed (manual or automatic), reclaiming dead row space."
+    },
+    "lastAnalyze": {
+      "label": "Last analyze",
+      "help": "When this table's query-planner statistics were last refreshed (manual or automatic)."
+    },
+    "wraparound": {
+      "label": "Wraparound age",
+      "help": "How many transactions old this table's oldest row is. Approaching the ~2 billion limit risks transaction ID wraparound — keep autovacuum running."
+    },
+    "cacheHit": {
+      "label": "Cache hit %",
+      "help": "Percent of this table's reads served from memory rather than disk (target: above 95%). A single hot table can run low even when the database-wide average on the Dashboard looks healthy."
+    },
+    "size": {
+      "label": "Size",
+      "help": "Total on-disk size, including all of this table's indexes. Refreshed on the background table-metrics cycle (every 5 minutes by default), not computed live on every load — kept off the hot path since it's expensive to compute for every table on a large database."
+    },
+    "actions": {
+      "label": "Actions"
+    }
+  },
+  "tableCount_one": "{{count}} table",
+  "tableCount_other": "{{count}} tables",
+  "schemasHidden_one": "{{count}} schema hidden",
+  "schemasHidden_other": "{{count}} schemas hidden",
+  "schemas": "Schemas",
+  "deepScan": {
+    "autoTitle": "Also runs automatically every night — see Settings.",
+    "lastRun": "Deep scan: {{time}}",
+    "failed": "failed",
+    "openFindings_one": "{{count}} open finding",
+    "openFindings_other": "{{count}} open findings",
+    "neverRun": "Deep scan: never run",
+    "unknown": "Deep scan: —",
+    "runTitle": "Runs every table's advisor checks now, across the whole database, and records the results — the same thing that runs nightly (see Settings).",
+    "running": "Running…",
+    "run": "Run Deep Scan Now"
+  },
+  "loadingTables": "Loading tables…",
+  "noTables": "No user tables found.",
+  "allSchemasHidden": "All schemas are hidden — use the Schemas button above to show some.",
+  "schemaOps": {
+    "analyze": {
+      "label": "Analyze all",
+      "confirmTitle": "Analyze all tables in {{schema}}?",
+      "confirm_one": "Runs ANALYZE on {{count}} table, one after another, so their row counts and planner statistics are fresh. ANALYZE reads a sample of each table; reads and writes carry on while it runs.",
+      "confirm_other": "Runs ANALYZE on {{count}} tables, one after another, so their row counts and planner statistics are fresh. ANALYZE reads a sample of each table; reads and writes carry on while it runs.",
+      "progress": "Analyzing {{done}}/{{total}}…",
+      "done_one": "Analyzed {{completed}} of {{count}} table in {{schema}}.",
+      "done_other": "Analyzed {{completed}} of {{count}} tables in {{schema}}.",
+      "skipped_one": "{{count}} skipped: DbButler's role may not analyze it (needs table ownership, or pg_maintain on PostgreSQL 17+).",
+      "skipped_other": "{{count}} skipped: DbButler's role may not analyze them (needs table ownership, or pg_maintain on PostgreSQL 17+)."
+    },
+    "vacuum": {
+      "label": "Vacuum all",
+      "confirmTitle": "Vacuum all tables in {{schema}}?",
+      "confirm_one": "Runs VACUUM (ANALYZE) on {{count}} table, one after another: dead rows become reusable space and the statistics are refreshed. Reads and writes carry on, but VACUUM reads every table and writes its changes, so on a busy server prefer a quiet moment. This is not VACUUM FULL — nothing is locked against use, and files don't shrink.",
+      "confirm_other": "Runs VACUUM (ANALYZE) on {{count}} tables, one after another: dead rows become reusable space and the statistics are refreshed. Reads and writes carry on, but VACUUM reads every table and writes its changes, so on a busy server prefer a quiet moment. This is not VACUUM FULL — nothing is locked against use, and files don't shrink.",
+      "progress": "Vacuuming {{done}}/{{total}}…",
+      "done_one": "Vacuumed {{completed}} of {{count}} table in {{schema}}.",
+      "done_other": "Vacuumed {{completed}} of {{count}} tables in {{schema}}.",
+      "skipped_one": "{{count}} skipped: DbButler's role may not vacuum it (needs table ownership, or pg_maintain on PostgreSQL 17+).",
+      "skipped_other": "{{count}} skipped: DbButler's role may not vacuum them (needs table ownership, or pg_maintain on PostgreSQL 17+)."
+    },
+    "failed_one": "{{count}} failed: {{list}}.",
+    "failed_other": "{{count}} failed: {{list}}.",
+    "stoppedEarly": "Stopped early: {{error}}"
+  },
+  "row": {
+    "showSuggestions": "Show suggestions for this table",
+    "asOf": "as of {{time}}",
+    "pending": "pending",
+    "loadingDetails": "Loading details for {{name}}…",
+    "deadTuplesUnchanged": "Dead tuples unchanged ({{dead}}) — VACUUM completed without error, but something else may be holding the rows back from actually being reclaimed: check Activity for a long-running or idle-in-transaction session, or Advisor → Replication Advisor for an inactive replication slot.",
+    "deadTuplesChanged": "Dead tuples: {{before}} → {{after}}.",
+    "statsRefreshed": "Query planner statistics refreshed for this table.",
+    "analyze": {
+      "title": "Refresh the query planner's statistics for this table. Fast, no meaningful lock — safe to run any time, e.g. after a bulk load.",
+      "confirmTitle": "Analyze {{name}}?",
+      "confirmMessage": "Refreshes the query planner's statistics for this table. Fast, no meaningful lock — safe to run any time.",
+      "label": "Analyze",
+      "busy": "Analyzing…",
+      "succeeded": "Analyze succeeded.",
+      "failed": "Analyze failed: {{error}}"
+    },
+    "vacuum": {
+      "title": "Reclaim dead-row space and refresh statistics (VACUUM ANALYZE). Runs alongside normal reads/writes, but uses real I/O — avoid running on many large tables at once.",
+      "confirmTitle": "Vacuum (analyze) {{name}}?",
+      "confirmMessage": "Runs VACUUM ANALYZE: reclaims dead-row space and refreshes statistics. Runs alongside normal reads/writes, but uses real I/O — avoid running on many large tables at once.",
+      "label": "Vacuum",
+      "busy": "Vacuuming…",
+      "succeeded": "Vacuum succeeded.",
+      "failed": "Vacuum failed: {{error}}"
+    },
+    "resetStats": {
+      "title": "Reset this table's cumulative counters (dead/live tuple counts, index scan counts) back to zero. Useful right after a manual Vacuum to see a clean baseline. Does not change any data.",
+      "confirmTitle": "Reset statistics for {{name}}?",
+      "confirmMessage": "Resets this table's cumulative counters (dead/live tuple counts, index scan counts) to zero. Does not change any data.",
+      "label": "Reset stats",
+      "busy": "Resetting…",
+      "succeeded": "Reset stats succeeded.",
+      "failed": "Reset stats failed: {{error}}"
+    }
+  },
+  "detail": {
+    "groups": {
+      "vacuumAnalyze": "Vacuum & Analyze",
+      "storageToast": "Storage & TOAST",
+      "statistics": "Statistics",
+      "autovacuumUpdates": "Autovacuum & Updates",
+      "other": "Other"
+    },
+    "columnHeaders": {
+      "column": {
+        "label": "Column",
+        "hint": "Column name."
+      },
+      "type": {
+        "label": "Type",
+        "hint": "Postgres data type."
+      },
+      "avgWidth": {
+        "label": "Avg width",
+        "hint": "Average on-disk size of this column's values, in bytes. Shows — until the table has been analyzed at least once."
+      },
+      "nullPct": {
+        "label": "Null %",
+        "hint": "Share of this table's rows where this column is NULL."
+      },
+      "distinct": {
+        "label": "Distinct",
+        "hint": "Estimated number of distinct values (pg_stats.n_distinct). A non-negative number is an absolute count; a negative number is a fraction of all rows (e.g. -0.5 means about half the rows are distinct)."
+      },
+      "statsTarget": {
+        "label": "Stats target",
+        "hint": "How many rows Postgres samples to build this column's planner statistics. \"default\" uses the server-wide default_statistics_target (100 unless changed) rather than a per-column override."
+      },
+      "indexed": {
+        "label": "Indexed",
+        "hint": "Whether this column is part of any index (alone or combined with others)."
+      },
+      "storage": {
+        "label": "Storage",
+        "hint": "How large values in this column can be stored: plain (always inline, never TOASTed), extended/main (may move out-of-line into TOAST, compressed), external (moves out-of-line uncompressed)."
+      }
+    },
+    "storage": {
+      "title": "Storage",
+      "heap": "Heap",
+      "heapHint": "This table's own data pages — everything except TOAST and indexes.",
+      "toast": "TOAST",
+      "toastHint": "Large text/bytea/jsonb values stored out-of-line, compressed, from the main table.",
+      "indexes": "Indexes",
+      "indexesHint": "Combined size of every index on this table. Derived (total minus heap minus TOAST), not its own separate measurement.",
+      "total": "Total",
+      "totalHint": "Everything for this table combined — heap + TOAST + indexes."
+    },
+    "autovacuum": {
+      "title": "Autovacuum & updates",
+      "autovacuum": "Autovacuum",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "autovacuumHint": "Whether autovacuum runs on this table at all — should almost always be Enabled.",
+      "vacuumScaleFactor": "Vacuum scale factor",
+      "serverDefault": "server default",
+      "vacuumScaleFactorHint": "Fraction of a table's rows that must be dead before autovacuum runs. A table-level override, when set, replaces the server-wide default shown here.",
+      "analyzeScaleFactor": "Analyze scale factor",
+      "analyzeScaleFactorHint": "Fraction of a table's rows that must change before autovacuum re-analyzes it (refreshes planner statistics).",
+      "fillfactor": "Fillfactor",
+      "fillfactorHint": "Percent of each page Postgres fills before starting a new one — the rest is headroom for HOT updates.",
+      "hotRatio": "HOT update ratio",
+      "hotRatioHint": "Share of updates that avoided touching any index (Heap-Only Tuple). Low means most updates are paying full index-maintenance cost.",
+      "vacuumStatus": "Vacuum status",
+      "running": "Running ({{details}})",
+      "notRunning": "Not running",
+      "vacuumStatusHint": "Whether a VACUUM (manual or autovacuum) is actively running on this table right now, from pg_stat_progress_vacuum. Only reflects the current instant, not history."
+    },
+    "columnsTitle": "Columns",
+    "default": "default",
+    "yes": "Yes",
+    "suggestionsTitle": "Suggestions",
+    "noSuggestions": "No suggestions for this table."
+  }
+}

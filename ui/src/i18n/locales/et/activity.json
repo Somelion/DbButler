@@ -1,0 +1,34 @@
+{
+  "sessions_one": "{{count}} seanss",
+  "sessions_other": "{{count}} seanssi",
+  "loading": "Seansside laadimine…",
+  "empty": "Teisi seansse praegu pole.",
+  "byApplication": "Seansid rakenduse järgi",
+  "unsetApplication": "(määramata)",
+  "lockChains_one": "Lukuahel",
+  "lockChains_other": "Lukuahelad",
+  "blockedDepth": "Blokeeritud, sügavus {{depth}}:",
+  "blockingRoot": "Ahela esimene blokeerija:",
+  "waitingOn": "ootab: {{lock}}",
+  "chainBlockedBy_one": "(blokeerija {{pids}})",
+  "chainBlockedBy_other": "(blokeerijad {{pids}})",
+  "stateUnknown": "teadmata",
+  "blockedBy_one": "blokeerija {{pids}}",
+  "blockedBy_other": "blokeerijad {{pids}}",
+  "blocking": "blokeerib {{pids}}",
+  "cancel": "Katkesta",
+  "cancelAria": "Katkesta seansi {{pid}} päring",
+  "terminate": "Lõpeta",
+  "terminateAria": "Lõpeta seanss {{pid}}",
+  "confirmTerminate": {
+    "title": "Kas lõpetada seanss {{pid}}?",
+    "message": "Sulgeb selle serveriprotsessi ühenduse (pg_terminate_backend). Avatud tehing pööratakse tagasi ja klient ühendatakse lahti.",
+    "confirm": "Lõpeta"
+  },
+  "confirmCancel": {
+    "title": "Kas katkestada seansi {{pid}} päring?",
+    "message": "Peatab lause, mida see seanss parajasti täidab (pg_cancel_backend). Ühendus ise jääb avatuks.",
+    "confirm": "Katkesta päring",
+    "keep": "Jäta käima"
+  }
+}

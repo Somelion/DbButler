@@ -1,0 +1,92 @@
+{
+  "intelligence": {
+    "title": "Top-päringud",
+    "columns": {
+      "query": {
+        "label": "Päring",
+        "help": "Normaliseeritud päringutekst – pg_stat_statements asendab literaalväärtused kujul $1, $2, ..."
+      },
+      "calls": {
+        "label": "Käivitused",
+        "help": "Mitu korda seda päringut on käivitatud pärast statistika viimast lähtestamist."
+      },
+      "total": {
+        "label": "Kokku",
+        "help": "Selle päringu kõigi käivituste peale kokku kulunud aeg – parim üksik näitaja küsimusele „milline päring maksab kõige rohkem“."
+      },
+      "mean": {
+        "label": "Keskmine",
+        "help": "Keskmine täitmisaeg ühe käivituse kohta."
+      },
+      "rows": {
+        "label": "Read",
+        "help": "Kõigi käivituste peale kokku tagastatud või muudetud read."
+      }
+    },
+    "actions": "Toimingud",
+    "resetConfirmTitle": "Lähtestada päringute statistika?",
+    "resetConfirmMessage": "See tühjendab kogu serveri pg_stat_statements andmed. Top-päringute loend algab uuesti tühjalt.",
+    "resetConfirmLabel": "Lähtesta statistika",
+    "resetting": "Lähtestan…",
+    "reset": "Lähtesta statistika",
+    "loading": "Päringute statistika laadimine…",
+    "empty": "Päringute kohta pole veel andmeid.",
+    "loadIntoExplain": "Ava EXPLAIN-is",
+    "analyzeWithAi": "Analüüsi tehisaruga"
+  },
+  "history": {
+    "range": {
+      "24h": "24 tundi",
+      "7d": "7 päeva",
+      "30d": "30 päeva"
+    },
+    "metric": {
+      "meanExecMs": "Keskm. latentsus",
+      "calls": "Käivitused",
+      "rowsPerCall": "Ridu / käivitus"
+    },
+    "trackedTitle": "Jälgitavad päringud",
+    "timeRange": "Ajavahemik",
+    "loadingTracked": "Jälgitavate päringute laadimine…",
+    "emptyTitle": "Päringuajalugu veel pole",
+    "emptyBody": "See täitub, kui päringuajaloo koguja on teinud paar tsüklit (iga 5 minuti järel) ja pg_stat_statements näitab hiljutise tegevusega päringuid.",
+    "compareTitle": "Päringute võrdlus",
+    "compareMetric": "Võrdlusnäitaja",
+    "loadingHistory": "Päringuajaloo laadimine…",
+    "deepDiveTitle": "Päringu süvavaade",
+    "callsChart": "Käivitusi intervalli kohta",
+    "latencyChart": "Keskmine latentsus intervalli kohta",
+    "footnote": "Latentsusgraafiku varjutatud riba on selle päringu enda tavavahemik (keskmine ± {{multiplier}}× standardhälve, arvutatud näidatud ajaloost). Punkt sellest kõrgemal tähendab, et see 5-minutiline kogumisintervall oli keskmiselt tavatult aeglane – mitte tingimata, et mõni üksik käivitus selles oli aeglane."
+  },
+  "picker": {
+    "remove": "Eemalda võrdlusest: {{label}}",
+    "clear": "Tühjenda",
+    "searchLabel": "Otsi jälgitavaid päringuid",
+    "searchPlaceholder_one": "Otsi {{count}} jälgitava päringu seast…",
+    "searchPlaceholder_other": "Otsi {{count}} jälgitava päringu seast…",
+    "noMatch": "Sobivaid päringuid pole.",
+    "listLabel": "Jälgitavad päringud",
+    "calls_one": "{{formatted}} käivitus",
+    "calls_other": "{{formatted}} käivitust",
+    "deepDiving": "Süvavaates",
+    "deepDive": "Süvavaade",
+    "hint": "Võrdle korraga kuni {{max}} päringut."
+  },
+  "explain": {
+    "description": "Kleebi siia ainult lugev SELECT-päring – see käivitatakse päriselt, seega sobivad ainult SELECT / WITH päringud.",
+    "query": "Päring",
+    "running": "Käib…",
+    "run": "Käivita EXPLAIN ANALYZE",
+    "executionTime": "Täitmisaeg: {{time}}",
+    "noFindings": "Selles plaanis ohumärke ei leitud.",
+    "openViewer": "Ava plaanivaaturis",
+    "rawPlan": "Toorplaan",
+    "viewerTitle": "Plaanivaatur",
+    "viewerDescription": "pev2 (Dalibo) – sõlmede ajad, puhvrid ja kriitiline tee selle EXPLAIN ANALYZE käivituse kohta."
+  },
+  "params": {
+    "legend": "Kohatäitjate väärtused",
+    "note": "Selles päringus on parameetrite kohatäitjad – pg_stat_statements asendab enne päringu salvestamist literaalväärtused nendega. Enne käivitamist sisesta igaühele väärtus täpselt nii, nagu kirjutaksid selle SQL-is (nt <code>42</code>, <code>'active'</code>, <code>now()</code>).",
+    "valueFor": "Väärtus kohatäitjale"
+  }
+}

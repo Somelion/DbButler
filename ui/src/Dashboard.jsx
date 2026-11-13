@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
 import { Alert, Card, Skeleton } from "./components";
@@ -9,6 +10,7 @@ const POLL_INTERVAL_MS = 10000;
 const NO_POINTS = [];
 
 export default function Dashboard({ targetId }) {
+  const { t } = useTranslation("dashboard");
   // Polled through the query cache; the interval pauses in hidden tabs.
   const { data, error, isPending } = useQuery({
     queryKey: targetKey(targetId, "metrics", "cache_hit_ratio"),
@@ -20,13 +22,13 @@ export default function Dashboard({ targetId }) {
   return (
     <Card>
       {isPending ? (
-        <Skeleton height={170} label="Loading cache hit rate…" />
+        <Skeleton height={170} label={t("cacheChart.loading")} />
       ) : (
-        <TrendChart bare label="Cache Hit Rate" unit="%" points={points} />
+        <TrendChart bare label={t("cacheChart.label")} unit="%" points={points} />
       )}
       <span className={styles.meta}>
-        {points.length} sample{points.length === 1 ? "" : "s"} collected &middot; refreshes every{" "}
-        {POLL_INTERVAL_MS / 1000}s
+        {t("cacheChart.samples", { count: points.length })} &middot;{" "}
+        {t("cacheChart.refreshesEvery", { seconds: POLL_INTERVAL_MS / 1000 })}
       </span>
       {error && (
         <Alert tone="critical" compact>

@@ -1,24 +1,24 @@
+import { useTranslation } from "react-i18next";
 import { CornerDownRight, Lock } from "lucide-react";
 import styles from "./LockTreeView.module.css";
 
-const formatSeconds = (s) => {
+const formatSeconds = (s, t) => {
   if (s == null) return "—";
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
-  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+  if (s < 60) return t("duration.seconds", { s });
+  if (s < 3600) return t("duration.minutes", { m: Math.floor(s / 60), s: s % 60 });
+  return t("duration.hours", { h: Math.floor(s / 3600), m: Math.floor((s % 3600) / 60) });
 };
 
 function SessionLine({ session, pid }) {
+  const { t } = useTranslation("timeMachine");
   if (!session) {
     return (
       <div className={styles.session}>
         <span className={styles.pid}>
-          {pid === 0 ? "A prepared transaction" : `pid ${pid}`}
+          {pid === 0 ? t("lockTree.preparedTransaction") : `pid ${pid}`}
         </span>
         <span className={styles.meta}>
-          {pid === 0
-            ? "two-phase commit, no session — see the Vacuum Horizon tile; ROLLBACK PREPARED or COMMIT PREPARED releases it"
-            : "not in this database's activity (another database, or it ended)"}
+          {pid === 0 ? t("lockTree.preparedHint") : t("lockTree.notInActivity")}
         </span>
       </div>
     );
@@ -32,10 +32,12 @@ function SessionLine({ session, pid }) {
         {session.usename && <span className={styles.meta}> · {session.usename}</span>}
       </span>
       <span className={styles.meta}>
-        {session.state ?? "unknown state"}
-        {blocked && session.waiting_on && ` · waiting for ${session.waiting_on}`}
-        {blocked && ` · waiting ${formatSeconds(session.wait_seconds ?? session.state_seconds)}`}
-        {session.xact_seconds != null && ` · transaction open ${formatSeconds(session.xact_seconds)}`}
+        {session.state ?? t("lockTree.unknownState")}
+        {blocked && session.waiting_on && ` · ${t("lockTree.waitingFor", { what: session.waiting_on })}`}
+        {blocked &&
+          ` · ${t("lockTree.waiting", { duration: formatSeconds(session.wait_seconds ?? session.state_seconds, t) })}`}
+        {session.xact_seconds != null &&
+          ` · ${t("lockTree.transactionOpen", { duration: formatSeconds(session.xact_seconds, t) })}`}
       </span>
       {session.query && <code className={styles.query}>{session.query}</code>}
     </div>
@@ -45,6 +47,7 @@ function SessionLine({ session, pid }) {
 // One snapshot's blocking chains as a tree: each root blocker, with the
 // sessions waiting on it nested below. Query literals arrive masked.
 export default function LockTreeView({ tree }) {
+  const { t } = useTranslation("timeMachine");
   const byPid = new Map(tree.sessions.map((s) => [s.pid, s]));
   const children = new Map();
   for (const session of tree.sessions) {
@@ -67,7 +70,7 @@ export default function LockTreeView({ tree }) {
           ) : (
             <CornerDownRight size={13} className={styles.childIcon} aria-hidden="true" />
           )}
-          <span className="sr-only">{depth === 0 ? "Blocking: " : `Blocked, depth ${depth}: `}</span>
+          <span className="sr-only">{depth === 0 ? t("lockTree.srBlocking") : t("lockTree.srBlocked", { depth })}</span>
           <SessionLine session={byPid.get(pid)} pid={pid} />
         </div>
         {kids.length > 0 && <ul className={styles.children}>{kids.map((kid) => renderNode(kid, depth + 1, nextSeen))}</ul>}
@@ -83,7 +86,7 @@ export default function LockTreeView({ tree }) {
   return (
     <>
       {tree.root_pids.length === 0 && unblocked.length === 0 && tree.sessions.length > 0 && (
-        <p className={styles.meta}>Every session here is blocked by another — a deadlock cycle caught mid-detection.</p>
+        <p className={styles.meta}>{t("lockTree.deadlockCycle")}</p>
       )}
       <ul className={styles.tree}>{roots.map((pid) => renderNode(pid, 0, new Set()))}</ul>
     </>

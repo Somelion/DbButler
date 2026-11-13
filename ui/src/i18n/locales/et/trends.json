@@ -1,0 +1,58 @@
+{
+  "range": {
+    "label": "Ajavahemik",
+    "h24": "24 tundi",
+    "d7": "7 päeva",
+    "d30": "30 päeva"
+  },
+  "tableMetric": {
+    "label": "Tabeli mõõdik",
+    "deadPct": "Surnud ridu %",
+    "size": "Suurus"
+  },
+  "forecast": {
+    "daysUntil_one": "Selle tempoga ~{{count}} päev kuni: {{threshold}}.",
+    "daysUntil_other": "Selle tempoga ~{{count}} päeva kuni: {{threshold}}.",
+    "in30Days": "Selle tempoga 30 päeva pärast ~{{value}}."
+  },
+  "database": {
+    "title": "Andmebaasi trendid",
+    "loading": "Trendide laadimine…"
+  },
+  "waitEvents": {
+    "title": "Ootesündmused",
+    "description": "Aktiivsed seansid rühmitatuna selle järgi, mida nad ootasid, mõõdetud iga paari minuti järel – aitab tagantjärele näha, millal tekkis luku- või I/O-torm.",
+    "loading": "Ootesündmuste laadimine…",
+    "empty": "Ootesündmuste ajalugu veel pole."
+  },
+  "tables": {
+    "title": "Tabelite trendid",
+    "loading": "Tabelite laadimine…",
+    "empty": "Tabelite ajalugu veel pole.",
+    "selectHint": "Vali ülalt vähemalt üks tabel, et näha selle trendi.",
+    "loadingTrends": "Tabelite trendide laadimine…"
+  },
+  "picker": {
+    "removeAria": "Eemalda {{table}} võrdlusest",
+    "removeTitle": "Eemalda võrdlusest",
+    "clear": "Tühjenda",
+    "search_one": "Otsi {{count}} tabeli seast…",
+    "search_other": "Otsi {{count}} tabeli seast…",
+    "searchAria": "Otsi tabeleid",
+    "listAria": "Võrreldavad tabelid",
+    "noMatch": "Sobivaid tabeleid pole.",
+    "compareUpTo_one": "Korraga saad võrrelda kuni {{count}} tabelit.",
+    "compareUpTo_other": "Korraga saad võrrelda kuni {{count}} tabelit."
+  },
+  "chart": {
+    "collecting": "Andmete kogumine…",
+    "noDataInRange": "Selles ajavahemikus andmeid pole.",
+    "notEnoughData": "Andmeid pole veel piisavalt.",
+    "resetZoom": "Lähtesta suum",
+    "summary": "{{label}}, {{from}} kuni {{to}}. Viimane {{latest}}; madalaim {{low}}, kõrgeim {{high}}.",
+    "multiSummary_one": "Trend: {{count}} andmerida, {{from}} kuni {{to}}. Viimased väärtused: {{latest}}.",
+    "multiSummary_other": "Trend: {{count}} andmerida, {{from}} kuni {{to}}. Viimased väärtused: {{latest}}.",
+    "noData": "andmed puuduvad",
+    "legend": "Legend"
+  }
+}

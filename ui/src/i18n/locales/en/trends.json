@@ -1,0 +1,58 @@
+{
+  "range": {
+    "label": "Time range",
+    "h24": "24 hours",
+    "d7": "7 days",
+    "d30": "30 days"
+  },
+  "tableMetric": {
+    "label": "Table metric",
+    "deadPct": "Dead Tuple %",
+    "size": "Size"
+  },
+  "forecast": {
+    "daysUntil_one": "At this rate, ~{{count}} day until {{threshold}}.",
+    "daysUntil_other": "At this rate, ~{{count}} days until {{threshold}}.",
+    "in30Days": "At this rate, ~{{value}} in 30 days."
+  },
+  "database": {
+    "title": "Database trends",
+    "loading": "Loading trends…"
+  },
+  "waitEvents": {
+    "title": "Wait events",
+    "description": "Active sessions grouped by what they were waiting on, sampled every few minutes — useful for spotting when a lock or I/O storm happened, after the fact.",
+    "loading": "Loading wait events…",
+    "empty": "No wait event history yet."
+  },
+  "tables": {
+    "title": "Table trends",
+    "loading": "Loading tables…",
+    "empty": "No table history yet.",
+    "selectHint": "Select at least one table above to see its trend.",
+    "loadingTrends": "Loading table trends…"
+  },
+  "picker": {
+    "removeAria": "Remove {{table}} from comparison",
+    "removeTitle": "Remove from comparison",
+    "clear": "Clear",
+    "search_one": "Search {{count}} table…",
+    "search_other": "Search {{count}} tables…",
+    "searchAria": "Search tables",
+    "listAria": "Tables to compare",
+    "noMatch": "No matching tables.",
+    "compareUpTo_one": "Compare up to {{count}} table at once.",
+    "compareUpTo_other": "Compare up to {{count}} tables at once."
+  },
+  "chart": {
+    "collecting": "Collecting data…",
+    "noDataInRange": "No data in this range.",
+    "notEnoughData": "Not enough data yet.",
+    "resetZoom": "Reset zoom",
+    "summary": "{{label}}, {{from}} to {{to}}. Latest {{latest}}; low {{low}}, high {{high}}.",
+    "multiSummary_one": "Trend of {{count}} series, {{from}} to {{to}}. Latest: {{latest}}.",
+    "multiSummary_other": "Trend of {{count}} series, {{from}} to {{to}}. Latest: {{latest}}.",
+    "noData": "no data",
+    "legend": "Legend"
+  }
+}

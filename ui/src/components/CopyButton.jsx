@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, Copy } from "lucide-react";
 import { copyText } from "../clipboard";
 
@@ -7,7 +8,8 @@ const RESET_MS = 2000;
 // Copy-to-clipboard button that works on plain-http installs too (see
 // clipboard.js). Shows "Copied" / "Copy failed" for two seconds, announced
 // through a polite live region.
-export default function CopyButton({ text, label = "Copy", className = "button-secondary button-sm" }) {
+export default function CopyButton({ text, label, className = "button-secondary button-sm" }) {
+  const { t } = useTranslation();
   const [state, setState] = useState("idle"); // idle | copied | failed
 
   useEffect(() => {
@@ -20,7 +22,8 @@ export default function CopyButton({ text, label = "Copy", className = "button-s
     setState((await copyText(text)) ? "copied" : "failed");
   };
 
-  const shownLabel = state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : label;
+  const shownLabel =
+    state === "copied" ? t("actions.copied") : state === "failed" ? t("actions.copyFailed") : (label ?? t("actions.copy"));
 
   return (
     <>
@@ -28,13 +31,17 @@ export default function CopyButton({ text, label = "Copy", className = "button-s
         type="button"
         className={className}
         onClick={handleClick}
-        title={state === "failed" ? "Your browser blocked clipboard access — select the text and copy it manually." : undefined}
+        title={state === "failed" ? t("actions.copyBlocked") : undefined}
       >
         {state === "copied" ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
         {shownLabel}
       </button>
       <span className="sr-only" role="status">
-        {state === "copied" ? "Copied to clipboard" : state === "failed" ? "Copy failed, select the text manually" : ""}
+        {state === "copied"
+          ? t("actions.copiedAnnouncement")
+          : state === "failed"
+            ? t("actions.copyFailedAnnouncement")
+            : ""}
       </span>
     </>
   );

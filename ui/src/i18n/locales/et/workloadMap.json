@@ -1,0 +1,186 @@
+{
+  "edgeKinds": {
+    "fk": {
+      "label": "Võõrvõti, liidetud",
+      "description": "Päringud liidavad neid tabeleid ja liitmist katab määratud võõrvõti."
+    },
+    "no_fk": {
+      "label": "Liidetud, võõrvõtmeta",
+      "description": "Päringud liidavad neid tabeleid veergude kaudu, mida ükski võõrvõti ei kata – kas puudub piirang või vajab liitmine liitmisveerule indeksit."
+    },
+    "fk_unused": {
+      "label": "Võõrvõti, liitmata",
+      "description": "Võõrvõti on määratud, aga ükski jälgitav päring selle kaudu ei liida – kas surnud seos või võõrvõtme indeks, mis aeglustab kirjutamist ega aita lugemisel."
+    }
+  },
+  "colorModes": {
+    "health": "Tervis",
+    "seq": "Seq-scan-koormus",
+    "writes": "Kirjutuskoormus"
+  },
+  "colorModeDescriptions": {
+    "health": "Tabeli kõige raskem avatud leid (öisest süvaskannimisest).",
+    "seq": "Järjestikskannimisel loetud read ajavahemikus – tabelid, mida loetakse sageli tervenisti.",
+    "writes": "Ajavahemikus lisatud, muudetud ja kustutatud read."
+  },
+  "severityLabels": {
+    "critical": "Kriitilised leiud",
+    "attention": "Vajab tähelepanu",
+    "none": "Avatud leide pole"
+  },
+  "ranges": {
+    "24": "24 t",
+    "168": "7 p",
+    "720": "30 p"
+  },
+  "rangeLabels": {
+    "24": "24 tundi",
+    "168": "7 päeva",
+    "720": "30 päeva"
+  },
+  "rangeLabelsLast": {
+    "24": "24 tunni",
+    "168": "7 päeva",
+    "720": "30 päeva"
+  },
+  "views": {
+    "map": "2D-kaart",
+    "3d": "3D-kaart",
+    "list": "Seosed"
+  },
+  "coverage": {
+    "needsGenericPlan_one": "{{count}} parameetritega päringu planeerimiseks on vaja PostgreSQL 16+",
+    "needsGenericPlan_other": "{{count}} parameetritega päringu planeerimiseks on vaja PostgreSQL 16+",
+    "explainFailed_one": "{{count}} päringut ei õnnestunud planeerida (enamasti abikäsud, nagu SET või COMMIT)",
+    "explainFailed_other": "{{count}} päringut ei õnnestunud planeerida (enamasti abikäsud, nagu SET või COMMIT)",
+    "notPlannedYet_one": "{{count}} päring on veel planeerimata",
+    "notPlannedYet_other": "{{count}} päringut on veel planeerimata",
+    "builtFrom": "Kaart põhineb {{ok}} päringul {{total}} jälgitavast",
+    "covering": ", mis katavad {{coverage}}% jälgitavate päringute andmebaasiajast",
+    "plansLastRead": "Plaanid loeti viimati {{when}}.",
+    "noPlansYet": "Plaane pole veel loetud.",
+    "trackedExplained": "Jälgitakse 50 päringut, mille koguaeg vaates pg_stat_statements on suurim.",
+    "meterLabel": "Kui suure osa jälgitavast andmebaasiajast kaart katab"
+  },
+  "legend": {
+    "relationships": "Seosed",
+    "nodes": "Sõlmed",
+    "nodesExplained": "Suurus: tabeli suurus. Värv: {{description}} Tuhm: kaardil ainult võõrvõtme kaudu.",
+    "low": "madal",
+    "high": "kõrge"
+  },
+  "slider": {
+    "now": "praegu",
+    "hoursAgo_one": "{{count}} tund tagasi ({{date}})",
+    "hoursAgo_other": "{{count}} tundi tagasi ({{date}})",
+    "daysAgo_one": "{{count}} päev tagasi ({{date}})",
+    "daysAgo_other": "{{count}} päeva tagasi ({{date}})",
+    "windowEnds": "Ajavahemiku lõpp:",
+    "valueText": "Ajavahemiku lõpp: {{when}}"
+  },
+  "search": {
+    "manyMatches_one": "„{{term}}“ sobib {{count}} tabeliga – kirjuta nimest rohkem.",
+    "manyMatches_other": "„{{term}}“ sobib {{count}} tabeliga – kirjuta nimest rohkem.",
+    "noMatch": "Kaardil pole tabelit „{{term}}“.",
+    "label": "Otsi kaardilt tabelit",
+    "placeholder": "Otsi tabelit…"
+  },
+  "toolbar": {
+    "timeRange": "Ajavahemik",
+    "view": "Vaade",
+    "colorBy": "Tabelite värv",
+    "fullScreen": "Täisekraan",
+    "exitFullScreen": "Välju täisekraanist",
+    "exitFullScreenTitle": "Välju täisekraanist (Esc)"
+  },
+  "screen": {
+    "building": "Koormuskaardi koostamine…",
+    "emptyNoQueries": "Ühtegi päringut ei jälgita veel. Kaart koostatakse vaate pg_stat_statements 50 suurima päringu põhjal ja DbButler hakkab neid jälgima mõne minuti jooksul pärast ühendamist.",
+    "emptyNonePlanned": "Ühtegi jälgitavat päringut pole veel planeeritud. Nende plaane loetakse iga 5 minuti järel (plaanide taandarengu töö ekraanil „Seaded“) – vaata varsti uuesti.",
+    "emptyNoUserTables": "Pole kasutajatabeleid, mida näidata: jälgitavad päringud puudutavad ainult süsteemikatalooge või tabeleid, mis jäävad selle ühenduse skeemifiltrist välja.",
+    "fullScreenLabel": "Koormuskaart, täisekraan",
+    "showingPast": "Näitan {{range}} kuni {{until}}: tollal jälgitud päringuid, kaalutuna selle järgi, kui palju aega need selles ajavahemikus võtsid. Liitmise veerud tulevad iga päringu praegusest plaanist.",
+    "lifetimeWeights": "Viimase {{range}} jooksul ei käivitunud ükski jälgitav päring, seega põhinevad kaalud iga päringu koguajal alates vaate pg_stat_statements viimasest lähtestamisest.",
+    "truncated_one": "Näitan {{count}} tabelit, mis kulutavad kõige rohkem andmebaasiaega; välja jäi veel {{more}}.",
+    "truncated_other": "Näitan {{count}} tabelit, mis kulutavad kõige rohkem andmebaasiaega; välja jäi veel {{more}}.",
+    "emptyTitle": "Veel pole midagi kaardistada",
+    "graphLabel": "Koormuskaart: tabeleid {{tables}}, seoseid {{edges}}. Vaade „Seosed“ näitab sama teavet tabelina.",
+    "graph3dLabel": "3D-koormuskaart: tabeleid {{tables}}, mida kõrgemal tabel on, seda rohkem andmebaasiaega see kulutab. Lohista pööramiseks, keri suumimiseks. Vaade „Seosed“ näitab sama teavet tabelina.",
+    "loading3d": "3D-vaate laadimine…",
+    "note3d": "3D: kõrgus näitab tabeli osa andmebaasiajast, iga skeem on eraldi kobar ja seoseid eristab ainult värv. Lohista pööramiseks, keri suumimiseks."
+  },
+  "graph": {
+    "unindexedFk": "indekseerimata võõrvõti",
+    "zoomIn": "Suurenda",
+    "zoomOut": "Vähenda",
+    "fit": "Näita kogu kaarti",
+    "dbShare": "{{share}}% andmebaasiajast",
+    "queries_one": "{{count}} päring",
+    "queries_other": "{{count}} päringut",
+    "nodeLabel": "{{name}} — {{share}}% andmebaasiajast",
+    "noWebgl": "Selles brauseris pole WebGL-i, mida 3D-vaade vajab. 2D-kaart ja seoste tabel näitavad samu andmeid."
+  },
+  "panel": {
+    "label": "Valiku üksikasjad",
+    "close": "Sulge üksikasjad",
+    "and": "ja",
+    "queryMeta_one": "{{time}} andmebaasiaega · {{calls}} käivitus",
+    "queryMeta_other": "{{time}} andmebaasiaega · {{calls}} käivitust",
+    "filtersOn": "filtreerib veergude {{columns}} järgi",
+    "openQueryHistory": "Ava päringuajaloos",
+    "size": "Suurus",
+    "liveRows": "Elusad read",
+    "deadRows": "Surnud read",
+    "dbShare": "Osa andmebaasiajast",
+    "seqRowsRead": "Järjestikskannimisel loetud read",
+    "rowsWritten": "Kirjutatud read",
+    "hotUpdates": "HOT-uuendused",
+    "partitions": "Partitsioonid / tükid",
+    "openTableHealth": "Ava tabelite tervises",
+    "indexAdvisor": "Indeksinõustaja",
+    "relationships": "Seosed ({{n}})",
+    "notJoined": "Jälgitavad päringud ei liida seda tabelit ühegi teise tabeliga.",
+    "unindexed": "indekseerimata",
+    "loadingDetails": "Tabeli üksikasjade laadimine…",
+    "tableQueries": "Seda tabelit puudutavad päringud ({{n}})",
+    "noTableQueries": "Ükski jälgitav päring seda tabelit ei puuduta – see on kaardil võõrvõtme kaudu.",
+    "indexes": "Indeksid ({{n}})",
+    "hypertableNote": "TimescaleDB hüpertabel: tükkide indeksite skannimised pole nendes arvudes sees.",
+    "noIndexes": "Indekseid pole.",
+    "primaryKey": "primaarvõti",
+    "unique": "unikaalne",
+    "neverScanned": "pole kunagi skannitud",
+    "indexMeta_one": "{{scans}} skannimine · {{size}}",
+    "indexMeta_other": "{{scans}} skannimist · {{size}}",
+    "openFindings": "Avatud leiud ({{n}})",
+    "noFindings": "Viimane süvaskannimine ei leidnud midagi.",
+    "joinColumns": "Liitmise veerud",
+    "joinLine": "{{types}} liitmine · {{strategies}} · {{share}}% jälgitavast andmebaasiajast",
+    "strategyNotShown": "strateegiat ei näidata",
+    "foreignKey": "Võõrvõti",
+    "fkIndexed": "Tabeli {{child}} võõrvõtme veerud on indekseeritud.",
+    "fkNotIndexed": "Tabelil {{child}} pole indeksit veergudel ({{columns}}). Liitmised tabelist {{parent}} ning iga DELETE või võtme muutmine tabelis {{parent}} peavad skannima tabelit {{child}}. <link>Vaata indeksinõustajat</link>.",
+    "noFkTitle": "Liitmistingimused ilma võõrvõtmeta",
+    "indexed": "indekseeritud",
+    "noLeadingIndex": "ükski indeks ei alga liitmisveeruga",
+    "costInWhatIf": "hinda indeksit vaates „What-if indeksid“",
+    "noFkHint": "Kui üks pool peaks viitama teisele, siis võõrvõtme määramine dokumenteerib selle ja laseb PostgreSQL-il seda jõustada. Indeksita poolt skannitakse iga liitmise korral.",
+    "edgeQueries": "Neid tabeleid liitvad päringud ({{n}})",
+    "noEdgeQueries": "Ükski jälgitav päring neid tabeleid ei liida.",
+    "notOnMap": "Pole kaardil",
+    "notOnMapHint": "Valitud objekt ei kuulu selle ajavahemiku kaardile."
+  },
+  "table": {
+    "caption": "Tabelitevahelised seosed jälgitavate päringute liitmistest ja määratud võõrvõtmetest",
+    "tables": "Tabelid",
+    "kind": "Liik",
+    "joinColumns": "Liitmise veerud",
+    "dbTime": "Andmebaasiaeg",
+    "queries": "Päringud",
+    "indexes": "Indeksid",
+    "fkUnindexed": "Võõrvõti indekseerimata",
+    "neitherSideUnindexed": "kumbki pool pole indekseeritud",
+    "oneSideUnindexed": "üks pool indekseerimata",
+    "indexed": "indekseeritud"
+  }
+}

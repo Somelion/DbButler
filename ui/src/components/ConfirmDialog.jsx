@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Dialog from "./Dialog";
 
 // One confirmation flow for every destructive or disruptive action
@@ -48,16 +49,11 @@ export function useConfirm() {
   return confirm;
 }
 
-function ConfirmDialog({
-  open,
-  title = "Are you sure?",
-  message,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
-  tone = "default",
-  onConfirm,
-  onCancel,
-}) {
+function ConfirmDialog({ open, title, message, confirmLabel, cancelLabel, tone = "default", onConfirm, onCancel }) {
+  const { t } = useTranslation();
+  title ??= t("actions.areYouSure");
+  confirmLabel ??= t("actions.confirm");
+  cancelLabel ??= t("actions.cancel");
   const cancelRef = useRef(null);
   const confirmRef = useRef(null);
   const danger = tone === "danger";

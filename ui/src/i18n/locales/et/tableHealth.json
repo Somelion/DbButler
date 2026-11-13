@@ -1,0 +1,202 @@
+{
+  "estimatedRowsHint": "Hinnatud PostgreSQL-i tabelistatistika põhjal: tegevusloendurid on lähtestatud (pg_stat_reset, krahh või taastamine) ja tabelit pole pärast seda vacuumitud ega analüüsitud. Surnud ridade arv näitab ainult lähtestamisest saadik tehtud muudatusi. Täpsete arvude saamiseks käivita tabelil ANALYZE.",
+  "columns": {
+    "table": {
+      "label": "Tabel",
+      "help": "Tabeli nimi – allpool skeemide kaupa rühmitatud."
+    },
+    "rows": {
+      "label": "Read (elusad/surnud)",
+      "help": "Selle tabeli elusate ridade hinnanguline arv ja surnud ridade (kustutatud või uuendatud, kuid VACUUM pole neid veel vabastanud) arv, vaatest pg_stat_user_tables."
+    },
+    "deadPct": {
+      "label": "Surnud %",
+      "help": "Mitu protsenti selle tabeli ridadest on surnud (kustutatud või uuendatud, kuid VACUUM pole neid veel vabastanud). Suur väärtus tähendab, et autovacuum jääb maha."
+    },
+    "lastVacuum": {
+      "label": "Viimane vacuum",
+      "help": "Millal seda tabelit viimati vacuumiti (käsitsi või automaatselt) ja surnud ridade ruum vabastati."
+    },
+    "lastAnalyze": {
+      "label": "Viimane analüüs",
+      "help": "Millal selle tabeli päringuplaneerija statistikat viimati värskendati (käsitsi või automaatselt)."
+    },
+    "wraparound": {
+      "label": "Ümbermähkumise vanus",
+      "help": "Mitu tehingut vana on selle tabeli vanim rida. Umbes 2 miljardi piirile lähenedes tekib tehingu ID ümbermähkumise oht – hoia autovacuum töös."
+    },
+    "cacheHit": {
+      "label": "Vahemälu tabamus %",
+      "help": "Mitu protsenti selle tabeli lugemistest tuli mälust, mitte kettalt (eesmärk: üle 95%). Üks kuum tabel võib jääda madalaks ka siis, kui kogu andmebaasi keskmine töölaual paistab korras."
+    },
+    "size": {
+      "label": "Suurus",
+      "help": "Kogusuurus kettal koos kõigi selle tabeli indeksitega. Värskendatakse taustal tabelimõõdikute tsükliga (vaikimisi iga 5 minuti järel), mitte iga laadimise ajal – suures andmebaasis on selle arvutamine iga tabeli jaoks kulukas."
+    },
+    "actions": {
+      "label": "Toimingud"
+    }
+  },
+  "tableCount_one": "{{count}} tabel",
+  "tableCount_other": "{{count}} tabelit",
+  "schemasHidden_one": "{{count}} skeem peidetud",
+  "schemasHidden_other": "{{count}} skeemi peidetud",
+  "schemas": "Skeemid",
+  "deepScan": {
+    "autoTitle": "Käib ka automaatselt igal ööl – vaata seadeid.",
+    "lastRun": "Süvaskannimine: {{time}}",
+    "failed": "ebaõnnestus",
+    "openFindings_one": "{{count}} avatud leid",
+    "openFindings_other": "{{count}} avatud leidu",
+    "neverRun": "Süvaskannimine: pole veel tehtud",
+    "unknown": "Süvaskannimine: —",
+    "runTitle": "Käivitab kohe kõigi tabelite nõustaja kontrollid kogu andmebaasis ja salvestab tulemused – sama, mis käib igal ööl (vaata seadeid).",
+    "running": "Käib…",
+    "run": "Käivita süvaskannimine"
+  },
+  "loadingTables": "Tabelite laadimine…",
+  "noTables": "Kasutaja tabeleid ei leitud.",
+  "allSchemasHidden": "Kõik skeemid on peidetud – mõne kuvamiseks kasuta ülal nuppu „Skeemid“.",
+  "schemaOps": {
+    "analyze": {
+      "label": "Analüüsi kõik",
+      "confirmTitle": "Analüüsida kõik tabelid skeemis {{schema}}?",
+      "confirm_one": "Käivitab {{count}} tabelil järjest käsu ANALYZE, et ridade arv ja planeerija statistika oleksid värsked. ANALYZE loeb igast tabelist valimi; lugemine ja kirjutamine jätkuvad selle ajal.",
+      "confirm_other": "Käivitab {{count}} tabelil järjest käsu ANALYZE, et ridade arv ja planeerija statistika oleksid värsked. ANALYZE loeb igast tabelist valimi; lugemine ja kirjutamine jätkuvad selle ajal.",
+      "progress": "Analüüsin {{done}}/{{total}}…",
+      "done_one": "Skeemis {{schema}} analüüsiti {{count}} tabelist {{completed}}.",
+      "done_other": "Skeemis {{schema}} analüüsiti {{count}} tabelist {{completed}}.",
+      "skipped_one": "{{count}} tabel jäi vahele: DbButleri rollil pole õigust seda analüüsida (vaja on tabeli omandiõigust või PostgreSQL 17+ puhul rolli pg_maintain).",
+      "skipped_other": "{{count}} tabelit jäi vahele: DbButleri rollil pole õigust neid analüüsida (vaja on tabeli omandiõigust või PostgreSQL 17+ puhul rolli pg_maintain)."
+    },
+    "vacuum": {
+      "label": "Vacuumi kõik",
+      "confirmTitle": "Vacuumida kõik tabelid skeemis {{schema}}?",
+      "confirm_one": "Käivitab {{count}} tabelil järjest käsu VACUUM (ANALYZE): surnud ridade ruum saab uuesti kasutatavaks ja statistika värskendatakse. Lugemine ja kirjutamine jätkuvad, kuid VACUUM loeb läbi iga tabeli ja kirjutab muudatused, nii et koormatud serveris vali vaiksem hetk. See ei ole VACUUM FULL – midagi ei lukustata ja failid ei vähene.",
+      "confirm_other": "Käivitab {{count}} tabelil järjest käsu VACUUM (ANALYZE): surnud ridade ruum saab uuesti kasutatavaks ja statistika värskendatakse. Lugemine ja kirjutamine jätkuvad, kuid VACUUM loeb läbi iga tabeli ja kirjutab muudatused, nii et koormatud serveris vali vaiksem hetk. See ei ole VACUUM FULL – midagi ei lukustata ja failid ei vähene.",
+      "progress": "Vacuumin {{done}}/{{total}}…",
+      "done_one": "Skeemis {{schema}} vacuumiti {{count}} tabelist {{completed}}.",
+      "done_other": "Skeemis {{schema}} vacuumiti {{count}} tabelist {{completed}}.",
+      "skipped_one": "{{count}} tabel jäi vahele: DbButleri rollil pole õigust seda vacuumida (vaja on tabeli omandiõigust või PostgreSQL 17+ puhul rolli pg_maintain).",
+      "skipped_other": "{{count}} tabelit jäi vahele: DbButleri rollil pole õigust neid vacuumida (vaja on tabeli omandiõigust või PostgreSQL 17+ puhul rolli pg_maintain)."
+    },
+    "failed_one": "{{count}} tabel ebaõnnestus: {{list}}.",
+    "failed_other": "{{count}} tabelit ebaõnnestus: {{list}}.",
+    "stoppedEarly": "Peatus enne lõppu: {{error}}"
+  },
+  "row": {
+    "showSuggestions": "Näita selle tabeli soovitusi",
+    "asOf": "mõõdetud {{time}}",
+    "pending": "ootel",
+    "loadingDetails": "Tabeli {{name}} andmete laadimine…",
+    "deadTuplesUnchanged": "Surnud ridade arv ei muutunud ({{dead}}) – VACUUM lõppes vigadeta, kuid miski võib ridade vabastamist takistada: otsi ekraanilt „Tegevused“ kaua kestvat või jõude tehingus seanssi või vaata „Nõustaja“ → „Replikatsiooni nõustaja“, kas seal on mitteaktiivne replikatsioonipesa.",
+    "deadTuplesChanged": "Surnud read: {{before}} → {{after}}.",
+    "statsRefreshed": "Selle tabeli päringuplaneerija statistika on värskendatud.",
+    "analyze": {
+      "title": "Värskenda selle tabeli päringuplaneerija statistikat. Kiire ja olulist lukku ei võta – võid seda alati käivitada, nt pärast suurt andmelaadimist.",
+      "confirmTitle": "Analüüsida tabel {{name}}?",
+      "confirmMessage": "Värskendab selle tabeli päringuplaneerija statistikat. Kiire ja olulist lukku ei võta – võid seda alati käivitada.",
+      "label": "Analüüsi",
+      "busy": "Analüüsin…",
+      "succeeded": "Analüüs õnnestus.",
+      "failed": "Analüüs ebaõnnestus: {{error}}"
+    },
+    "vacuum": {
+      "title": "Vabasta surnud ridade ruum ja värskenda statistikat (VACUUM ANALYZE). Töötab tavapäraste lugemiste ja kirjutamiste kõrval, kuid koormab ketast – ära käivita seda korraga paljudel suurtel tabelitel.",
+      "confirmTitle": "Vacuumida (koos analüüsiga) tabel {{name}}?",
+      "confirmMessage": "Käivitab käsu VACUUM ANALYZE: vabastab surnud ridade ruumi ja värskendab statistikat. Töötab tavapäraste lugemiste ja kirjutamiste kõrval, kuid koormab ketast – ära käivita seda korraga paljudel suurtel tabelitel.",
+      "label": "Vacuumi",
+      "busy": "Vacuumin…",
+      "succeeded": "Vacuum õnnestus.",
+      "failed": "Vacuum ebaõnnestus: {{error}}"
+    },
+    "resetStats": {
+      "title": "Nulli selle tabeli kumulatiivsed loendurid (surnud/elusate ridade arv, indeksiskannimiste arv). Kasulik kohe pärast käsitsi tehtud vacuumit, et näha puhast lähtetaset. Andmeid ei muudeta.",
+      "confirmTitle": "Lähtestada tabeli {{name}} statistika?",
+      "confirmMessage": "Nullib selle tabeli kumulatiivsed loendurid (surnud/elusate ridade arv, indeksiskannimiste arv). Andmeid ei muudeta.",
+      "label": "Lähtesta statistika",
+      "busy": "Lähtestan…",
+      "succeeded": "Statistika lähtestamine õnnestus.",
+      "failed": "Statistika lähtestamine ebaõnnestus: {{error}}"
+    }
+  },
+  "detail": {
+    "groups": {
+      "vacuumAnalyze": "Vacuum ja analüüs",
+      "storageToast": "Salvestus ja TOAST",
+      "statistics": "Statistika",
+      "autovacuumUpdates": "Autovacuum ja uuendused",
+      "other": "Muu"
+    },
+    "columnHeaders": {
+      "column": {
+        "label": "Veerg",
+        "hint": "Veeru nimi."
+      },
+      "type": {
+        "label": "Tüüp",
+        "hint": "PostgreSQL-i andmetüüp."
+      },
+      "avgWidth": {
+        "label": "Keskm. laius",
+        "hint": "Selle veeru väärtuste keskmine suurus kettal baitides. Näitab „—“, kuni tabelit on vähemalt korra analüüsitud."
+      },
+      "nullPct": {
+        "label": "Null %",
+        "hint": "Selle tabeli ridade osakaal, kus see veerg on NULL."
+      },
+      "distinct": {
+        "label": "Erinevaid",
+        "hint": "Erinevate väärtuste hinnanguline arv (pg_stats.n_distinct). Mittenegatiivne arv on absoluutne arv; negatiivne arv on osa kõigist ridadest (nt -0.5 tähendab, et umbes pooled read on erinevad)."
+      },
+      "statsTarget": {
+        "label": "Statistika siht",
+        "hint": "Mitu rida PostgreSQL võtab valimisse, et koostada selle veeru planeerija statistika. „vaikimisi“ tähendab, et kasutusel on serveri üldine default_statistics_target (100, kui seda pole muudetud), mitte veerupõhine seade."
+      },
+      "indexed": {
+        "label": "Indekseeritud",
+        "hint": "Kas see veerg kuulub mõnda indeksisse (üksi või koos teiste veergudega)."
+      },
+      "storage": {
+        "label": "Salvestus",
+        "hint": "Kuidas selle veeru suuri väärtusi salvestatakse: plain (alati reas, ei lähe kunagi TOAST-i), extended/main (võib liikuda reast välja TOAST-i, pakituna), external (liigub reast välja pakkimata)."
+      }
+    },
+    "storage": {
+      "title": "Salvestus",
+      "heap": "Heap",
+      "heapHint": "Selle tabeli enda andmelehed – kõik peale TOAST-i ja indeksite.",
+      "toast": "TOAST",
+      "toastHint": "Suured text/bytea/jsonb väärtused, mis on põhitabelist eraldi ja pakituna salvestatud.",
+      "indexes": "Indeksid",
+      "indexesHint": "Kõigi selle tabeli indeksite kogusuurus. Tuletatud (kokku miinus heap miinus TOAST), mitte eraldi mõõdetud.",
+      "total": "Kokku",
+      "totalHint": "Kõik selle tabeli andmed kokku – heap + TOAST + indeksid."
+    },
+    "autovacuum": {
+      "title": "Autovacuum ja uuendused",
+      "autovacuum": "Autovacuum",
+      "enabled": "Sees",
+      "disabled": "Väljas",
+      "autovacuumHint": "Kas autovacuum sellel tabelil üldse käib – peaaegu alati peaks see olema sees.",
+      "vacuumScaleFactor": "Vacuumi skaalategur",
+      "serverDefault": "serveri vaikeväärtus",
+      "vacuumScaleFactorHint": "Tabeli ridade osa, mis peab olema surnud, enne kui autovacuum käivitub. Kui tabelil on oma seade, asendab see siin näidatud serveri vaikeväärtuse.",
+      "analyzeScaleFactor": "Analüüsi skaalategur",
+      "analyzeScaleFactorHint": "Tabeli ridade osa, mis peab muutuma, enne kui autovacuum tabeli uuesti analüüsib (värskendab planeerija statistikat).",
+      "fillfactor": "Fillfactor",
+      "fillfactorHint": "Mitu protsenti igast lehest PostgreSQL täidab, enne kui uue lehe alustab – ülejäänu jääb HOT-uuenduste varuks.",
+      "hotRatio": "HOT-uuenduste osakaal",
+      "hotRatioHint": "Uuenduste osakaal, mis ei puudutanud ühtegi indeksit (Heap-Only Tuple). Madal väärtus tähendab, et enamik uuendusi maksab indeksite hoolduse täishinda.",
+      "vacuumStatus": "Vacuumi olek",
+      "running": "Käib ({{details}})",
+      "notRunning": "Ei käi",
+      "vacuumStatusHint": "Kas sellel tabelil käib praegu VACUUM (käsitsi või autovacuum), vaate pg_stat_progress_vacuum põhjal. Näitab ainult hetkeseisu, mitte ajalugu."
+    },
+    "columnsTitle": "Veerud",
+    "default": "vaikimisi",
+    "yes": "Jah",
+    "suggestionsTitle": "Soovitused",
+    "noSuggestions": "Selle tabeli kohta soovitusi pole."
+  }
+}

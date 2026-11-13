@@ -1,0 +1,123 @@
+{
+  "actions": {
+    "save": "Salvesta",
+    "saving": "Salvestamine…",
+    "saved": "Salvestatud.",
+    "cancel": "Tühista",
+    "close": "Sulge",
+    "closeDialog": "Sulge aken",
+    "dismiss": "Peida",
+    "confirm": "Kinnita",
+    "areYouSure": "Oled kindel?",
+    "apply": "Rakenda",
+    "copy": "Kopeeri",
+    "copied": "Kopeeritud",
+    "copyFailed": "Kopeerimine ebaõnnestus",
+    "copiedAnnouncement": "Kopeeritud lõikelauale",
+    "copyFailedAnnouncement": "Kopeerimine ebaõnnestus, vali tekst ja kopeeri see käsitsi",
+    "copyBlocked": "Brauser keelas lõikelaua kasutamise – vali tekst ja kopeeri see käsitsi.",
+    "retry": "Proovi uuesti",
+    "refresh": "Värskenda",
+    "archive": "Arhiveeri",
+    "restore": "Taasta",
+    "delete": "Kustuta",
+    "remove": "Eemalda",
+    "find": "Otsi",
+    "loading": "Laadimine…",
+    "showMore": "Näita rohkem",
+    "showLess": "Näita vähem",
+    "selectAll": "Vali kõik",
+    "selectNone": "Tühista valik"
+  },
+  "severity": {
+    "critical": "Kriitiline",
+    "attention": "Tähelepanu",
+    "healthy": "Korras",
+    "info": "Info",
+    "unknown": "Teadmata"
+  },
+  "time": {
+    "never": "mitte kunagi",
+    "durationSeconds": "{{s}} s",
+    "durationMinutes": "{{m}} min {{s}} s",
+    "secondsAgo_one": "{{count}} s tagasi",
+    "secondsAgo_other": "{{count}} s tagasi",
+    "minutesAgo_one": "{{count}} min tagasi",
+    "minutesAgo_other": "{{count}} min tagasi",
+    "hoursAgo_one": "{{count}} t tagasi",
+    "hoursAgo_other": "{{count}} t tagasi",
+    "daysAgo_one": "{{count}} päev tagasi",
+    "daysAgo_other": "{{count}} päeva tagasi"
+  },
+  "screens": {
+    "dashboard": "Töölaud",
+    "activity": "Tegevused",
+    "trends": "Trendid",
+    "time-machine": "Ajamasin",
+    "reports": "Nädalaaruanded",
+    "workload-map": "Koormuskaart",
+    "table-health": "Tabelite tervis",
+    "query-intelligence": "Päringuanalüüs",
+    "query-history": "Päringuajalugu",
+    "plan-regressions": "Plaanide taandareng",
+    "ai-analysis": "Tehisaru analüüs",
+    "advisor": "Nõustaja",
+    "what-if": "What-if indeksid",
+    "migration-lint": "Migratsioonide linter",
+    "config-tuning": "Seadistuse häälestus",
+    "index-testing": "Indeksite testimine",
+    "archive": "Arhiiv",
+    "connections": "Ühendused",
+    "settings": "Seaded"
+  },
+  "navGroups": {
+    "monitor": "Jälgi",
+    "analyze": "Analüüsi",
+    "advise": "Soovita",
+    "configure": "Seadista"
+  },
+  "nav": {
+    "main": "Peamenüü",
+    "new": "uut",
+    "connectFirst": "Ühenda kõigepealt andmebaas",
+    "connected": "Ühendatud",
+    "notConnected": "Ühendamata",
+    "noDatabase": "Andmebaas puudub",
+    "skipToContent": "Mine sisu juurde"
+  },
+  "header": {
+    "detailLevel": "Detailsus",
+    "simple": "Lihtne",
+    "advanced": "Täpsem",
+    "theme": "Teema",
+    "themeSystem": "Süsteemi teema järgi",
+    "themeLight": "Hele teema",
+    "themeDark": "Tume teema",
+    "language": "Keel"
+  },
+  "shell": {
+    "loadingConnections": "Ühenduste laadimine…",
+    "loadingWorkloadMap": "Koormuskaardi laadimine…",
+    "aiReady_one": "Tehisaru päringuanalüüs on valmis – vaata ekraani „Tehisaru analüüs“.",
+    "aiReady_other": "{{count}} tehisaru päringuanalüüsi on valmis – vaata ekraani „Tehisaru analüüs“."
+  },
+  "auth": {
+    "checkingAccess": "Ligipääsu kontrollimine…",
+    "intro": "Sisesta selle paigalduse ligipääsuvõti – väärtus <code>APP_AUTH_TOKEN</code> tema failis <code>.env</code>.",
+    "token": "Ligipääsuvõti",
+    "checking": "Kontrollimine…",
+    "continue": "Jätka"
+  },
+  "switcher": {
+    "ariaLabel": "Andmebaas: {{name}}. Vaheta andmebaasi",
+    "noneSelected": "valimata",
+    "databases": "Andmebaasid",
+    "select": "Vali andmebaas",
+    "paused": "peatatud",
+    "manage": "Lisa / halda ühendusi"
+  },
+  "planViewer": {
+    "title": "Päringuplaan"
+  },
+  "loadingScreen": "Laadin: {{screen}}…"
+}

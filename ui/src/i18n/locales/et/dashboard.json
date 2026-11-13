@@ -1,0 +1,47 @@
+{
+  "overall": {
+    "healthy": "Kõik korras",
+    "attention": "Vajab tähelepanu",
+    "critical": "Vajab kohe tähelepanu",
+    "unknown": "Andmete kogumine…",
+    "statusUnknown": "Olek teadmata"
+  },
+  "health": {
+    "loading": "Tervise ülevaate laadimine…",
+    "loadError": "Tervise ülevaadet ei õnnestunud laadida.",
+    "findings": "Leiud",
+    "view": "Vaata",
+    "open": "Ava {{screen}}"
+  },
+  "diagnose": {
+    "title": "Miks mu andmebaas aeglane on?",
+    "description": "Teeb läbi sama kontrollnimekirja nagu DBA, samas järjekorras – lukud, vahemälu, paisumine ja siis raskeimad päringud.",
+    "button": "Diagnoosi kohe",
+    "running": "Diagnoosimine…",
+    "loading": "Diagnoos käib…",
+    "nothingStandsOut": "Praegu ei paista midagi silma.",
+    "steps": "Diagnoosi sammud",
+    "slowestQueries": "Praegu kõige aeglasemad päringud"
+  },
+  "cacheChart": {
+    "label": "Vahemälu tabamus",
+    "loading": "Vahemälu tabamuse laadimine…",
+    "samples_one": "{{count}} mõõtmine kogutud",
+    "samples_other": "{{count}} mõõtmist kogutud",
+    "refreshesEvery": "värskeneb iga {{seconds}} s järel"
+  },
+  "waitStates": {
+    "title": "Aktiivsed seansid ooteseisundi järgi",
+    "description": "Mida praegu töötavad seansid ootavad – kiireks ülevaateks.",
+    "activeSessions_one": "aktiivne seanss",
+    "activeSessions_other": "aktiivset seanssi",
+    "loading": "Ooteseisundite laadimine…",
+    "empty": "Aktiivseid seansse praegu pole – kõik on jõude."
+  },
+  "settings": {
+    "panelLabel": "Töölaua paanid ja vidinad",
+    "customize": "Kohanda",
+    "hiddenCount": "({{n}} peidetud)",
+    "sectionLabel": "Töölaua paanid ja vidinad"
+  }
+}

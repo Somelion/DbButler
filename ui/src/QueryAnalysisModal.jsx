@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import QueryParamsForm from "./QueryParamsForm";
@@ -12,6 +13,7 @@ import styles from "./QueryAnalysisModal.module.css";
 // always open; closing goes through onClose (Esc, backdrop, the close
 // button, Cancel). Dialog returns focus to the row's button afterwards.
 export default function QueryAnalysisModal({ targetId, query, onClose, onCreated }) {
+  const { t } = useTranslation("aiAnalysis");
   const queryClient = useQueryClient();
   const formId = useId();
   const [anonymize, setAnonymize] = useState(true);
@@ -58,29 +60,29 @@ export default function QueryAnalysisModal({ targetId, query, onClose, onCreated
 
   const footer = submitted ? (
     <button type="button" className="button-primary" onClick={onClose}>
-      Close
+      {t("common:actions.close")}
     </button>
   ) : (
     <>
       <button type="button" className="button-secondary" onClick={onClose}>
-        Cancel
+        {t("common:actions.cancel")}
       </button>
       <button type="submit" form={formId} className="button-primary" disabled={!canRun}>
-        {createAnalysis.isPending ? "Starting…" : "Run Analysis"}
+        {createAnalysis.isPending ? t("modal.starting") : t("modal.run")}
       </button>
     </>
   );
 
   return (
-    <Dialog open onClose={onClose} title="Analyze with AI" size="lg" footer={footer}>
+    <Dialog open onClose={onClose} title={t("modal.title")} size="lg" footer={footer}>
       {!submitted && (
         <form id={formId} className={styles.form} onSubmit={handleSubmit}>
           <p className={styles.lead}>
             {placeholders.length > 0 && !allParamsFilled
-              ? "Query template — fill in a value for each $N placeholder below to see the query that will actually run."
+              ? t("modal.leadTemplate")
               : anonymize
-                ? "Table and column names below are anonymized before anything is sent to the AI provider."
-                : "This is the exact query text that will be sent to the AI provider, unmodified."}
+                ? t("modal.leadAnonymized")
+                : t("modal.leadExact")}
           </p>
 
           <pre className={styles.preview}>
@@ -95,7 +97,7 @@ export default function QueryAnalysisModal({ targetId, query, onClose, onCreated
                   )
                 )
               : previewing
-                ? "Anonymizing…"
+                ? t("modal.anonymizing")
                 : displayedQuery}
           </pre>
 
@@ -106,26 +108,16 @@ export default function QueryAnalysisModal({ targetId, query, onClose, onCreated
           />
 
           <Checkbox checked={anonymize} onChange={(e) => setAnonymize(e.target.checked)}>
-            Anonymize table/column names
+            {t("modal.anonymize")}
           </Checkbox>
 
           {error && <Alert tone="critical">{error.message}</Alert>}
 
-          <p className={styles.footnote}>
-            Runs EXPLAIN (ANALYZE, BUFFERS) against your database, then sends the query and plan to the AI
-            provider configured in Settings. Only literal values are already redacted (pg_stat_statements
-            normalizes those to $1/$2/... before this app ever sees the query) — anonymizing here additionally
-            hides real table/column names.
-          </p>
+          <p className={styles.footnote}>{t("modal.footnote")}</p>
         </form>
       )}
 
-      {submitted && (
-        <Alert tone="healthy">
-          Analysis started. It's running in the background — you'll see a notification on the AI Analysis tab
-          when it's ready, or check there any time.
-        </Alert>
-      )}
+      {submitted && <Alert tone="healthy">{t("modal.started")}</Alert>}
     </Dialog>
   );
 }

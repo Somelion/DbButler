@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import ForceGraph3D from "react-force-graph-3d";
 import { Maximize } from "lucide-react";
 import styles from "./WorkloadGraph.module.css";
@@ -6,6 +7,7 @@ import { readColorTokens, useThemeSnapshot } from "./cssColors";
 import { Alert } from "./components";
 import { COLOR_TOKENS, edgeColor, nodeColors } from "./workloadColors";
 import { EDGE_KINDS } from "./workloadKinds";
+import i18n from "./i18n";
 
 // Height (y) a node floats to: the busiest table at the top.
 const MAX_HEIGHT = 220;
@@ -26,7 +28,8 @@ const escapeHtml = (text) =>
   String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 // Data-independent accessors live at module level: stable identities.
-const nodeLabel = (n) => `${escapeHtml(n.id)} — ${n.share}% of DB time`;
+// Their text is translated when the library calls them (on hover).
+const nodeLabel = (n) => i18n.t("workloadMap:graph.nodeLabel", { name: escapeHtml(n.id), share: n.share });
 const linkWidth = (l) => (l.kind === "fk_unused" ? 0.4 : 0.6 + 3 * Math.sqrt(l.share / 100));
 const linkLabel = (l) =>
   `${escapeHtml(l.source.id ?? l.source)} ⇄ ${escapeHtml(l.target.id ?? l.target)} — ${EDGE_KINDS[l.kind].label}`;
@@ -54,6 +57,7 @@ function schemaClusterForce(centres) {
 // and schemas form separate clusters. An exploration view: the 2D map and
 // the Relationships table remain the precise, accessible ones.
 export default function WorkloadGraph3D({ nodes, edges, colorBy, visibleKinds, selection, onSelect, label }) {
+  const { t } = useTranslation("workloadMap");
   const wrapRef = useRef(null);
   const graphRef = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -168,9 +172,7 @@ export default function WorkloadGraph3D({ nodes, edges, colorBy, visibleKinds, s
 
   if (!supported) {
     return (
-      <Alert tone="info">
-        This browser has no WebGL, which the 3D view needs. The 2D map and the Relationships table show the same data.
-      </Alert>
+      <Alert tone="info">{t("graph.noWebgl")}</Alert>
     );
   }
 
@@ -208,7 +210,7 @@ export default function WorkloadGraph3D({ nodes, edges, colorBy, visibleKinds, s
           type="button"
           className="button-icon"
           onClick={() => graphRef.current?.zoomToFit(400, 40)}
-          aria-label="Fit the whole map"
+          aria-label={t("graph.fit")}
         >
           <Maximize size={16} aria-hidden="true" />
         </button>

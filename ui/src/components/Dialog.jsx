@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 import styles from "./Dialog.module.css";
@@ -97,7 +98,7 @@ export default function Dialog({
                 )}
               </div>
               {onClose && (
-                <button type="button" className="button-icon" onClick={onClose} aria-label="Close dialog">
+                <button type="button" className="button-icon" onClick={onClose} aria-label={i18n.t("common:actions.closeDialog")}>
                   <X size={16} aria-hidden="true" />
                 </button>
               )}

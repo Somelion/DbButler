@@ -1,0 +1,24 @@
+{
+  "title": "Weekly reports",
+  "description": "A week of this database on one page. Generated every Monday at 07:00 (change it under Settings → Scheduler); the summary can also go to your alert webhook (Settings → Alerts).",
+  "generating": "Generating…",
+  "generate": "Generate for the last 7 days",
+  "loadingList": "Loading reports…",
+  "emptyTitle": "No reports yet",
+  "emptyHint": "The first one is generated next Monday — or generate one now.",
+  "caption": "Generated reports, newest first",
+  "columns": {
+    "week": "Week",
+    "status": "Status",
+    "openCriticalAttention": "Open critical / attention",
+    "newResolved": "New / resolved",
+    "lockIncidents": "Lock incidents",
+    "generated": "Generated"
+  },
+  "onDemand": "on demand",
+  "reportTitle": "Report: {{period}}",
+  "print": "Print / save as PDF",
+  "download": "Download HTML",
+  "loadingReport": "Loading the report…",
+  "frameTitle": "Weekly report, {{period}}"
+}

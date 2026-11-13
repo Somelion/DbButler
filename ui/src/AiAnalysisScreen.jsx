@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { formatRelativeTime } from "./format";
@@ -9,13 +10,15 @@ import styles from "./AiAnalysisScreen.module.css";
 
 const POLL_INTERVAL_MS = 5000;
 
+// labelKey: translation key in the aiAnalysis namespace, resolved at render.
 const STATUS_META = {
-  pending: { label: "Running…", tone: "attention" },
-  done: { label: "Done", tone: "healthy" },
-  error: { label: "Error", tone: "critical" },
+  pending: { labelKey: "status.pending", tone: "attention" },
+  done: { labelKey: "status.done", tone: "healthy" },
+  error: { labelKey: "status.error", tone: "critical" },
 };
 
 export default function AiAnalysisScreen({ targetId }) {
+  const { t } = useTranslation("aiAnalysis");
   // Same cache entry the app-wide "analysis ready" watcher (App.jsx) polls;
   // this screen just polls it faster while it's open.
   const { data, error, isPending } = useQuery({
@@ -25,17 +28,14 @@ export default function AiAnalysisScreen({ targetId }) {
   const analyses = data?.analyses;
 
   return (
-    <Card
-      title="Analysis history"
-      description="Every query you've sent for AI analysis from Query Intelligence, newest first. Open a row for the full EXPLAIN plan and the AI's response."
-    >
+    <Card title={t("history.title")} description={t("history.description")}>
       {error && <Alert tone="critical">{error.message}</Alert>}
 
-      {isPending && <Skeleton lines={4} label="Loading analyses…" />}
+      {isPending && <Skeleton lines={4} label={t("history.loading")} />}
 
       {analyses && analyses.length === 0 && (
-        <EmptyState icon={Sparkles} title="Nothing here yet">
-          Use "Analyze with AI" on a query in Query Intelligence to start one.
+        <EmptyState icon={Sparkles} title={t("history.emptyTitle")}>
+          {t("history.emptyText")}
         </EmptyState>
       )}
 
@@ -51,6 +51,7 @@ export default function AiAnalysisScreen({ targetId }) {
 }
 
 function AnalysisRow({ analysis }) {
+  const { t } = useTranslation("aiAnalysis");
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
   const status = STATUS_META[analysis.status] ?? STATUS_META.pending;
@@ -71,14 +72,14 @@ function AnalysisRow({ analysis }) {
           </span>
           <span className={styles.rowTime}>{formatRelativeTime(analysis.created_at)}</span>
           <Badge tone={status.tone} className={styles.status}>
-            {status.label}
+            {t(status.labelKey)}
           </Badge>
         </button>
       </h3>
 
       {expanded && (
         <div id={detailsId} className={styles.details}>
-          <Detail label={analysis.anonymize ? "Query sent (anonymized)" : "Query sent"}>
+          <Detail label={analysis.anonymize ? t("history.querySentAnonymized") : t("history.querySent")}>
             {analysis.anonymized_query ?? analysis.original_query}
           </Detail>
 
@@ -87,7 +88,8 @@ function AnalysisRow({ analysis }) {
           {analysis.status === "done" && analysis.ai_response && (
             <div className={styles.detail}>
               <h4 className={styles.detailLabel}>
-                AI recommendation{analysis.model_name ? ` — ${analysis.model_name}` : ""}
+                {t("history.aiRecommendation")}
+                {analysis.model_name ? ` — ${analysis.model_name}` : ""}
               </h4>
               <div className={styles.responseBox}>
                 <AiResponseView text={analysis.ai_response} />
@@ -102,7 +104,7 @@ function AnalysisRow({ analysis }) {
           )}
 
           {analysis.status === "pending" && (
-            <p className={styles.note}>Still running — this row updates automatically once the AI responds.</p>
+            <p className={styles.note}>{t("history.stillRunning")}</p>
           )}
         </div>
       )}

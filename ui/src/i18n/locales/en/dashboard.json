@@ -1,0 +1,47 @@
+{
+  "overall": {
+    "healthy": "All good",
+    "attention": "Needs attention",
+    "critical": "Needs attention now",
+    "unknown": "Collecting data…",
+    "statusUnknown": "Status unknown"
+  },
+  "health": {
+    "loading": "Loading health overview…",
+    "loadError": "Couldn't load the health overview.",
+    "findings": "Findings",
+    "view": "View",
+    "open": "Open {{screen}}"
+  },
+  "diagnose": {
+    "title": "Why is my database slow?",
+    "description": "Runs the same checklist a DBA would, in order — locks, cache, bloat, then top queries.",
+    "button": "Diagnose Now",
+    "running": "Diagnosing…",
+    "loading": "Running diagnosis…",
+    "nothingStandsOut": "Nothing stands out right now.",
+    "steps": "Diagnosis steps",
+    "slowestQueries": "Slowest queries right now"
+  },
+  "cacheChart": {
+    "label": "Cache Hit Rate",
+    "loading": "Loading cache hit rate…",
+    "samples_one": "{{count}} sample collected",
+    "samples_other": "{{count}} samples collected",
+    "refreshesEvery": "refreshes every {{seconds}}s"
+  },
+  "waitStates": {
+    "title": "Active Sessions by Wait State",
+    "description": "What's actually running right now is waiting on, for fast triage.",
+    "activeSessions_one": "active session",
+    "activeSessions_other": "active sessions",
+    "loading": "Loading wait states…",
+    "empty": "No active sessions right now — everything's idle."
+  },
+  "settings": {
+    "panelLabel": "Dashboard tiles and widgets",
+    "customize": "Customize",
+    "hiddenCount": "({{n}} hidden)",
+    "sectionLabel": "Dashboard tiles & widgets"
+  }
+}

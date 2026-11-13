@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import { Maximize, ZoomIn, ZoomOut } from "lucide-react";
@@ -6,6 +7,7 @@ import styles from "./WorkloadGraph.module.css";
 import { readColorTokens, readToken, useThemeSnapshot } from "./cssColors";
 import { COLOR_TOKENS, nodeColors } from "./workloadColors";
 import { EDGE_KINDS, isUnindexedFkEdge } from "./workloadKinds";
+import i18n from "./i18n";
 
 cytoscape.use(fcose);
 
@@ -72,7 +74,7 @@ function buildElements(nodes, edges) {
   return elements;
 }
 
-function buildStylesheet(palette, fontFamily) {
+function buildStylesheet(palette, fontFamily, unindexedLabel) {
   return [
     {
       selector: "node[kind = 'table']",
@@ -133,7 +135,7 @@ function buildStylesheet(palette, fontFamily) {
     {
       selector: "edge[?unindexed]",
       style: {
-        label: "unindexed FK",
+        label: unindexedLabel,
         "font-family": fontFamily,
         "font-size": 9,
         color: palette["attention-text"],
@@ -168,6 +170,9 @@ const LAYOUT = {
 // table, which hold the same information. `selection` is
 // { type: "table" | "edge", id } or null.
 export default function WorkloadGraph({ nodes, edges, colorBy, visibleKinds, selection, onSelect, label }) {
+  const { t } = useTranslation("workloadMap");
+  // Drawn on the canvas by the stylesheet, so a language switch restyles it.
+  const unindexedLabel = t("graph.unindexedFk");
   const containerRef = useRef(null);
   const cyRef = useRef(null);
   const onSelectRef = useRef(onSelect);
@@ -193,7 +198,11 @@ export default function WorkloadGraph({ nodes, edges, colorBy, visibleKinds, sel
       maxZoom: 3,
       // The real sizes and labels must be in place before the first layout,
       // or fcose lays out default 30px unlabelled dots.
-      style: buildStylesheet(readColorTokens(COLOR_TOKENS), readToken("font-sans")),
+      style: buildStylesheet(
+        readColorTokens(COLOR_TOKENS),
+        readToken("font-sans"),
+        i18n.t("workloadMap:graph.unindexedFk")
+      ),
     });
     cy.on("tap", "node[kind = 'table']", (event) => onSelectRef.current({ type: "table", id: event.target.id() }));
     cy.on("tap", "edge", (event) => onSelectRef.current({ type: "edge", id: event.target.id() }));
@@ -238,16 +247,17 @@ export default function WorkloadGraph({ nodes, edges, colorBy, visibleKinds, sel
   }, [elements]);
 
   // Colours: on theme or colouring-mode change (and after new data, which is
-  // harmless — the same colours again).
+  // harmless — the same colours again). Also on a language switch, for the
+  // edge label.
   useEffect(() => {
     const cy = cyRef.current;
     const palette = readColorTokens(COLOR_TOKENS);
     const colors = nodeColors(nodes, colorBy, palette);
-    cy.style(buildStylesheet(palette, readToken("font-sans")));
+    cy.style(buildStylesheet(palette, readToken("font-sans"), unindexedLabel));
     cy.batch(() => {
       for (const [id, color] of colors) cy.getElementById(id).data("color", color);
     });
-  }, [nodes, colorBy, themeSnapshot, elements]);
+  }, [nodes, colorBy, themeSnapshot, elements, unindexedLabel]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -292,17 +302,17 @@ export default function WorkloadGraph({ nodes, edges, colorBy, visibleKinds, sel
     <div className={styles.wrap}>
       <div ref={containerRef} className={styles.canvas} role="img" aria-label={label} />
       <div className={styles.controls}>
-        <button type="button" className="button-icon" onClick={() => zoomBy(1.25)} aria-label="Zoom in">
+        <button type="button" className="button-icon" onClick={() => zoomBy(1.25)} aria-label={t("graph.zoomIn")}>
           <ZoomIn size={16} aria-hidden="true" />
         </button>
-        <button type="button" className="button-icon" onClick={() => zoomBy(0.8)} aria-label="Zoom out">
+        <button type="button" className="button-icon" onClick={() => zoomBy(0.8)} aria-label={t("graph.zoomOut")}>
           <ZoomOut size={16} aria-hidden="true" />
         </button>
         <button
           type="button"
           className="button-icon"
           onClick={() => cyRef.current.fit(undefined, 30)}
-          aria-label="Fit the whole map"
+          aria-label={t("graph.fit")}
         >
           <Maximize size={16} aria-hidden="true" />
         </button>
@@ -324,8 +334,8 @@ export default function WorkloadGraph({ nodes, edges, colorBy, visibleKinds, sel
           )}
           {hover.edge.kind !== "fk_unused" && (
             <span>
-              {hover.edge.share_pct}% of DB time · {hover.edge.query_count} quer
-              {hover.edge.query_count === 1 ? "y" : "ies"}
+              {t("graph.dbShare", { share: hover.edge.share_pct })} ·{" "}
+              {t("graph.queries", { count: hover.edge.query_count })}
               {hover.edge.join_strategies.length > 0 && ` · ${hover.edge.join_strategies.join(", ")}`}
             </span>
           )}

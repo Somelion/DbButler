@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { GitCompare } from "lucide-react";
 import styles from "./PlanRegressions.module.css";
 import { api } from "./api";
@@ -12,6 +13,7 @@ const POLL_INTERVAL_MS = 15000;
 const FINDING_ID_PREFIX = "plan-regression-";
 
 export default function PlanRegressions({ targetId }) {
+  const { t } = useTranslation("planRegressions");
   const queryClient = useQueryClient();
   const [archiveError, setArchiveError] = useState(null);
   // The queryid as the decimal text from the finding's id ("plan-regression-
@@ -41,25 +43,20 @@ export default function PlanRegressions({ targetId }) {
 
   return (
     <Card
-      title="Regressed queries"
-      description="Tracked queries (Query History's top 50) whose EXPLAIN plan shape changed and got meaningfully slower since — not queries that are simply slow, only ones that got structurally worse."
+      title={t("title")}
+      description={t("description")}
       actions={
-        findings && (
-          <span className={styles.count}>
-            {findings.length} finding{findings.length === 1 ? "" : "s"}
-          </span>
-        )
+        findings && <span className={styles.count}>{t("findingCount", { count: findings.length })}</span>
       }
     >
       {error && <Alert tone="critical">{error.message}</Alert>}
       {archiveError && <Alert tone="critical">{archiveError}</Alert>}
 
-      {isPending && <Skeleton lines={4} label="Loading plan regressions…" />}
+      {isPending && <Skeleton lines={4} label={t("loading")} />}
 
       {findings && findings.length === 0 && (
-        <EmptyState icon={GitCompare} title="No plan regressions detected">
-          This needs at least two plan captures and a few latency samples per query, so a freshly connected target
-          may not have enough history yet.
+        <EmptyState icon={GitCompare} title={t("emptyTitle")}>
+          {t("emptyBody")}
         </EmptyState>
       )}
 
@@ -76,7 +73,7 @@ export default function PlanRegressions({ targetId }) {
                   className="button-secondary button-sm"
                   onClick={() => setCompareQueryId(finding.id.replace(FINDING_ID_PREFIX, ""))}
                 >
-                  Compare plans
+                  {t("comparePlans")}
                 </button>
               }
             />

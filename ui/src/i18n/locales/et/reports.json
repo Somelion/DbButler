@@ -1,0 +1,24 @@
+{
+  "title": "Nädalaaruanded",
+  "description": "Selle andmebaasi nädal ühel lehel. Aruanne koostatakse igal esmaspäeval kell 07.00 (muuda seda: Seaded → Ajastaja); kokkuvõtte saab saata ka sinu hoiatuste veebikonksule (Seaded → Tegutsemist nõudvad hoiatused).",
+  "generating": "Koostamine…",
+  "generate": "Koosta viimase 7 päeva kohta",
+  "loadingList": "Aruannete laadimine…",
+  "emptyTitle": "Aruandeid veel pole",
+  "emptyHint": "Esimene valmib järgmisel esmaspäeval – või koosta see kohe.",
+  "caption": "Koostatud aruanded, uuemad eespool",
+  "columns": {
+    "week": "Nädal",
+    "status": "Olek",
+    "openCriticalAttention": "Avatud kriitilised / tähelepanu",
+    "newResolved": "Uued / lahendatud",
+    "lockIncidents": "Lukuintsidendid",
+    "generated": "Koostatud"
+  },
+  "onDemand": "käsitsi",
+  "reportTitle": "Aruanne: {{period}}",
+  "print": "Prindi / salvesta PDF-ina",
+  "download": "Laadi HTML alla",
+  "loadingReport": "Aruande laadimine…",
+  "frameTitle": "Nädalaaruanne, {{period}}"
+}

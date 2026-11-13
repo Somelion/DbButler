@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import styles from "./TablePicker.module.css";
 import { formatMetricValue } from "./format";
@@ -7,11 +8,12 @@ import { formatMetricValue } from "./format";
 // tables also show as removable chips above the search box. Once
 // `maxSelected` is reached, the unchecked rows are disabled.
 export default function TablePicker({ tables, unit, selected, onToggle, onClear, maxSelected }) {
+  const { t } = useTranslation("trends");
   const [search, setSearch] = useState("");
 
   const query = search.trim().toLowerCase();
   const filtered = query
-    ? tables.filter((t) => `${t.schema_name}.${t.table_name}`.toLowerCase().includes(query))
+    ? tables.filter((table) => `${table.schema_name}.${table.table_name}`.toLowerCase().includes(query))
     : tables;
 
   return (
@@ -24,15 +26,15 @@ export default function TablePicker({ tables, unit, selected, onToggle, onClear,
               type="button"
               className={styles.chip}
               onClick={() => onToggle(key)}
-              aria-label={`Remove ${key} from comparison`}
-              title="Remove from comparison"
+              aria-label={t("picker.removeAria", { table: key })}
+              title={t("picker.removeTitle")}
             >
               {key}
               <X size={12} aria-hidden="true" />
             </button>
           ))}
           <button type="button" className={`button-link ${styles.clear}`} onClick={onClear}>
-            Clear
+            {t("picker.clear")}
           </button>
         </div>
       )}
@@ -41,14 +43,14 @@ export default function TablePicker({ tables, unit, selected, onToggle, onClear,
         type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder={`Search ${tables.length} table${tables.length === 1 ? "" : "s"}…`}
-        aria-label="Search tables"
+        placeholder={t("picker.search", { count: tables.length })}
+        aria-label={t("picker.searchAria")}
       />
 
-      <div className={styles.list} role="group" aria-label="Tables to compare">
-        {filtered.length === 0 && <div className={styles.noMatch}>No matching tables.</div>}
-        {filtered.map((t) => {
-          const key = `${t.schema_name}.${t.table_name}`;
+      <div className={styles.list} role="group" aria-label={t("picker.listAria")}>
+        {filtered.length === 0 && <div className={styles.noMatch}>{t("picker.noMatch")}</div>}
+        {filtered.map((table) => {
+          const key = `${table.schema_name}.${table.table_name}`;
           const active = selected.has(key);
           const disabled = !active && selected.size >= maxSelected;
           return (
@@ -64,13 +66,13 @@ export default function TablePicker({ tables, unit, selected, onToggle, onClear,
                 onChange={() => onToggle(key)}
               />
               <span className={styles.tableName}>{key}</span>
-              <span className={styles.value}>{formatMetricValue(t.latest_value, unit)}</span>
+              <span className={styles.value}>{formatMetricValue(table.latest_value, unit)}</span>
             </label>
           );
         })}
       </div>
 
-      <span className={styles.hint}>Compare up to {maxSelected} tables at once.</span>
+      <span className={styles.hint}>{t("picker.compareUpTo", { count: maxSelected })}</span>
     </div>
   );
 }

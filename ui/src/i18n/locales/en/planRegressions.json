@@ -1,0 +1,27 @@
+{
+  "title": "Regressed queries",
+  "description": "Tracked queries (Query History's top 50) whose EXPLAIN plan shape changed and got meaningfully slower since — not queries that are simply slow, only ones that got structurally worse.",
+  "findingCount_one": "{{count}} finding",
+  "findingCount_other": "{{count}} findings",
+  "loading": "Loading plan regressions…",
+  "emptyTitle": "No plan regressions detected",
+  "emptyBody": "This needs at least two plan captures and a few latency samples per query, so a freshly connected target may not have enough history yet.",
+  "comparePlans": "Compare plans",
+  "diff": {
+    "title": "Compare plan shapes",
+    "description": "Structure only — node types, joins, relations and indexes. Captured by the plan regression job, without costs.",
+    "loading": "Loading plan history…",
+    "onlyOne": "Only one plan shape has been captured for this query so far.",
+    "before": "Before",
+    "after": "After",
+    "latest": "latest",
+    "identical": "The two shapes are identical.",
+    "differ_one": "{{count}} node differs.",
+    "differ_other": "{{count}} nodes differ.",
+    "status": {
+      "changed": "changed",
+      "removed": "only before",
+      "added": "only after"
+    }
+  }
+}
