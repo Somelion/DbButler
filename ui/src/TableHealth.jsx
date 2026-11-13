@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronRight, Eraser, RefreshCw } from "lucide-react";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
 import { formatBytes, formatRelativeTime } from "./format";
@@ -411,7 +411,7 @@ export default function TableHealth({ targetId }) {
                   groupId={groupId}
                   onToggle={() => toggleSchema(schemaName, isCollapsed)}
                   action={
-                    <AnalyzeSchemaButton
+                    <SchemaMaintenanceActions
                       targetId={targetId}
                       schemaName={schemaName}
                       tableCount={schemaTables.length}
@@ -483,16 +483,39 @@ function SchemaGroup({ schemaName, tableCount, severity, isCollapsed, groupId, o
   );
 }
 
-const ANALYZE_POLL_MS = 1500;
+const SCHEMA_JOB_POLL_MS = 1500;
 
-// "Analyze all" for one schema: confirms, starts the background job, shows
-// progress while it runs, then reports what happened — including tables
-// ANALYZE skipped because the monitoring role may not analyze them — and
-// refreshes the table list so the new counts appear.
-function AnalyzeSchemaButton({ targetId, schemaName, tableCount, onFinished }) {
+// The two whole-schema operations. `confirm` is the dialog text.
+const SCHEMA_OPERATIONS = {
+  analyze: {
+    label: "Analyze all",
+    running: "Analyzing",
+    past: "Analyzed",
+    verb: "analyze",
+    Icon: RefreshCw,
+    confirm: (n) =>
+      `Runs ANALYZE on ${n} table${n === 1 ? "" : "s"}, one after another, so their row counts and planner statistics are fresh. ANALYZE reads a sample of each table; reads and writes carry on while it runs.`,
+  },
+  vacuum: {
+    label: "Vacuum all",
+    running: "Vacuuming",
+    past: "Vacuumed",
+    verb: "vacuum",
+    Icon: Eraser,
+    confirm: (n) =>
+      `Runs VACUUM (ANALYZE) on ${n} table${n === 1 ? "" : "s"}, one after another: dead rows become reusable space and the statistics are refreshed. Reads and writes carry on, but VACUUM reads every table and writes its changes, so on a busy server prefer a quiet moment. This is not VACUUM FULL — nothing is locked against use, and files don't shrink.`,
+  },
+};
+
+// "Analyze all" / "Vacuum all" for one schema: confirms, starts the
+// background job, shows progress while it runs, then reports what happened
+// — including tables PostgreSQL skipped because the monitoring role may not
+// process them — and refreshes the table list so the new numbers appear.
+// One job per schema at a time: both buttons wait while either runs.
+function SchemaMaintenanceActions({ targetId, schemaName, tableCount, onFinished }) {
   const confirm = useConfirm();
   const toast = useToast();
-  const [jobId, setJobId] = useState(null);
+  const [active, setActive] = useState(null); // { jobId, operation }
   const [startError, setStartError] = useState(null);
   const reportedJobs = useRef(new Set());
 
@@ -500,12 +523,13 @@ function AnalyzeSchemaButton({ targetId, schemaName, tableCount, onFinished }) {
   const report = (job) => {
     if (reportedJobs.current.has(job.job_id)) return;
     reportedJobs.current.add(job.job_id);
-    setJobId(null);
+    setActive(null);
     onFinished();
-    const parts = [`Analyzed ${job.analyzed} of ${job.total} table${job.total === 1 ? "" : "s"} in ${schemaName}.`];
+    const op = SCHEMA_OPERATIONS[job.operation];
+    const parts = [`${op.past} ${job.completed} of ${job.total} table${job.total === 1 ? "" : "s"} in ${schemaName}.`];
     if (job.skipped.length > 0) {
       parts.push(
-        `${job.skipped.length} skipped: DbButler's role may not analyze ${job.skipped.length === 1 ? "it" : "them"} (needs table ownership, or pg_maintain on PostgreSQL 17+).`
+        `${job.skipped.length} skipped: DbButler's role may not ${op.verb} ${job.skipped.length === 1 ? "it" : "them"} (needs table ownership, or pg_maintain on PostgreSQL 17+).`
       );
     }
     if (job.failed.length > 0) {
@@ -516,29 +540,29 @@ function AnalyzeSchemaButton({ targetId, schemaName, tableCount, onFinished }) {
   };
 
   const jobQuery = useQuery({
-    queryKey: targetKey(targetId, "analyze-schema", jobId),
+    queryKey: targetKey(targetId, "schema-job", active?.jobId),
     queryFn: async ({ signal }) => {
-      const data = await api.getAnalyzeSchemaJob(targetId, jobId, { signal });
+      const data = await api.getSchemaJob(targetId, active.jobId, { signal });
       if (data.status !== "running") report(data);
       return data;
     },
-    enabled: Boolean(jobId),
-    refetchInterval: (query) => (query.state.data?.status === "running" ? ANALYZE_POLL_MS : false),
+    enabled: Boolean(active),
+    refetchInterval: (query) => (query.state.data?.status === "running" ? SCHEMA_JOB_POLL_MS : false),
   });
-  const job = jobId ? jobQuery.data : undefined;
-  const running = Boolean(jobId);
+  const job = active ? jobQuery.data : undefined;
 
-  const handleClick = async () => {
+  const start = async (operation) => {
+    const op = SCHEMA_OPERATIONS[operation];
     const ok = await confirm({
-      title: `Analyze all tables in ${schemaName}?`,
-      message: `Runs ANALYZE on ${tableCount} table${tableCount === 1 ? "" : "s"}, one after another, so their row counts and planner statistics are fresh. ANALYZE reads a sample of each table; reads and writes carry on while it runs.`,
-      confirmLabel: "Analyze all",
+      title: `${op.label.replace(" all", "")} all tables in ${schemaName}?`,
+      message: op.confirm(tableCount),
+      confirmLabel: op.label,
     });
     if (!ok) return;
     setStartError(null);
     try {
-      const started = await api.analyzeSchema(targetId, schemaName);
-      setJobId(started.job_id);
+      const started = await api.startSchemaMaintenance(targetId, operation, schemaName);
+      setActive({ jobId: started.job_id, operation });
     } catch (err) {
       setStartError(err.message);
     }
@@ -551,18 +575,24 @@ function AnalyzeSchemaButton({ targetId, schemaName, tableCount, onFinished }) {
           {startError}
         </span>
       )}
-      <button
-        type="button"
-        className="button-secondary button-sm"
-        onClick={handleClick}
-        disabled={running}
-        aria-live="polite"
-      >
-        <RefreshCw size={12} aria-hidden="true" className={running ? styles.spin : undefined} />
-        {running
-          ? `Analyzing ${job ? Math.min(job.done + 1, job.total) : 1}/${job?.total ?? tableCount}…`
-          : "Analyze all"}
-      </button>
+      {Object.entries(SCHEMA_OPERATIONS).map(([operation, op]) => {
+        const running = active?.operation === operation;
+        return (
+          <button
+            key={operation}
+            type="button"
+            className="button-secondary button-sm"
+            onClick={() => start(operation)}
+            disabled={Boolean(active)}
+            aria-live="polite"
+          >
+            <op.Icon size={12} aria-hidden="true" className={running ? styles.spin : undefined} />
+            {running
+              ? `${op.running} ${job ? Math.min(job.done + 1, job.total) : 1}/${job?.total ?? tableCount}…`
+              : op.label}
+          </button>
+        );
+      })}
     </span>
   );
 }

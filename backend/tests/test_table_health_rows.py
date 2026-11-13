@@ -5,6 +5,8 @@ flag through the row builders, and the TimescaleDB rollup keeping the
 
 from datetime import datetime, timezone
 
+import pytest
+
 from app.collectors import WORST_TABLE_DEAD_PCT
 from app.live_tuples import DEAD_PCT_SQL, LIVE_TUPLES_ESTIMATED_SQL, LIVE_TUPLES_SQL
 from app.routers.table_health import TABLE_HEALTH_QUERY, TABLE_HEALTH_SINGLE_QUERY, _build_table_health_row
@@ -129,26 +131,61 @@ class FakeAnalyzeConn:
             raise psycopg.errors.LockNotAvailable("canceling statement due to lock timeout")
 
 
-def test_analyze_schema_job_reports_analyzed_skipped_and_failed(monkeypatch):
+@pytest.mark.parametrize(("operation", "first_statement"), [
+    ("analyze", 'ANALYZE "Sales"."customers"'),
+    ("vacuum", 'VACUUM (ANALYZE) "Sales"."customers"'),
+])
+def test_schema_job_reports_completed_skipped_and_failed(monkeypatch, operation, first_statement):
     from app.routers import maintenance
 
     conn = FakeAnalyzeConn()
     monkeypatch.setattr(maintenance, "connect_to_target", lambda *a, **k: conn)
-    job_id = "job1"
+    job_id = f"job-{operation}"
     now = datetime.now(timezone.utc)
-    maintenance._analyze_jobs[job_id] = {
-        "job_id": job_id, "target_id": "t", "schema_name": "Sales", "status": "running", "total": 3, "done": 0,
-        "analyzed": 0, "current": None, "skipped": [], "failed": [], "error": None, "started_at": now, "finished_at": None,
+    maintenance._schema_jobs[job_id] = {
+        "job_id": job_id, "target_id": "t", "operation": operation, "schema_name": "Sales", "status": "running",
+        "total": 3, "done": 0, "completed": 0, "current": None, "skipped": [], "failed": [], "error": None,
+        "started_at": now, "finished_at": None,
     }
     try:
-        maintenance._run_analyze_schema(job_id, "t", "Sales", ["customers", "orders", "locked"])
-        job = maintenance._analyze_jobs[job_id]
+        maintenance._run_schema_maintenance(job_id, "t", operation, "Sales", ["customers", "orders", "locked"])
+        job = maintenance._schema_jobs[job_id]
         assert job["status"] == "done" and job["done"] == 3
-        assert job["analyzed"] == 1
+        assert job["completed"] == 1
         assert job["skipped"] == ["orders"]
         assert [f["table"] for f in job["failed"]] == ["locked"]
         assert "lock timeout" in job["failed"][0]["error"]
         # Identifiers are quoted: a mixed-case schema survives.
-        assert conn.statements[0] == 'ANALYZE "Sales"."customers"'
+        assert conn.statements[0] == first_statement
     finally:
-        maintenance._analyze_jobs.pop(job_id, None)
+        maintenance._schema_jobs.pop(job_id, None)
+
+
+def test_vacuum_leaves_partitioned_parents_out_and_never_runs_full():
+    from app.routers import maintenance
+
+    assert "p" in maintenance.SCHEMA_RELKINDS["analyze"]
+    assert "p" not in maintenance.SCHEMA_RELKINDS["vacuum"]
+    assert "FULL" not in maintenance.SCHEMA_STATEMENTS["vacuum"].upper()
+
+
+def test_a_second_operation_on_a_busy_schema_is_refused(monkeypatch):
+    from fastapi import BackgroundTasks, HTTPException
+
+    from app.routers import maintenance
+
+    monkeypatch.setattr(maintenance, "get_allowed_schemas", lambda target_id: None)
+    now = datetime.now(timezone.utc)
+    maintenance._schema_jobs["busy"] = {
+        "job_id": "busy", "target_id": "t", "operation": "analyze", "schema_name": "public", "status": "running",
+        "total": 5, "done": 1, "completed": 1, "current": "x", "skipped": [], "failed": [], "error": None,
+        "started_at": now, "finished_at": None,
+    }
+    try:
+        # The same operation again: the running job comes back.
+        assert maintenance._start_schema_job("t", "analyze", "public", BackgroundTasks())["job_id"] == "busy"
+        with pytest.raises(HTTPException) as refused:
+            maintenance._start_schema_job("t", "vacuum", "public", BackgroundTasks())
+        assert refused.value.status_code == 409
+    finally:
+        maintenance._schema_jobs.pop("busy", None)

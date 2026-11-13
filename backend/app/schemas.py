@@ -467,31 +467,32 @@ class MaintenanceResult(BaseModel):
     message: str
 
 
-class AnalyzeSchemaRequest(BaseModel):
+class SchemaMaintenanceRequest(BaseModel):
     schema_name: str
 
 
-class AnalyzeSchemaFailure(BaseModel):
+class SchemaMaintenanceFailure(BaseModel):
     table: str
     error: str
 
 
-class AnalyzeSchemaJob(BaseModel):
-    """Table Health's "Analyze all" for one schema, run in the background
-    (routers/maintenance.py); the screen polls it until status isn't
-    "running"."""
+class SchemaMaintenanceJob(BaseModel):
+    """Table Health's "Analyze all" / "Vacuum all" for one schema, run in
+    the background (routers/maintenance.py); the screen polls it until
+    status isn't "running"."""
 
     job_id: str
+    operation: str  # "analyze" | "vacuum"
     schema_name: str
     status: str  # "running" | "done" | "error"
     total: int
-    done: int  # tables processed so far (analyzed + skipped + failed)
-    analyzed: int
+    done: int  # tables processed so far (completed + skipped + failed)
+    completed: int
     current: str | None
-    # Tables ANALYZE skipped with a warning because the role may not analyze
-    # them (not the owner; PostgreSQL 17+: not in pg_maintain).
+    # Tables PostgreSQL skipped with a warning because the role may not
+    # analyze/vacuum them (not the owner; PostgreSQL 17+: not in pg_maintain).
     skipped: list[str]
-    failed: list[AnalyzeSchemaFailure]
+    failed: list[SchemaMaintenanceFailure]
     error: str | None
     started_at: datetime
     finished_at: datetime | None
