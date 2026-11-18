@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     # (rotating). Controlled by LOG_TO_FILE in .env.
     log_to_file: bool = False
     log_dir: str = "/logs"
+    # DEBUG | INFO | WARNING | ERROR. INFO logs lifecycle events and each
+    # problem once (app/logging_setup.py); DEBUG adds the repeats.
+    log_level: str = "INFO"
 
 
 settings = Settings()

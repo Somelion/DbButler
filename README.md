@@ -210,6 +210,25 @@ opens only its own endpoint, never the rest of the API.
 Set `APP_PUBLIC_URL` to the address people use to open DbButler. The weekly report's webhook
 message then links to the report.
 
+### Logging
+
+The backend logs one line per thing worth knowing, in one format
+(`time LEVEL logger: message`):
+
+- **INFO**: startup and shutdown, store migrations, the scheduler's job list and changes to it, and
+  every change made through DbButler. Changes are logged by the `app.audit` logger: maintenance
+  (VACUUM, ANALYZE, statistics resets), cancelled or terminated sessions, applied or dropped
+  indexes, connections added, changed or removed, and AI, alert and PgBouncer settings. They never
+  include passwords, keys, webhook URLs, SQL text or data.
+- **WARNING**: a problem outside DbButler, such as a database that can't be reached, a query it
+  refuses, or a webhook that can't be delivered. A recurring problem is logged once when it starts
+  and once (INFO) when it clears, not on every collection cycle.
+- **ERROR**: an unexpected failure, logged with its traceback. Report these as bugs.
+
+Successful health checks are not logged. Neither are the UI's successful static-file and `/api/`
+requests, because the backend already logs every API call. Set `APP_LOG_LEVEL` in `.env` to
+`WARNING` for problems only, or `DEBUG` to also repeat ongoing problems every cycle.
+
 ### Optional: logging to files
 
 Set `LOG_TO_FILE=true` in `.env` to make each container also write its own log file into `./logs`

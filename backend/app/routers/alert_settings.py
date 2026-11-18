@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from app.alerting import detect_webhook_kind, send_test_webhook
 from app.crypto import decrypt, encrypt
 from app.db.store import store_conn
+from app.logging_setup import audit
 from app.schemas import AlertSettingsOut, AlertSettingsUpdate, AlertTestResult
 from app.url_safety import validate_http_url
 
@@ -74,7 +75,18 @@ def update_alert_settings(payload: AlertSettingsUpdate):
         conn.commit()
 
         cur.execute(f"SELECT {_COLUMNS} FROM alert_settings WHERE id = 1")
-        return _row_to_out(cur.fetchone())
+        row = cur.fetchone()
+    # The webhook URL is a secret: only whether it changed is logged.
+    webhook_change = (
+        "" if payload.webhook_url is None else ", webhook URL replaced" if payload.webhook_url else ", webhook URL cleared"
+    )
+    audit(
+        "change alert settings",
+        None,
+        f"alerts {'on' if row[0] else 'off'}, min severity {row[2]}, "
+        f"weekly report {'on' if row[3] else 'off'}{webhook_change}",
+    )
+    return _row_to_out(row)
 
 
 @router.post("/test", response_model=AlertTestResult)

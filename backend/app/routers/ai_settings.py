@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.crypto import encrypt
 from app.db.store import store_conn
+from app.logging_setup import audit
 from app.schemas import AiSettingsOut, AiSettingsUpdate
 from app.url_safety import validate_http_url
 
@@ -82,4 +83,7 @@ def update_ai_settings(payload: AiSettingsUpdate):
         conn.commit()
 
         cur.execute(f"SELECT {_COLUMNS} FROM ai_settings WHERE id = 1")
-        return _row_to_out(cur.fetchone())
+        row = cur.fetchone()
+    key_change = "" if api_key is None else ", API key replaced" if api_key else ", API key cleared"
+    audit("change AI settings", None, f"provider {payload.provider}, model {payload.model_name}{key_change}")
+    return _row_to_out(row)

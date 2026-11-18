@@ -13,6 +13,7 @@ from fastapi import APIRouter, Query
 
 from app.config import settings
 from app.db.store import store_conn
+from app.logging_setup import ProblemLog, first_line
 from app.refactoring_advisor import (
     ColumnStats,
     IndexInfo,
@@ -27,6 +28,8 @@ from app.workload_data import collect_workload, table_filter, validate_hours
 from app.workload_extract import Table
 
 logger = logging.getLogger(__name__)
+# Read on every request: each distinct error is logged once.
+_problems = ProblemLog(logger)
 
 router = APIRouter(prefix="/api/targets", tags=["refactoring-advisor"])
 
@@ -110,7 +113,9 @@ def _safe_rows(cur, sql: str, params) -> list[tuple]:
     except psycopg.Error as exc:
         if cur.connection.broken:
             raise
-        logger.info("refactoring advisor catalog read failed: %s", exc)
+        _problems.problem(
+            ("catalog read", first_line(exc)), "refactoring advisor catalog read failed: %s", first_line(exc)
+        )
         return []
 
 

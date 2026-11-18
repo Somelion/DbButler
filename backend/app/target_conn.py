@@ -7,8 +7,10 @@ from fastapi import HTTPException
 
 from app.crypto import decrypt
 from app.db.store import store_conn
+from app.logging_setup import ProblemLog
 
 logger = logging.getLogger(__name__)
+_problems = ProblemLog(logger)
 
 # Every target session identifies itself, so DbButler's own queries are
 # recognisable in pg_stat_activity (and excluded from its own connection
@@ -80,9 +82,11 @@ def open_target_connection(
     except psycopg.OperationalError as exc:
         if "unsupported startup parameter" not in str(exc):
             raise
-        logger.warning(
-            "target %s:%s rejected the 'options' startup parameter (likely a PgBouncer in front "
-            "of it); connecting without statement/lock timeouts",
+        # Every connect hits this for such a target: said once per server.
+        _problems.problem(
+            ("no-options", host, port),
+            "%s:%s rejected the 'options' startup parameter (likely PgBouncer in front of it); "
+            "connecting without statement/lock timeouts",
             host,
             port,
         )

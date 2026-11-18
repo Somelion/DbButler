@@ -3,6 +3,7 @@ import uuid
 import psycopg
 from fastapi import APIRouter, HTTPException
 
+from app.logging_setup import audit
 from app.schemas import ActivityResponse, ActivitySession
 from app.target_conn import connect_to_target
 
@@ -94,7 +95,9 @@ def cancel_query(target_id: uuid.UUID, pid: int):
             cur.execute("SELECT pg_cancel_backend(%s)", (pid,))
             ok = cur.fetchone()[0]
     except psycopg.Error as exc:
+        audit("cancel query", target_id, f"pid {pid}", exc)
         raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
+    audit("cancel query", target_id, f"pid {pid}", None if ok else "no such session, or not allowed")
     return {"ok": bool(ok)}
 
 
@@ -105,5 +108,7 @@ def terminate_session(target_id: uuid.UUID, pid: int):
             cur.execute("SELECT pg_terminate_backend(%s)", (pid,))
             ok = cur.fetchone()[0]
     except psycopg.Error as exc:
+        audit("terminate session", target_id, f"pid {pid}", exc)
         raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
+    audit("terminate session", target_id, f"pid {pid}", None if ok else "no such session, or not allowed")
     return {"ok": bool(ok)}

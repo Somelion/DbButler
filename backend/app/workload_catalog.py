@@ -10,10 +10,13 @@ import logging
 
 import psycopg
 
+from app.logging_setup import ProblemLog, first_line
 from app.timescaledb_health import fetch_chunk_map, is_timescaledb_installed
 from app.workload_extract import Table
 
 logger = logging.getLogger(__name__)
+# Read on every plan capture and map request: each distinct error is logged once.
+_problems = ProblemLog(logger)
 
 # Never drawn on the map: catalogs, TOAST and TimescaleDB's internals (its
 # chunks fold onto their hypertable before this filter applies).
@@ -126,7 +129,7 @@ def fetch_parent_map(cur) -> dict[Table, Table]:
     except psycopg.Error as exc:
         if cur.connection.broken:
             raise
-        logger.info("TimescaleDB chunk mapping unavailable: %s", exc)
+        _problems.problem(("chunk map", first_line(exc)), "TimescaleDB chunk mapping unavailable: %s", first_line(exc))
     return parents
 
 

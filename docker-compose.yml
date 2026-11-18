@@ -42,6 +42,7 @@ services:
       # Feature flags, off unless set to true in .env.
       FEATURE_WORKLOAD_3D: ${APP_FEATURE_WORKLOAD_3D:-false}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${UI_PORT:-5173}}
+      LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       LOG_TO_FILE: ${LOG_TO_FILE:-false}
       LOG_DIR: /logs
       SCHEDULER_MAX_PARALLEL_TARGETS: ${SCHEDULER_MAX_PARALLEL_TARGETS:-4}

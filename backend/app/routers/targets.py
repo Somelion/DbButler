@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.crypto import decrypt, encrypt
 from app.db.store import store_conn
+from app.logging_setup import audit
 from app.pg_probe import test_connection
 from app.schemas import ConnectionTestRequest, ConnectionTestResult, TargetCreate, TargetOut, TargetUpdate
 
@@ -72,7 +73,8 @@ def create_target(payload: TargetCreate):
         )
         row = cur.fetchone()
         conn.commit()
-        return _row_to_target(row)
+    audit("add connection", row[0], f"{payload.username}@{payload.host}:{payload.port}/{payload.dbname}")
+    return _row_to_target(row)
 
 
 @router.patch("/{target_id}", response_model=TargetOut)
@@ -139,6 +141,7 @@ def update_target(target_id: uuid.UUID, payload: TargetUpdate):
             if not result["ok"]:
                 # Keep the login that's there: a typo in the new user or
                 # password must not break monitoring of a working database.
+                audit("change login", target_id, f"to user {new_username}", result.get("message") or "unknown error")
                 raise HTTPException(
                     status_code=422,
                     detail=f"Couldn't connect as {new_username}: {result.get('message') or 'unknown error'} "
@@ -187,14 +190,25 @@ def update_target(target_id: uuid.UUID, payload: TargetUpdate):
         if row is None:
             raise HTTPException(status_code=404, detail="Target not found")
         conn.commit()
-        return _row_to_target(row)
+    if payload.password or username is not None:
+        audit("change login", target_id, f"to user {row[5]}")
+    if payload.name is not None:
+        audit("rename connection", target_id, f"to {payload.name}")
+    if payload.is_active is not None:
+        audit("resume monitoring" if payload.is_active else "pause monitoring", target_id)
+    if payload.allowed_schemas is not None:
+        audit("set schema filter", target_id, ", ".join(payload.allowed_schemas) or "(all schemas)")
+    return _row_to_target(row)
 
 
 @router.delete("/{target_id}", status_code=204)
 def delete_target(target_id: uuid.UUID):
     with store_conn() as conn, conn.cursor() as cur:
         cur.execute("DELETE FROM targets WHERE id = %s", (target_id,))
+        deleted = cur.rowcount
         conn.commit()
+    if deleted:
+        audit("remove connection", target_id)
 
 
 @router.post("/test", response_model=ConnectionTestResult)

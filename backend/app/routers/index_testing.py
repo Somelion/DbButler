@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from psycopg import sql
 
 from app.db.store import store_conn
+from app.logging_setup import audit
 from app.schemas import IndexTestingResponse, MaintenanceResult, TrackedIndexOut
 from app.target_conn import MAINTENANCE_STATEMENT_TIMEOUT_MS, connect_to_target
 
@@ -113,7 +114,9 @@ def drop_tracked_index(target_id: uuid.UUID, tracked_id: uuid.UUID):
         ) as conn, conn.cursor() as cur:
             cur.execute(stmt)
     except psycopg.Error as exc:
+        audit("drop tested index", target_id, f"{schema_name}.{index_name}", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    audit("drop tested index", target_id, f"{schema_name}.{index_name}")
 
     with store_conn() as conn, conn.cursor() as cur:
         cur.execute("UPDATE tracked_indexes SET dropped_at = now() WHERE id = %s", (tracked_id,))

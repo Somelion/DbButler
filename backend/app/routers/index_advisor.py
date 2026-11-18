@@ -17,6 +17,7 @@ from app.index_analysis import (
     find_seq_scan_no_index_findings,
     find_unused_indexes,
 )
+from app.logging_setup import audit
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.routers.advisor_archive import get_archived_finding_ids
 from app.schema_filter import get_allowed_schemas, schema_filter_params, schema_filter_sql
@@ -535,8 +536,10 @@ def apply_index_finding(target_id: uuid.UUID, payload: ApplyIndexFindingRequest)
                     index_name = parse_qualified_name(created.group(1))[-1]
                     _track_created_index(target_id, cur, index_name, source_finding_id, ddl)
     except psycopg.Error as exc:
+        audit("apply index finding", target_id, source_finding_id, exc)
         raise HTTPException(status_code=502, detail=f"Could not apply this change: {exc}") from exc
 
+    audit("apply index finding", target_id, f"{source_finding_id} ({len(statements)} statements)")
     return MaintenanceResult(ok=True, message="Applied.")
 
 

@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.crypto import decrypt, encrypt
 from app.db.store import store_conn
+from app.logging_setup import audit
 from app.pgbouncer_probe import test_pgbouncer_connection
 from app.schemas import PgBouncerConnectionCreate, PgBouncerConnectionOut, PgBouncerTestResult
 
@@ -76,7 +77,8 @@ def save_pgbouncer_connection(target_id: uuid.UUID, payload: PgBouncerConnection
         )
         row = cur.fetchone()
         conn.commit()
-        return _row_to_out(row)
+    audit("save PgBouncer connection", target_id, f"{payload.username}@{payload.host}:{payload.port}")
+    return _row_to_out(row)
 
 
 @router.post("/{target_id}/pgbouncer/retest", response_model=PgBouncerTestResult)
@@ -107,4 +109,7 @@ def retest_pgbouncer_connection(target_id: uuid.UUID):
 def delete_pgbouncer_connection(target_id: uuid.UUID):
     with store_conn() as conn, conn.cursor() as cur:
         cur.execute("DELETE FROM pgbouncer_connections WHERE target_id = %s", (target_id,))
+        deleted = cur.rowcount
         conn.commit()
+    if deleted:
+        audit("remove PgBouncer connection", target_id)

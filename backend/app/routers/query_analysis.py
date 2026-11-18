@@ -204,7 +204,7 @@ def _run_analysis(analysis_id: uuid.UUID) -> None:
         )
         return
     except Exception as exc:  # noqa: BLE001 — must never leave the analysis stuck in "pending" forever
-        logger.warning("AI query analysis %s failed unexpectedly: %s", analysis_id, exc)
+        logger.exception("AI query analysis %s failed unexpectedly", analysis_id)
         _record_error(analysis_id, f"Unexpected error: {exc}")
         return
 

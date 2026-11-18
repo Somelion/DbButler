@@ -20,6 +20,8 @@ from app.crypto import decrypt
 from app.db.store import store_conn
 from app.health_report import report_summary_lines
 from app.live_tuples import DEAD_PCT_SQL, LIVE_TUPLES_SQL
+from app.logging_setup import ProblemLog
+from app.logging_setup import first_line as _first_line
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.plan_fingerprint import build_explain_sql, build_fingerprint, hash_fingerprint, summarize_fingerprint
 from app.query_history_delta import Baseline, QueryCounters, compute_interval
@@ -393,6 +395,17 @@ def _connect_target(target_row, autocommit: bool = True) -> psycopg.Connection:
     )
 
 
+class TargetUnreachable(psycopg.OperationalError):
+    """The connect itself failed. Already logged (once, by _target_session),
+    so the jobs that catch it don't log it again."""
+
+
+# Recurring problems (a target down, a query it refuses, a store write that
+# keeps failing) are logged when they start, change or clear — not on every
+# 15/30/60-second cycle. See app/logging_setup.py.
+_problems = ProblemLog(logger)
+
+
 @contextmanager
 def _target_session(target_row):
     """One autocommit connection for one target's whole cycle, feeding the
@@ -401,13 +414,32 @@ def _target_session(target_row):
     target_id = target_row[0]
     try:
         conn = _connect_target(target_row)
-    except psycopg.OperationalError:
-        delay = _backoff.record_failure(target_id)
-        logger.info("target %s unreachable; scheduler jobs skip it for %ss", target_id, delay)
-        raise
+    except psycopg.OperationalError as exc:
+        _backoff.record_failure(target_id)
+        _problems.problem(
+            (target_id, "connect"), "target %s unreachable, jobs back off: %s", target_id, _first_line(exc)
+        )
+        raise TargetUnreachable(str(exc)) from exc
     _backoff.record_success(target_id)
+    _problems.resolved((target_id, "connect"), "target %s reachable again", target_id)
     with conn:
         yield conn
+
+
+def _job_failed(job: str, target_id, exc: BaseException) -> None:
+    """Call from inside an except block. A database error is an external
+    problem, logged once (ProblemLog); anything else is unexpected and
+    logged with its traceback. An unreachable target was already logged."""
+    if isinstance(exc, TargetUnreachable):
+        return
+    if isinstance(exc, psycopg.Error):
+        _problems.problem((target_id, job), "%s failed for target %s: %s", job, target_id, _first_line(exc))
+    else:
+        logger.exception("%s failed for target %s", job, target_id)
+
+
+def _job_ok(job: str, target_id) -> None:
+    _problems.resolved((target_id, job), "%s works again for target %s", job, target_id)
 
 
 def _target_label(target_row) -> str:
@@ -432,15 +464,20 @@ def _run_query(target_conn, cur, label: str, errors: list[str], query: str, para
     """Runs one read on an autocommit connection, recording a failure in
     `errors` and carrying on with the next query. A dropped connection isn't
     worth carrying on with, so that's re-raised."""
+    key = (target_conn.info.host, target_conn.info.port, target_conn.info.dbname, label)
     try:
         cur.execute(query, params)
-        return cur.fetchall()
+        rows = cur.fetchall()
     except psycopg.Error as exc:
         if target_conn.broken:
             raise
         errors.append(f"{label}: {exc}")
-        logger.warning("%s failed on %s/%s: %s", label, target_conn.info.host, target_conn.info.dbname, exc)
+        _problems.problem(
+            key, "%s failed on %s/%s: %s", label, target_conn.info.host, target_conn.info.dbname, _first_line(exc)
+        )
         return None
+    _problems.resolved(key, "%s works again on %s/%s", label, target_conn.info.host, target_conn.info.dbname)
+    return rows
 
 
 def _sample_cache_hit_ratio(target_id, counters_row) -> float | None:
@@ -473,7 +510,9 @@ def _collect_point_metrics(target_row):
                 values.append(("cache_hit_ratio", ratio))
     except Exception as exc:
         errors.append(str(exc))
-        logger.warning("collection cycle failed for target %s: %s", target_id, exc)
+        _job_failed("metrics collection", target_id, exc)
+    else:
+        _job_ok("metrics collection", target_id)
 
     with store_conn() as conn, conn.cursor() as cur:
         if values:
@@ -504,7 +543,9 @@ def _collect_table_metrics(target_row):
             wait_rows = _run_query(target_conn, cur, "wait_events", errors, WAIT_EVENT_SNAPSHOT_QUERY)
     except Exception as exc:
         errors.append(str(exc))
-        logger.warning("table metrics collector failed for target %s: %s", target_id, exc)
+        _job_failed("table metrics collection", target_id, exc)
+    else:
+        _job_ok("table metrics collection", target_id)
 
     with store_conn() as conn, conn.cursor() as cur:
         if table_rows:
@@ -539,7 +580,9 @@ def _collect_query_history(target_row):
                 ) or []
     except Exception as exc:
         errors.append(str(exc))
-        logger.warning("query history collector failed for target %s: %s", target_id, exc)
+        _job_failed("query history collection", target_id, exc)
+    else:
+        _job_ok("query history collection", target_id)
 
     with store_conn() as conn, conn.cursor() as cur:
         baselines = {}
@@ -668,10 +711,14 @@ def _capture_query_plans(target_row):
                 except psycopg.Error as exc:
                     if target_conn.broken:
                         raise
-                    logger.warning("workload parent map failed for target %s: %s", target_id, exc)
+                    _job_failed("workload parent map", target_id, exc)
+                else:
+                    _job_ok("workload parent map", target_id)
     except Exception as exc:
         errors.append(str(exc))
-        logger.warning("plan regression collector failed for target %s: %s", target_id, exc)
+        _job_failed("plan capture", target_id, exc)
+    else:
+        _job_ok("plan capture", target_id)
 
     # Without the parent map, partitions and chunks can't be folded onto
     # their tables, and storing that would replace good extractions with a
@@ -718,10 +765,6 @@ def _capture_query_plans(target_row):
         _record_collector_run(cur, target_id, "plan_regression", started_at, errors)
         conn.commit()
 
-
-def _first_line(exc: Exception, limit: int = 300) -> str:
-    text = str(exc).strip().splitlines()
-    return text[0][:limit] if text else type(exc).__name__
 
 
 def _store_workload_extracts(cur, extracts) -> None:
@@ -807,12 +850,16 @@ def _store_workload_extracts(cur, extracts) -> None:
 
 
 def _run_guarded(fn: Callable, target_row) -> None:
+    # One target's failure must not stop the others. Jobs without their own
+    # error handling (the lock snapshot, events) land here: a database error
+    # is logged once, anything else with its traceback.
+    job = fn.__name__.strip("_").replace("_", " ")
     try:
         fn(target_row)
-    except Exception:
-        # Typically the store write after a target read. One target's failure
-        # must not stop the others.
-        logger.exception("%s failed for target %s", fn.__name__, target_row[0])
+    except Exception as exc:
+        _job_failed(job, target_row[0], exc)
+    else:
+        _job_ok(job, target_row[0])
 
 
 def _for_each_target(fn: Callable, *, respect_backoff: bool = True) -> None:
@@ -870,7 +917,9 @@ def run_retention_cycle():
                     cur.execute(statement, params)
                 conn.commit()
         except psycopg.Error as exc:
-            logger.warning("retention for %s failed: %s", table, exc)
+            _problems.problem(("retention", table), "retention for %s failed: %s", table, _first_line(exc))
+        else:
+            _problems.resolved(("retention", table), "retention for %s works again", table)
 
 
 def _reconcile_category_findings(cur, target_id, category: str, findings: list[dict], run_status: str) -> list[dict]:
@@ -962,7 +1011,9 @@ def _run_deep_scan_category(target_row, category: str, compute_fn, target_conn: 
             findings = compute_fn(cur)
     except Exception as exc:
         status, error = "error", str(exc)
-        logger.warning("deep scan (%s) failed for target %s: %s", category, target_row[0], exc)
+        _job_failed(f"deep scan ({category})", target_row[0], exc)
+    else:
+        _job_ok(f"deep scan ({category})", target_row[0])
 
     validated = [IndexFinding(**finding).model_dump(mode="json") for finding in findings]
     _record_deep_scan_result(target_row, category, started_at, status, error, validated)
@@ -988,7 +1039,9 @@ def _run_deep_scan_checks(target_row, checks) -> None:
     try:
         target_conn = _connect_target(target_row)
     except Exception as exc:
-        logger.warning("deep scan could not connect to target %s: %s", target_row[0], exc)
+        _problems.problem(
+            (target_row[0], "connect"), "target %s unreachable for the deep scan: %s", target_row[0], _first_line(exc)
+        )
         for category, _compute_fn in checks:
             _record_deep_scan_result(target_row, category, started_at, "error", str(exc), [])
         return
@@ -1043,7 +1096,9 @@ def _collect_live_findings(target_row):
             findings = [f.model_dump(mode="json") for f in compute_health(cur, target_id).findings]
     except Exception as exc:
         status, error = "error", str(exc)
-        logger.warning("live findings collector failed for target %s: %s", target_id, exc)
+        _job_failed("live findings", target_id, exc)
+    else:
+        _job_ok("live findings", target_id)
 
     by_category: dict[str, list[dict]] = {}
     for finding in findings:
@@ -1323,8 +1378,12 @@ def reconcile() -> None:
 
         signature = (job_kind, interval_seconds, cron_expr, enabled)
         is_live = job_name in live_job_ids
-        if is_live and _last_applied_signatures.get(job_name) == signature:
+        previous = _last_applied_signatures.get(job_name)
+        if is_live and previous == signature:
             continue
+        # A change made in Settings (not the first scheduling at startup).
+        if previous is not None and previous != signature:
+            logger.info("job %s is now %s", job_name, _describe_schedule(*signature))
 
         if not enabled:
             if is_live:
@@ -1338,6 +1397,12 @@ def reconcile() -> None:
             add_job_kwargs["next_run_time"] = datetime.now(timezone.utc)
         _scheduler.add_job(func, trigger, id=job_name, replace_existing=True, **add_job_kwargs)
         _last_applied_signatures[job_name] = signature
+
+
+def _describe_schedule(job_kind: str, interval_seconds, cron_expr, enabled: bool) -> str:
+    if not enabled:
+        return "disabled"
+    return f"every {interval_seconds}s" if job_kind == "interval" else f"on cron '{cron_expr}'"
 
 
 def start_scheduler() -> BackgroundScheduler:
@@ -1354,6 +1419,13 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         minutes=RECONCILE_SELF_HEAL_MINUTES,
         id="reconcile_self_heal",
+    )
+    enabled = [name for name, signature in _last_applied_signatures.items() if signature[3]]
+    disabled = sorted(set(_last_applied_signatures) - set(enabled))
+    logger.info(
+        "scheduler started: %d jobs enabled%s",
+        len(enabled),
+        f", disabled: {', '.join(disabled)}" if disabled else "",
     )
 
     return _scheduler

@@ -7,10 +7,12 @@ was going on at this moment" and an optional AI post-mortem of a window.
 Store reads only; the target is never contacted here.
 """
 
+import logging
 import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from app.ai_providers import AiProviderError, call_ai
@@ -20,6 +22,7 @@ from app.schemas import TimelineExplainRequest, TimelineExplainResponse, Timelin
 from app.time_machine import EXPLAIN_PROMPT, SnapshotSummary, group_incidents, incident_facts, root_blockers
 
 router = APIRouter(prefix="/api/targets", tags=["time-machine"])
+logger = logging.getLogger(__name__)
 
 MAX_HOURS = 24 * 30
 TARGET_POINTS = 300  # buckets per metric line
@@ -388,14 +391,28 @@ def _run_explain(job_id: str, target_id, start: datetime, end: datetime, setting
     try:
         facts = build_window_facts(target_id, start, end)
     except Exception as exc:  # noqa: BLE001 — any failure is reported to the waiting dialog
+        # Store reads only, so this is unexpected — keep the traceback.
+        logger.exception("time machine explain %s: gathering facts for target %s failed", job_id, target_id)
         _finish_job(job_id, status="error", error=f"Couldn't gather the facts: {exc}")
         return
     provider, endpoint_url, model_name, encrypted_api_key = settings_row
-    api_key = decrypt(encrypted_api_key) if encrypted_api_key else None
     try:
+        api_key = decrypt(encrypted_api_key) if encrypted_api_key else None
         narrative = call_ai(provider, api_key, endpoint_url, model_name, EXPLAIN_PROMPT.format(facts=facts))
+    except InvalidToken:
+        _finish_job(
+            job_id,
+            status="error",
+            error="The stored AI API key can no longer be decrypted (SECRET_KEY changed?) — re-enter it in Settings.",
+            facts=facts,
+        )
+        return
     except AiProviderError as exc:
         _finish_job(job_id, status="error", error=str(exc), facts=facts)
+        return
+    except Exception as exc:  # noqa: BLE001 — must never leave the dialog waiting forever
+        logger.exception("time machine explain %s for target %s failed unexpectedly", job_id, target_id)
+        _finish_job(job_id, status="error", error=f"Unexpected error: {exc}", facts=facts)
         return
     _finish_job(job_id, status="done", narrative=narrative.strip(), facts=facts)
 

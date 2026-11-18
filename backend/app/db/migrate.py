@@ -61,7 +61,7 @@ def run_migrations() -> None:
             # already created every table it manages, it just never
             # recorded that fact (a brand-new install already has this row,
             # inserted by schema.sql itself). Fires at most once per volume.
-            logger.info("schema_migrations is empty — recording the existing schema as baseline (version 1).")
+            logger.info("store schema_migrations is empty, recording the existing schema as baseline (version 1)")
             cur.execute(
                 "INSERT INTO schema_migrations (version, filename) VALUES (%s, %s)",
                 (BASELINE_VERSION, BASELINE_FILENAME),
@@ -73,7 +73,6 @@ def run_migrations() -> None:
         for version, path in _migration_files():
             if version in applied_versions:
                 continue
-            logger.info("Applying migration %s...", path.name)
             sql = path.read_text(encoding="utf-8")
             with conn.transaction():
                 cur.execute(sql)
@@ -81,4 +80,4 @@ def run_migrations() -> None:
                     "INSERT INTO schema_migrations (version, filename) VALUES (%s, %s)",
                     (version, path.name),
                 )
-            logger.info("Applied migration %s.", path.name)
+            logger.info("store migration %s applied", path.name)

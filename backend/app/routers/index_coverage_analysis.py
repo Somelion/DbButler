@@ -247,7 +247,7 @@ def _run_covering_analysis(analysis_id: uuid.UUID) -> None:
         _record_error(analysis_id, str(exc))
         return
     except Exception as exc:  # noqa: BLE001 — must never leave the analysis stuck in "pending" forever
-        logger.warning("AI index coverage analysis %s failed unexpectedly: %s", analysis_id, exc)
+        logger.exception("AI index coverage analysis %s failed unexpectedly", analysis_id)
         _record_error(analysis_id, f"Unexpected error: {exc}")
         return
 

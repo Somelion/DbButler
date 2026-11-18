@@ -7,6 +7,7 @@ import psycopg
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from psycopg import sql
 
+from app.logging_setup import audit, first_line
 from app.pg_stat_statements import is_enabled as pg_stat_statements_enabled
 from app.pg_stat_statements import unavailable_message
 from app.schema_filter import get_allowed_schemas
@@ -47,7 +48,9 @@ def analyze_table(target_id: uuid.UUID, payload: TableMaintenanceRequest):
         ) as conn, conn.cursor() as cur:
             cur.execute(stmt)
     except psycopg.Error as exc:
+        audit("ANALYZE", target_id, f"{payload.schema_name}.{payload.table_name}", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    audit("ANALYZE", target_id, f"{payload.schema_name}.{payload.table_name}")
     return MaintenanceResult(ok=True, message=f"Analyzed {payload.schema_name}.{payload.table_name}.")
 
 
@@ -61,7 +64,9 @@ def vacuum_table(target_id: uuid.UUID, payload: VacuumRequest):
         ) as conn, conn.cursor() as cur:
             cur.execute(stmt)
     except psycopg.Error as exc:
+        audit(keyword.removesuffix(" {}"), target_id, f"{payload.schema_name}.{payload.table_name}", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    audit(keyword.removesuffix(" {}"), target_id, f"{payload.schema_name}.{payload.table_name}")
     verb = "Vacuumed and analyzed" if payload.analyze else "Vacuumed"
     return MaintenanceResult(ok=True, message=f"{verb} {payload.schema_name}.{payload.table_name}.")
 
@@ -80,7 +85,9 @@ def reset_table_stats(target_id: uuid.UUID, payload: TableMaintenanceRequest):
                 raise HTTPException(status_code=404, detail="Table not found on target")
             cur.execute("SELECT pg_stat_reset_single_table_counters(%s)", (row[0],))
     except psycopg.Error as exc:
+        audit("reset table statistics", target_id, f"{payload.schema_name}.{payload.table_name}", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    audit("reset table statistics", target_id, f"{payload.schema_name}.{payload.table_name}")
     return MaintenanceResult(
         ok=True, message=f"Reset statistics for {payload.schema_name}.{payload.table_name}."
     )
@@ -96,7 +103,9 @@ def reset_query_stats(target_id: uuid.UUID):
                 raise HTTPException(status_code=409, detail=unavailable_message(cur))
             cur.execute("SELECT pg_stat_statements_reset()")
     except psycopg.Error as exc:
+        audit("reset query statistics", target_id, error=exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    audit("reset query statistics", target_id)
     return MaintenanceResult(ok=True, message="Query statistics reset.")
 
 
@@ -158,6 +167,7 @@ def _update_schema_job(job_id: str, **fields) -> None:
 
 
 def _run_schema_maintenance(job_id: str, target_id, operation: str, schema_name: str, tables: list[str]) -> None:
+    logger.info("%s of schema %s on target %s started (%d tables)", operation, schema_name, target_id, len(tables))
     statement = SCHEMA_STATEMENTS[operation]
     skipped: list[str] = []
     failed: list[dict] = []
@@ -184,7 +194,12 @@ def _run_schema_maintenance(job_id: str, target_id, operation: str, schema_name:
                         completed += 1
                 _update_schema_job(job_id, completed=completed, skipped=list(skipped), failed=list(failed))
     except Exception as exc:  # noqa: BLE001 — reported to the waiting screen
-        logger.warning("%s of schema %s on target %s stopped: %s", operation, schema_name, target_id, exc)
+        if isinstance(exc, psycopg.Error):
+            logger.warning(
+                "%s of schema %s on target %s stopped: %s", operation, schema_name, target_id, first_line(exc)
+            )
+        else:
+            logger.exception("%s of schema %s on target %s stopped", operation, schema_name, target_id)
         _update_schema_job(
             job_id,
             status="error",
@@ -195,6 +210,15 @@ def _run_schema_maintenance(job_id: str, target_id, operation: str, schema_name:
         )
         return
     _update_schema_job(job_id, status="done", current=None, done=len(tables), finished_at=datetime.now(timezone.utc))
+    logger.info(
+        "%s of schema %s on target %s finished: %d done, %d skipped, %d failed",
+        operation,
+        schema_name,
+        target_id,
+        completed,
+        len(skipped),
+        len(failed),
+    )
 
 
 def _start_schema_job(target_id: uuid.UUID, operation: str, schema_name: str, background_tasks: BackgroundTasks) -> dict:

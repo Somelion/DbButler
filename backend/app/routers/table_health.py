@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.db.store import store_conn
 from app.live_tuples import LIVE_TUPLES_ESTIMATED_SQL, LIVE_TUPLES_SQL
+from app.logging_setup import audit
 from app.routers.advisor_archive import get_archived_finding_ids
 from app.schema_filter import get_allowed_schemas
 from app.schemas import (
@@ -616,8 +617,10 @@ def apply_table_health_finding(target_id: uuid.UUID, payload: ApplyTableHealthFi
             for statement in statements:
                 cur.execute(statement)
     except psycopg.Error as exc:
+        audit("apply table health finding", target_id, payload.finding_id, exc)
         raise HTTPException(status_code=502, detail=f"Could not apply this change: {exc}") from exc
 
+    audit("apply table health finding", target_id, payload.finding_id)
     return MaintenanceResult(ok=True, message="Applied.")
 
 

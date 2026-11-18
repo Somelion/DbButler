@@ -1,7 +1,5 @@
 import logging
-import os
 from contextlib import asynccontextmanager
-from logging.handlers import RotatingFileHandler
 
 import psycopg
 from fastapi import Depends, FastAPI
@@ -11,6 +9,7 @@ from app.auth import require_auth
 from app.config import settings
 from app.db.migrate import run_migrations
 from app.db.store import close_store_pool
+from app.logging_setup import configure_logging
 from app.routers.activity import router as activity_router
 from app.routers.advisor_archive import router as advisor_archive_router
 from app.routers.ai_settings import router as ai_settings_router
@@ -55,40 +54,25 @@ from app.routers.workload_graph import router as workload_graph_router
 from app.scheduler import start_scheduler
 from app.version import APP_VERSION
 
-_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
-logging.basicConfig(level=logging.INFO, format=_LOG_FORMAT)
-
-
-def _enable_file_logging() -> None:
-    """Mirrors the backend's log (app + uvicorn access/error) into
-    {log_dir}/backend.log. Failure to open the file never stops the app."""
-    try:
-        os.makedirs(settings.log_dir, exist_ok=True)
-        handler = RotatingFileHandler(
-            os.path.join(settings.log_dir, "backend.log"),
-            maxBytes=10 * 1024 * 1024,
-            backupCount=5,
-            encoding="utf-8",
-        )
-    except OSError:
-        logging.getLogger(__name__).exception("LOG_TO_FILE is on but the log file could not be opened")
-        return
-    handler.setFormatter(logging.Formatter(_LOG_FORMAT))
-    # uvicorn.access doesn't propagate to root (uvicorn.error does), so it
-    # needs the handler directly.
-    for name in ("", "uvicorn.access"):
-        logging.getLogger(name).addHandler(handler)
-
-
-if settings.log_to_file:
-    _enable_file_logging()
+configure_logging(settings.log_level, settings.log_to_file, settings.log_dir)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # One line that says what's running, for whoever reads the log later.
+    logger.info(
+        "DbButler %s starting (log level %s, MCP %s, Prometheus %s, 3D workload map %s)",
+        APP_VERSION,
+        settings.log_level.upper(),
+        "on" if settings.mcp_token else "off",
+        "on" if settings.metrics_token else "off",
+        "on" if settings.feature_workload_3d else "off",
+    )
     run_migrations()
     scheduler = start_scheduler()
     yield
+    logger.info("DbButler stopping")
     scheduler.shutdown()
     close_store_pool()
 
