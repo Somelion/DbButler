@@ -109,11 +109,15 @@
     "continue": "Jätka"
   },
   "switcher": {
-    "ariaLabel": "Andmebaas: {{name}}. Vaheta andmebaasi",
+    "ariaLabel": "Andmebaas: {{name}} ({{status}}). Vaheta andmebaasi",
     "noneSelected": "valimata",
     "databases": "Andmebaasid",
     "select": "Vali andmebaas",
     "paused": "peatatud",
+    "problem": "ühenduse probleem",
+    "statusMonitored": "Jälgitakse",
+    "statusPaused": "Peatatud",
+    "statusProblem": "Ühenduse probleem",
     "manage": "Lisa / halda ühendusi"
   },
   "planViewer": {

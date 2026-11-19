@@ -419,11 +419,43 @@ def _target_session(target_row):
         _problems.problem(
             (target_id, "connect"), "target %s unreachable, jobs back off: %s", target_id, _first_line(exc)
         )
+        _record_reachability(target_id, False, _first_line(exc))
         raise TargetUnreachable(str(exc)) from exc
     _backoff.record_success(target_id)
     _problems.resolved((target_id, "connect"), "target %s reachable again", target_id)
+    _record_reachability(target_id, True)
     with conn:
         yield conn
+
+
+# Whether each target's last background connect worked, as last written to
+# targets.last_test_ok. The connection test on the Connections screen sets
+# that column too; this keeps it current between tests, so the database
+# switcher's status dot turns red when a database goes down and green when
+# it's back. Written only when it changes, not every cycle.
+_reachability: dict = {}
+
+
+def _record_reachability(target_id, ok: bool, message: str | None = None) -> None:
+    if _reachability.get(target_id) == ok:
+        return
+    try:
+        with store_conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE targets SET last_test_ok = %s, last_test_at = now(), last_test_message = %s
+                WHERE id = %s AND last_test_ok IS DISTINCT FROM %s
+                """,
+                (ok, message, target_id, ok),
+            )
+            conn.commit()
+    except psycopg.Error as exc:
+        _problems.problem(
+            ("reachability", target_id), "saving target %s status failed: %s", target_id, _first_line(exc)
+        )
+        return
+    _problems.resolved(("reachability", target_id), "saving target %s status works again", target_id)
+    _reachability[target_id] = ok
 
 
 def _job_failed(job: str, target_id, exc: BaseException) -> None:

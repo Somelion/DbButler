@@ -101,3 +101,58 @@ def test_job_failed_routes_by_error_kind(caplog, monkeypatch):
 
     records = [(r.levelname, r.exc_info is not None) for r in caplog.records]
     assert records == [("WARNING", False), ("DEBUG", False), ("INFO", False), ("ERROR", True)]
+
+
+class _StoreSpy:
+    def __init__(self):
+        self.updates = []
+
+    def __call__(self):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def cursor(self):
+        return self
+
+    def execute(self, sql, params=None):
+        self.updates.append(params[:2])
+
+    def commit(self):
+        pass
+
+
+def test_target_status_saved_only_when_it_changes(monkeypatch):
+    store = _StoreSpy()
+    monkeypatch.setattr(scheduler, "store_conn", store)
+    monkeypatch.setattr(scheduler, "_reachability", {})
+    monkeypatch.setattr(scheduler, "_problems", ProblemLog(scheduler.logger))
+
+    def connect_fails(target_row):
+        raise psycopg.OperationalError("connection refused\nIs the server running?")
+
+    monkeypatch.setattr(scheduler, "_connect_target", connect_fails)
+    for _ in range(3):
+        try:
+            with scheduler._target_session((TARGET,)):
+                pass
+        except scheduler.TargetUnreachable:
+            pass
+
+    class FakeConn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(scheduler, "_connect_target", lambda target_row: FakeConn())
+    for _ in range(2):
+        with scheduler._target_session((TARGET,)):
+            pass
+
+    assert store.updates == [(False, "connection refused"), (True, None)]

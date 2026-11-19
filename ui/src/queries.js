@@ -10,9 +10,12 @@ export const TARGETS_KEY = ["targets"];
 export const targetsQuery = () => ({
   queryKey: TARGETS_KEY,
   queryFn: ({ signal }) => api.listTargets({ signal }),
-  // Only changes through this UI (create/rename/retest/remove), and those
-  // write the result straight into the cache.
+  // Changes through this UI (create/rename/retest/remove) write the result
+  // straight into the cache. The background jobs also update each
+  // connection's status (reachable or not, last_test_ok), so it's reread
+  // every minute for the database switcher's status dot.
   staleTime: Infinity,
+  refetchInterval: 60_000,
 });
 
 export const useTargets = () => useQuery(targetsQuery());

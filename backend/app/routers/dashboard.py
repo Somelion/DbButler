@@ -162,6 +162,41 @@ def get_extension_status(target_id: uuid.UUID):
     return ExtensionStatusResponse(pg_stat_statements_enabled=enabled, message=message)
 
 
+# The two findings below take one ACTIVITY_SUMMARY_QUERY row and read it by
+# position (pid, state, duration, ...) rather than unpacking the whole row,
+# so adding a column to the query can't break them.
+def _idle_in_transaction_finding(row) -> Finding:
+    pid, duration = row[0], row[2]
+    return Finding(
+        id=f"idle-tx-{pid}",
+        category="connections",
+        severity=idle_in_tx_severity(duration),
+        title="A session has been idle inside a transaction",
+        summary=(
+            f"Session {pid} has held an open transaction for {duration}s. "
+            "This can block cleanup (VACUUM) on tables it has touched."
+        ),
+        detail=f"pid={pid} state=idle in transaction state_duration_seconds={duration}",
+        suggested_action="Open Activity and consider terminating this session if it's not expected to resume.",
+    )
+
+
+def _long_running_query_finding(row) -> Finding:
+    pid, duration = row[0], row[2]
+    return Finding(
+        id=f"long-running-query-{pid}",
+        category="connections",
+        severity=long_running_query_severity(duration),
+        title="A query has been running for a long time",
+        summary=(
+            f"Session {pid} has been actively running the same query for {duration}s — either "
+            "an expected long batch job, or one stuck behind lock contention or a bad plan."
+        ),
+        detail=f"pid={pid} state=active state_duration_seconds={duration}",
+        suggested_action="Open Activity to see the query text and check whether it's expected to still be running.",
+    )
+
+
 def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
     """Runs the full set of live health checks against an already-open target
     cursor. Shared by the dashboard endpoint and the Diagnose Now runbook so
@@ -259,37 +294,9 @@ def compute_health(cur, target_id: uuid.UUID) -> DashboardResponse:
         )
     )
     if worst_idle and idle_in_tx_severity(worst_idle[2]) != "healthy":
-        pid, _, duration, _ = worst_idle
-        findings.append(
-            Finding(
-                id=f"idle-tx-{pid}",
-                category="connections",
-                severity=idle_in_tx_severity(duration),
-                title="A session has been idle inside a transaction",
-                summary=(
-                    f"Session {pid} has held an open transaction for {duration}s. "
-                    "This can block cleanup (VACUUM) on tables it has touched."
-                ),
-                detail=f"pid={pid} state=idle in transaction state_duration_seconds={duration}",
-                suggested_action="Open Activity and consider terminating this session if it's not expected to resume.",
-            )
-        )
+        findings.append(_idle_in_transaction_finding(worst_idle))
     if worst_active and long_running_query_severity(worst_active[2]) != "healthy":
-        pid, _, duration, _ = worst_active
-        findings.append(
-            Finding(
-                id=f"long-running-query-{pid}",
-                category="connections",
-                severity=long_running_query_severity(duration),
-                title="A query has been running for a long time",
-                summary=(
-                    f"Session {pid} has been actively running the same query for {duration}s — either "
-                    "an expected long batch job, or one stuck behind lock contention or a bad plan."
-                ),
-                detail=f"pid={pid} state=active state_duration_seconds={duration}",
-                suggested_action="Open Activity to see the query text and check whether it's expected to still be running.",
-            )
-        )
+        findings.append(_long_running_query_finding(worst_active))
     if pool_severity != "healthy":
         findings.append(
             Finding(

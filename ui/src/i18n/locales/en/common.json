@@ -109,11 +109,15 @@
     "continue": "Continue"
   },
   "switcher": {
-    "ariaLabel": "Database: {{name}}. Switch database",
+    "ariaLabel": "Database: {{name}} ({{status}}). Switch database",
     "noneSelected": "none selected",
     "databases": "Databases",
     "select": "Select a database",
     "paused": "paused",
+    "problem": "connection problem",
+    "statusMonitored": "Monitored",
+    "statusPaused": "Paused",
+    "statusProblem": "Connection problem",
     "manage": "Add / manage connections"
   },
   "planViewer": {

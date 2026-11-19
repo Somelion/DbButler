@@ -10,21 +10,39 @@ import { Popover, StatusDot, popoverStyles } from "./components";
 // currently displayed). Deliberately minimal: switch or add a connection
 // here; rename/pause/remove stay on the Connections screen rather than
 // duplicating management actions into a quick-access dropdown.
+// The status dot: grey while paused (not watched, whatever its last status),
+// red when the last connect failed — a manual test or the background jobs,
+// which keep last_test_ok current — and green while it's being monitored.
+function targetStatus(target) {
+  if (!target) return { tone: "neutral", label: "switcher.select" };
+  if (!target.is_active) return { tone: "neutral", label: "switcher.statusPaused" };
+  if (target.last_test_ok === false) return { tone: "critical", label: "switcher.statusProblem" };
+  return { tone: "healthy", label: "switcher.statusMonitored" };
+}
+
+function TargetStatusDot({ target, className }) {
+  const { t } = useTranslation();
+  const status = targetStatus(target);
+  return <StatusDot tone={status.tone} label={t(status.label)} hideLabel className={className} />;
+}
+
 export default function TargetSwitcher({ targets, activeTargetId, onSelect, onManage }) {
   const { t } = useTranslation();
   if (targets.length === 0) return null;
 
   const active = targets.find((target) => target.id === activeTargetId) ?? null;
-  const statusLabel = (target) => (target?.last_test_ok ? t("nav.connected") : t("nav.notConnected"));
 
   return (
     <Popover
-      ariaLabel={t("switcher.ariaLabel", { name: active ? active.name : t("switcher.noneSelected") })}
+      ariaLabel={t("switcher.ariaLabel", {
+        name: active ? active.name : t("switcher.noneSelected"),
+        status: t(targetStatus(active).label),
+      })}
       panelLabel={t("switcher.databases")}
       buttonClassName={styles.trigger}
       label={
         <>
-          <StatusDot tone={active?.last_test_ok ? "healthy" : "unknown"} label={statusLabel(active)} hideLabel />
+          <TargetStatusDot target={active} className={styles.statusDot} />
           <span className={styles.triggerName}>{active ? active.name : t("switcher.select")}</span>
           <ChevronDown size={14} className={styles.chevron} aria-hidden="true" />
         </>
@@ -44,12 +62,14 @@ export default function TargetSwitcher({ targets, activeTargetId, onSelect, onMa
                 onSelect(target.id);
               }}
             >
-              <StatusDot tone={target.last_test_ok ? "healthy" : "unknown"} label={statusLabel(target)} hideLabel />
+              <TargetStatusDot target={target} className={styles.statusDot} />
               <span className={styles.optionText}>
                 <span className={styles.optionName}>{target.name}</span>
                 <span className={styles.optionAddress}>
                   {target.host}:{target.port}/{target.dbname}
-                  {!target.is_active && ` · ${t("switcher.paused")}`}
+                  {!target.is_active
+                    ? ` · ${t("switcher.paused")}`
+                    : target.last_test_ok === false && ` · ${t("switcher.problem")}`}
                 </span>
               </span>
             </button>

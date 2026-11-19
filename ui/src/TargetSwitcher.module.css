@@ -16,6 +16,14 @@
   border-color: var(--border-strong);
 }
 
+/* A slightly larger dot with a soft halo in its own colour (green
+   monitored, grey paused, red connection problem), easy to read at a glance. */
+.statusDot > span:first-child {
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--tone-solid) 22%, transparent);
+}
+
 .triggerName {
   overflow: hidden;
   text-overflow: ellipsis;
