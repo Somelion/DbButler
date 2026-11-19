@@ -11,7 +11,14 @@
     var(--bg);
 }
 
+/* Never wider than the window: anything that would stick out sideways is
+   clipped here instead of giving the page a horizontal scrollbar into
+   empty space. clip (unlike hidden) isn't a scroll container, so the
+   sticky top bar keeps working; position: relative makes it clip
+   absolutely positioned descendants too. */
 .main {
+  position: relative;
+  overflow-x: clip;
   min-width: 0;
   display: flex;
   flex-direction: column;

@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { api } from "./api";
 import PgBouncerSettings, { SSL_MODE_OPTIONS } from "./PgBouncerSettings";
 import CollapsibleGroup from "./CollapsibleGroup";
+import SchemaPicker from "./SchemaPicker";
 import { Alert, Badge, Card, Field, severityMeta, useConfirm } from "./components";
 import tone from "./components/tone.module.css";
 import styles from "./ConnectionsScreen.module.css";
@@ -16,22 +17,11 @@ const EMPTY_FORM = {
   username: "",
   password: "",
   sslmode: "prefer",
-  allowedSchemas: "",
 };
 
-// "" (or all-whitespace) means "no filter" — parses a comma-separated list
-// into a trimmed, non-empty array, or undefined so the field is simply
-// omitted from the payload rather than sent as an empty array.
-function parseAllowedSchemas(text) {
-  const names = text
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return names.length > 0 ? names : undefined;
-}
-
-function formatAllowedSchemas(list) {
-  return list && list.length > 0 ? list.join(", ") : "";
+// The picker's value for a saved allowlist: null (no filter) or the names.
+function pickerValue(allowedSchemas) {
+  return allowedSchemas && allowedSchemas.length > 0 ? allowedSchemas : null;
 }
 
 // Focuses an inline editor's input when it opens (instead of autoFocus).
@@ -85,6 +75,7 @@ export default function ConnectionsScreen({ targets, activeTargetId, onCreated, 
 function ConnectionForm({ onSaved, onCancel }) {
   const { t } = useTranslation("connections");
   const [form, setForm] = useState(EMPTY_FORM);
+  const [allowedSchemas, setAllowedSchemas] = useState(null);
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -92,10 +83,16 @@ function ConnectionForm({ onSaved, onCancel }) {
 
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value });
 
-  const asPayload = () => {
-    const { allowedSchemas, ...rest } = form;
-    return { ...rest, port: parseInt(form.port, 10) || 5432, allowed_schemas: parseAllowedSchemas(allowedSchemas) };
-  };
+  // null (every schema) is left out of the payload: no allowlist.
+  const asPayload = () => ({
+    ...form,
+    port: parseInt(form.port, 10) || 5432,
+    allowed_schemas: allowedSchemas ?? undefined,
+  });
+  const noSchemas = allowedSchemas?.length === 0;
+  // The schema list comes from the database these fields point at: a new
+  // address or user starts the picker over (a new password just retries).
+  const schemaSource = [form.host, form.port, form.dbname, form.username, form.sslmode].join("|");
 
   const handleTest = async () => {
     setTesting(true);
@@ -173,12 +170,16 @@ function ConnectionForm({ onSaved, onCancel }) {
             </Field>
           </div>
 
-          <Field label={t("form.schemas")} hint={t("form.schemasHint")}>
-            <input
-              value={form.allowedSchemas}
-              onChange={set("allowedSchemas")}
-              placeholder={t("schemasPlaceholder")}
-              autoComplete="off"
+          <Field
+            label={t("form.schemas")}
+            hint={t("form.schemasHint")}
+            error={noSchemas ? t("picker.pickOne") : undefined}
+          >
+            <SchemaPicker
+              key={schemaSource}
+              value={allowedSchemas}
+              onChange={setAllowedSchemas}
+              loadSchemas={() => api.listNewConnectionSchemas(asPayload())}
             />
           </Field>
 
@@ -190,7 +191,7 @@ function ConnectionForm({ onSaved, onCancel }) {
             <button type="button" className="button-primary" onClick={handleTest} disabled={testing || saving}>
               {testing ? t("testing") : t("testConnection")}
             </button>
-            <button type="submit" className="button-secondary" disabled={saving || testing}>
+            <button type="submit" className="button-secondary" disabled={saving || testing || noSchemas}>
               {saving ? t("common:actions.saving") : t("form.save")}
             </button>
             {onCancel && (
@@ -230,11 +231,10 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
   const [usernameDraft, setUsernameDraft] = useState(target.username);
   const [passwordDraft, setPasswordDraft] = useState("");
   const [editingSchemas, setEditingSchemas] = useState(false);
-  const [schemasDraft, setSchemasDraft] = useState(() => formatAllowedSchemas(target.allowed_schemas));
+  const [schemasDraft, setSchemasDraft] = useState(() => pickerValue(target.allowed_schemas));
 
   const renameRef = useFocusWhen(renaming);
   const passwordRef = useFocusWhen(updatingPassword);
-  const schemasRef = useFocusWhen(editingSchemas);
   const renameId = useId();
   const usernameId = useId();
   const passwordId = useId();
@@ -245,9 +245,8 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
     setBusy(true);
     setError(null);
     try {
-      const updated = await api.updateTarget(target.id, {
-        allowed_schemas: parseAllowedSchemas(schemasDraft) || [],
-      });
+      // An empty list clears the allowlist: every schema.
+      const updated = await api.updateTarget(target.id, { allowed_schemas: schemasDraft ?? [] });
       onUpdated(updated);
       setEditingSchemas(false);
     } catch (err) {
@@ -500,33 +499,40 @@ function ConnectionCard({ target, isActive, onSelect, onRemoved, onUpdated }) {
         )}
 
         {editingSchemas ? (
-          <form onSubmit={handleSaveSchemas} className={styles.inlineForm}>
+          <form onSubmit={handleSaveSchemas} className={styles.schemasForm}>
             <label htmlFor={schemasId} className="sr-only">
-              {t("card.schemasLabel")}
+              {t("card.schemasLabel", { name: target.name })}
             </label>
-            <input
-              id={schemasId}
-              ref={schemasRef}
-              value={schemasDraft}
-              onChange={(e) => setSchemasDraft(e.target.value)}
-              placeholder={t("schemasPlaceholder")}
-              autoComplete="off"
-              className={styles.grow}
-            />
-            <button type="submit" className="button-secondary" disabled={busy}>
-              {busy ? t("common:actions.saving") : t("common:actions.save")}
-            </button>
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={() => {
-                setEditingSchemas(false);
-                setSchemasDraft(formatAllowedSchemas(target.allowed_schemas));
-              }}
-              disabled={busy}
-            >
-              {t("common:actions.cancel")}
-            </button>
+            <div className={styles.inlineForm}>
+              <div className={styles.grow}>
+                <SchemaPicker
+                  id={schemasId}
+                  value={schemasDraft}
+                  onChange={setSchemasDraft}
+                  loadSchemas={() => api.listTargetSchemas(target.id)}
+                  disabled={busy}
+                />
+              </div>
+              <button type="submit" className="button-secondary" disabled={busy || schemasDraft?.length === 0}>
+                {busy ? t("common:actions.saving") : t("common:actions.save")}
+              </button>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => {
+                  setEditingSchemas(false);
+                  setSchemasDraft(pickerValue(target.allowed_schemas));
+                }}
+                disabled={busy}
+              >
+                {t("common:actions.cancel")}
+              </button>
+            </div>
+            {schemasDraft?.length === 0 && (
+              <span className={styles.schemasError} role="alert">
+                {t("picker.pickOne")}
+              </span>
+            )}
           </form>
         ) : (
           <div className={styles.schemasRow}>

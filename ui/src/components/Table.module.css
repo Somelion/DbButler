@@ -2,7 +2,10 @@
      import tableStyles from "./components/Table.module.css";
    and compose with a screen's own module where a table needs extras. */
 
+/* position: relative keeps absolutely positioned bits inside the table
+   (sr-only texts) within this scroll box instead of stretching the page. */
 .wrap {
+  position: relative;
   width: 100%;
   overflow-x: auto;
 }

@@ -1,4 +1,5 @@
 {
+  "tableRegion": "Tables by schema",
   "estimatedRowsHint": "Estimated from PostgreSQL's table statistics: the activity counters were reset (pg_stat_reset, a crash or a restore) and the table hasn't been vacuumed or analyzed since. The dead count only covers changes since the reset. Run ANALYZE on the table for exact numbers.",
   "columns": {
     "table": {

@@ -12,14 +12,19 @@ import styles from "./Popover.module.css";
 //   </Popover>
 //
 // Use the exported `popoverStyles.option` / `.divider` / `.sectionLabel`
-// classes for the rows inside the panel.
+// classes for the rows inside the panel. `onOpen` runs each time the panel
+// opens (e.g. to load its contents); `buttonProps` go onto the trigger (an
+// id for a <label>, aria-describedby, disabled).
 export default function Popover({
   label,
   ariaLabel,
   buttonClassName,
+  buttonProps,
+  className,
   panelClassName,
   panelLabel,
   align = "end",
+  onOpen,
   children,
 }) {
   const [open, setOpen] = useState(false);
@@ -66,15 +71,19 @@ export default function Popover({
   const close = () => setOpen(false);
 
   return (
-    <div ref={rootRef} className={styles.root}>
+    <div ref={rootRef} className={[styles.root, className].filter(Boolean).join(" ")}>
       <button
+        {...buttonProps}
         ref={buttonRef}
         type="button"
         className={buttonClassName}
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          if (!open) onOpen?.();
+          setOpen(!open);
+        }}
       >
         {label}
       </button>

@@ -172,3 +172,14 @@
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
+
+.schemasForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.schemasError {
+  font-size: var(--font-size-xs);
+  color: var(--critical-text);
+}

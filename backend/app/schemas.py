@@ -62,6 +62,17 @@ class ConnectionTestRequest(BaseModel):
     sslmode: str = "prefer"
 
 
+class SchemaInfo(BaseModel):
+    name: str
+    table_count: int
+
+
+class SchemaListOut(BaseModel):
+    # Every user schema in the database, regardless of the connection's
+    # schema allowlist — this is what the allowlist is picked from.
+    schemas: list[SchemaInfo]
+
+
 class ConnectionTestResult(BaseModel):
     ok: bool
     pg_version: str | None = None

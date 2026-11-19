@@ -1,0 +1,34 @@
+.root {
+  width: 100%;
+}
+
+/* The table's own scrollbar is hidden: .bar below replaces it.
+   position: relative keeps absolutely positioned bits inside the table
+   (the sr-only header texts) scrolling with it; otherwise they're placed
+   against the page and a wide table stretches the page sideways. */
+.content {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.content::-webkit-scrollbar {
+  display: none;
+}
+.bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-top: var(--space-4);
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  scrollbar-width: auto;
+  scrollbar-color: var(--text-muted) var(--row-bg);
+}
+
+.spacer {
+  height: 1px;
+}

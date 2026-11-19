@@ -1,0 +1,117 @@
+.root {
+  display: flex;
+  width: 100%;
+}
+
+/* Looks like the form's other inputs: full width, text on the left. */
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  min-width: 260px;
+  padding: var(--space-8) var(--space-10);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  font-weight: var(--weight-regular);
+  color: var(--text);
+  text-align: left;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.trigger:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.triggerInvalid {
+  border-color: var(--critical-solid);
+}
+
+.summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+[aria-expanded="true"] > .chevron {
+  transform: rotate(180deg);
+}
+
+.panel {
+  width: min(360px, calc(100vw - 2 * var(--space-16)));
+}
+
+.search {
+  width: 100%;
+}
+
+.bulkActions {
+  display: flex;
+  gap: var(--space-12);
+  padding: var(--space-4) var(--space-8) 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.option {
+  display: flex;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.count {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+  padding: var(--space-8);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.error {
+  color: var(--critical-text);
+}
+
+.footnote {
+  padding: 0 var(--space-8) var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
+}

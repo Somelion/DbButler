@@ -10,7 +10,17 @@ import HeaderHint from "./HeaderHint";
 import TableHealthDetail from "./TableHealthDetail";
 import CategoryFilterDropdown from "./CategoryFilterDropdown";
 import { useFirstSeenMap } from "./useFirstSeenMap";
-import { Alert, Card, EmptyState, SeverityIcon, Skeleton, SortHeader, useConfirm, useToast } from "./components";
+import {
+  Alert,
+  Card,
+  EmptyState,
+  SeverityIcon,
+  Skeleton,
+  SortHeader,
+  TableScroll,
+  useConfirm,
+  useToast,
+} from "./components";
 import tableStyles from "./components/Table.module.css";
 import tone from "./components/tone.module.css";
 import styles from "./TableHealth.module.css";
@@ -343,7 +353,7 @@ export default function TableHealth({ targetId }) {
         <p className={styles.note}>{t("allSchemasHidden")}</p>
       )}
       {visibleGrouped.length > 0 && (
-        <div className={tableStyles.wrap}>
+        <TableScroll label={t("tableRegion")}>
           <table className={tableStyles.table}>
             <thead>
               <tr>
@@ -420,7 +430,7 @@ export default function TableHealth({ targetId }) {
               );
             })}
           </table>
-        </div>
+        </TableScroll>
       )}
     </Card>
   );
@@ -432,7 +442,14 @@ function SchemaGroup({ schemaName, tableCount, severity, isCollapsed, groupId, o
   return (
     <>
       <tbody>
-        <tr className={tableStyles.groupRow}>
+        {/* Mouse convenience, as on the table rows: the expander button is
+            the keyboard and screen-reader control. */}
+        <tr
+          className={`${tableStyles.groupRow} ${styles.clickableRow}`}
+          onClick={(event) => {
+            if (isRowToggleClick(event)) onToggle();
+          }}
+        >
           <td colSpan={COLUMNS.length} className={tableStyles.td}>
             <div className={styles.schemaHeader}>
               <button
@@ -560,6 +577,14 @@ function SchemaMaintenanceActions({ targetId, schemaName, tableCount, onFinished
       })}
     </span>
   );
+}
+
+// A click anywhere on a table or schema row opens/closes it, like its
+// expander button — except on the row's own controls (they do their own
+// thing) and when the user has just drag-selected text to copy it.
+function isRowToggleClick(event) {
+  if (event.target.closest("button, a, input, select, textarea, label")) return false;
+  return !window.getSelection()?.toString();
 }
 
 function worstSeverity(table) {
@@ -703,7 +728,15 @@ function TableRow({
 
   return (
     <>
-      <tr ref={rowRef} className={`${tableStyles.row} ${rowClass} ${styles.scrollAnchor}`}>
+      {/* Mouse convenience only: keyboard and screen-reader users have the
+          expander button in the first cell, which does the same thing. */}
+      <tr
+        ref={rowRef}
+        className={`${tableStyles.row} ${rowClass} ${styles.scrollAnchor} ${styles.clickableRow}`}
+        onClick={(event) => {
+          if (isRowToggleClick(event)) onToggleExpand();
+        }}
+      >
         <td className={`${tableStyles.td} ${tableStyles.mono}`}>
           <button
             type="button"

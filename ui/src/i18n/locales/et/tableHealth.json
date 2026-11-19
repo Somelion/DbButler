@@ -1,4 +1,5 @@
 {
+  "tableRegion": "Tabelid skeemide kaupa",
   "estimatedRowsHint": "Hinnatud PostgreSQL-i tabelistatistika põhjal: tegevusloendurid on lähtestatud (pg_stat_reset, krahh või taastamine) ja tabelit pole pärast seda vacuumitud ega analüüsitud. Surnud ridade arv näitab ainult lähtestamisest saadik tehtud muudatusi. Täpsete arvude saamiseks käivita tabelil ANALYZE.",
   "columns": {
     "table": {

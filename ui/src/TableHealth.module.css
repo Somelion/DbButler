@@ -42,6 +42,11 @@
   background: var(--attention-bg);
 }
 
+/* The whole row opens/closes it (TableHealth.jsx isRowToggleClick). */
+.clickableRow {
+  cursor: pointer;
+}
+
 /* Room above a deep-linked row scrolled into view. */
 .scrollAnchor {
   scroll-margin-top: var(--space-16);
@@ -86,12 +91,16 @@
   border-bottom: 1px solid var(--border);
 }
 
-/* Schema group header: the expand toggle on the left, "Analyze all" on the right. */
+/* Schema group header: the expand toggle with "Analyze all" / "Vacuum all"
+   right after it. Pinned to the left edge, so the buttons stay on screen
+   while a wide table is scrolled sideways. */
 .schemaHeader {
+  position: sticky;
+  left: var(--space-10);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-12);
+  gap: var(--space-16);
+  width: max-content;
 }
 
 .schemaAction {

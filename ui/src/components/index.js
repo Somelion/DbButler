@@ -12,4 +12,5 @@ export { default as Popover, popoverStyles } from "./Popover";
 export { default as CopyButton } from "./CopyButton";
 export { Field, Checkbox, fieldStyles } from "./Field";
 export { default as SortHeader } from "./SortHeader";
+export { default as TableScroll } from "./TableScroll";
 export { default as PlanViewerFrame } from "./PlanViewerFrame";

@@ -1,5 +1,6 @@
 import uuid
 
+import psycopg
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, HTTPException
 
@@ -7,9 +8,30 @@ from app.crypto import decrypt, encrypt
 from app.db.store import store_conn
 from app.logging_setup import audit
 from app.pg_probe import test_connection
-from app.schemas import ConnectionTestRequest, ConnectionTestResult, TargetCreate, TargetOut, TargetUpdate
+from app.schemas import (
+    ConnectionTestRequest,
+    ConnectionTestResult,
+    SchemaInfo,
+    SchemaListOut,
+    TargetCreate,
+    TargetOut,
+    TargetUpdate,
+)
+from app.target_conn import connect_to_target, open_target_connection
 
 router = APIRouter(prefix="/api/targets", tags=["targets"])
+
+# Every user schema with its table count (tables, partitioned tables and
+# materialized views), for picking the schema allowlist. System schemas
+# (pg_catalog, pg_toast, temp schemas, information_schema) are left out.
+SCHEMAS_QUERY = """
+SELECT n.nspname, count(c.oid) FILTER (WHERE c.relkind IN ('r', 'p', 'm'))::int
+FROM pg_namespace n
+LEFT JOIN pg_class c ON c.relnamespace = n.oid
+WHERE n.nspname <> 'information_schema' AND n.nspname NOT LIKE 'pg\\_%'
+GROUP BY n.nspname
+ORDER BY n.nspname
+"""
 
 _COLUMNS = (
     "id, name, host, port, dbname, username, sslmode, detected_pg_version, "
@@ -217,6 +239,35 @@ def test_new_connection(payload: ConnectionTestRequest):
         payload.host, payload.port, payload.dbname, payload.username, payload.password, payload.sslmode
     )
     return ConnectionTestResult(**result)
+
+
+def _list_schemas(conn) -> SchemaListOut:
+    with conn.cursor() as cur:
+        cur.execute(SCHEMAS_QUERY)
+        return SchemaListOut(schemas=[SchemaInfo(name=name, table_count=count) for name, count in cur.fetchall()])
+
+
+@router.post("/schemas", response_model=SchemaListOut)
+def list_new_connection_schemas(payload: ConnectionTestRequest):
+    """The schemas of a connection that isn't saved yet (the add-connection
+    form), with the credentials typed into it."""
+    try:
+        with open_target_connection(
+            payload.host, payload.port, payload.dbname, payload.username, payload.password, payload.sslmode
+        ) as conn:
+            return _list_schemas(conn)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
+
+
+@router.get("/{target_id}/schemas", response_model=SchemaListOut)
+def list_target_schemas(target_id: uuid.UUID):
+    """All schemas of a saved connection, ignoring its own allowlist."""
+    try:
+        with connect_to_target(target_id) as conn:
+            return _list_schemas(conn)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail=f"Could not reach target: {exc}") from exc
 
 
 @router.post("/{target_id}/test", response_model=ConnectionTestResult)

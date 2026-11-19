@@ -206,8 +206,10 @@ export default function WorkloadGraph({ nodes, edges, colorBy, visibleKinds, sel
     });
     cy.on("tap", "node[kind = 'table']", (event) => onSelectRef.current({ type: "table", id: event.target.id() }));
     cy.on("tap", "edge", (event) => onSelectRef.current({ type: "edge", id: event.target.id() }));
+    // Empty space deselects. With several schemas most of the canvas is
+    // covered by schema boxes, so a tap on a box counts as empty space too.
     cy.on("tap", (event) => {
-      if (event.target === cy) onSelectRef.current(null);
+      if (event.target === cy || event.target.data("kind") === "schema") onSelectRef.current(null);
     });
     cy.on("mouseover", "edge", (event) => {
       const edge = edgeByIdRef.current.get(event.target.id());

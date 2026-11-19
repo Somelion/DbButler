@@ -85,6 +85,9 @@ export const api = {
   updateTarget: (id, payload) => request(`/api/targets/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   testNewConnection: (payload) => request("/api/targets/test", { method: "POST", body: JSON.stringify(payload) }),
   retestTarget: (id) => request(`/api/targets/${id}/test`, { method: "POST" }),
+  listTargetSchemas: (id) => request(`/api/targets/${id}/schemas`),
+  listNewConnectionSchemas: (payload) =>
+    request("/api/targets/schemas", { method: "POST", body: JSON.stringify(payload) }),
   getMetric: (targetId, metricName, opts) => request(`/api/targets/${targetId}/metrics/${metricName}`, opts),
   getActivity: (targetId, opts) => request(`/api/targets/${targetId}/activity`, opts),
   cancelQuery: (targetId, pid) => request(`/api/targets/${targetId}/activity/${pid}/cancel`, { method: "POST" }),
