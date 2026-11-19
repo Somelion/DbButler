@@ -1,5 +1,7 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import styles from "./Popover.module.css";
+
+const FLOATING_GAP = 6;
 
 // A button that toggles a floating, non-modal panel (filter dropdowns,
 // the database switcher). The trigger carries aria-expanded/aria-controls;
@@ -15,6 +17,12 @@ import styles from "./Popover.module.css";
 // classes for the rows inside the panel. `onOpen` runs each time the panel
 // opens (e.g. to load its contents); `buttonProps` go onto the trigger (an
 // id for a <label>, aria-describedby, disabled).
+//
+// `floating` places the panel against the window instead of the trigger's
+// box, for a trigger inside a scrolling area (a table row) that would
+// otherwise clip it: below the trigger, or above it when there's no room
+// below. Scrolling anything outside the panel closes it, since it would
+// no longer sit next to its trigger.
 export default function Popover({
   label,
   ariaLabel,
@@ -24,14 +32,44 @@ export default function Popover({
   panelClassName,
   panelLabel,
   align = "end",
+  floating = false,
   onOpen,
   children,
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const buttonRef = useRef(null);
+  const panelRef = useRef(null);
   const wasOpenRef = useRef(false);
   const panelId = useId();
+
+  // Before paint, so the panel never shows in the wrong place first.
+  useLayoutEffect(() => {
+    if (!open || !floating) return undefined;
+    const panel = panelRef.current;
+    const button = buttonRef.current.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    const roomBelow = viewportHeight - button.bottom - FLOATING_GAP;
+    const top =
+      roomBelow >= panel.offsetHeight || roomBelow >= button.top
+        ? button.bottom + FLOATING_GAP
+        : button.top - FLOATING_GAP - panel.offsetHeight;
+    const left = align === "end" ? button.right - panel.offsetWidth : button.left;
+    panel.style.top = `${Math.max(FLOATING_GAP, top)}px`;
+    panel.style.left = `${Math.min(Math.max(FLOATING_GAP, left), viewportWidth - panel.offsetWidth - FLOATING_GAP)}px`;
+
+    const closeUnlessInside = (event) => {
+      if (!panel.contains(event.target)) setOpen(false);
+    };
+    const closeOnResize = () => setOpen(false);
+    window.addEventListener("scroll", closeUnlessInside, true);
+    window.addEventListener("resize", closeOnResize);
+    return () => {
+      window.removeEventListener("scroll", closeUnlessInside, true);
+      window.removeEventListener("resize", closeOnResize);
+    };
+  }, [open, floating, align]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -89,10 +127,13 @@ export default function Popover({
       </button>
       {open && (
         <div
+          ref={panelRef}
           id={panelId}
           role="group"
           aria-label={panelLabel ?? (typeof ariaLabel === "string" ? ariaLabel : undefined)}
-          className={[styles.panel, styles[align], panelClassName].filter(Boolean).join(" ")}
+          className={[styles.panel, floating ? styles.floating : styles[align], panelClassName]
+            .filter(Boolean)
+            .join(" ")}
         >
           {children({ close })}
         </div>

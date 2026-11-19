@@ -24,6 +24,13 @@
   right: 0;
 }
 
+/* Placed against the window by Popover.jsx (top/left set inline). */
+.floating {
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
 .start {
   left: 0;
 }

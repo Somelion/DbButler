@@ -1,8 +1,8 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, Eraser, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, Eraser, RefreshCw } from "lucide-react";
 import { api } from "./api";
 import { targetKey } from "./queryClient";
 import { formatBytes, formatRelativeTime } from "./format";
@@ -14,6 +14,8 @@ import {
   Alert,
   Card,
   EmptyState,
+  Popover,
+  popoverStyles,
   SeverityIcon,
   Skeleton,
   SortHeader,
@@ -354,7 +356,7 @@ export default function TableHealth({ targetId }) {
       )}
       {visibleGrouped.length > 0 && (
         <TableScroll label={t("tableRegion")}>
-          <table className={tableStyles.table}>
+          <table className={`${tableStyles.table} ${styles.healthTable}`}>
             <thead>
               <tr>
                 {COLUMNS.map((col) =>
@@ -581,9 +583,10 @@ function SchemaMaintenanceActions({ targetId, schemaName, tableCount, onFinished
 
 // A click anywhere on a table or schema row opens/closes it, like its
 // expander button — except on the row's own controls (they do their own
-// thing) and when the user has just drag-selected text to copy it.
+// thing), inside the row's open Actions menu, and when the user has just
+// drag-selected text to copy it.
 function isRowToggleClick(event) {
-  if (event.target.closest("button, a, input, select, textarea, label")) return false;
+  if (event.target.closest("button, a, input, select, textarea, label, [role='group']")) return false;
   return !window.getSelection()?.toString();
 }
 
@@ -605,6 +608,46 @@ function SeverityValue({ severity, children }) {
 }
 
 const ACTION_SUCCESS_TIMEOUT_MS = 6000;
+
+// The row's Actions menu. verb is also the row.<verb> translation key.
+const ROW_ACTIONS = [
+  { verb: "analyze", run: (targetId, table) => api.analyzeTable(targetId, table.schema_name, table.table_name) },
+  {
+    verb: "vacuum",
+    tone: "danger",
+    run: (targetId, table) => api.vacuumTable(targetId, table.schema_name, table.table_name, true),
+  },
+  {
+    verb: "resetStats",
+    tone: "danger",
+    run: (targetId, table) => api.resetTableStats(targetId, table.schema_name, table.table_name),
+  },
+];
+
+// Wraparound ages run to hundreds of millions: "123.5M", the exact number
+// in the cell's tooltip.
+const COMPACT_NUMBER = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+
+// A table name with one line per "_"-separated part (order_line_items →
+// order_ / line_ / items), so the name column stays narrow. The breaks are
+// only break opportunities (<wbr>): copying the name gives it back whole.
+function TableName({ name }) {
+  const parts = name.split("_");
+  return (
+    <span className={styles.tableName}>
+      {parts.map((part, index) => (
+        <Fragment key={index}>
+          {part}
+          {index < parts.length - 1 && (
+            <>
+              _<wbr />
+            </>
+          )}
+        </Fragment>
+      ))}
+    </span>
+  );
+}
 
 function TableRow({
   table,
@@ -740,26 +783,31 @@ function TableRow({
         <td className={`${tableStyles.td} ${tableStyles.mono}`}>
           <button
             type="button"
-            className={tableStyles.expander}
+            className={`${tableStyles.expander} ${styles.nameButton}`}
             aria-expanded={expanded}
             aria-controls={detailId}
             title={t("row.showSuggestions")}
             onClick={onToggleExpand}
           >
-            <ChevronRight size={14} className={tableStyles.chevron} aria-hidden="true" />
-            {table.table_name}
+            <ChevronRight size={14} className={`${tableStyles.chevron} ${styles.nameChevron}`} aria-hidden="true" />
+            <TableName name={table.table_name} />
           </button>
         </td>
         <td
           className={`${tableStyles.td} ${tableStyles.mono} ${styles.secondary}`}
           title={table.live_tuples_estimated ? t(ESTIMATED_ROWS_HINT) : undefined}
         >
-          {table.live_tuples_estimated && (
-            <span className={styles.estimate} aria-hidden="true">
-              ≈
-            </span>
-          )}
-          {table.live_tuples.toLocaleString()} / {table.dead_tuples.toLocaleString()}
+          <div className={styles.nowrap}>
+            {table.live_tuples_estimated && (
+              <span className={styles.estimate} aria-hidden="true">
+                ≈
+              </span>
+            )}
+            {table.live_tuples.toLocaleString()}
+          </div>
+          <div className={`${styles.nowrap} ${styles.dead}`}>
+            {t("row.deadCount", { dead: table.dead_tuples.toLocaleString() })}
+          </div>
           {table.live_tuples_estimated && <span className="sr-only"> ({t(ESTIMATED_ROWS_HINT)})</span>}
         </td>
         <td className={tableStyles.td}>
@@ -768,7 +816,9 @@ function TableRow({
         <td className={`${tableStyles.td} ${styles.secondary}`}>{formatRelativeTime(table.last_vacuum_at)}</td>
         <td className={`${tableStyles.td} ${styles.secondary}`}>{formatRelativeTime(table.last_analyze_at)}</td>
         <td className={tableStyles.td}>
-          <SeverityValue severity={table.wraparound_severity}>{table.xid_age.toLocaleString()}</SeverityValue>
+          <span title={table.xid_age.toLocaleString()}>
+            <SeverityValue severity={table.wraparound_severity}>{COMPACT_NUMBER.format(table.xid_age)}</SeverityValue>
+          </span>
         </td>
         <td className={tableStyles.td}>
           <SeverityValue severity={table.cache_hit_pct_severity}>
@@ -786,67 +836,51 @@ function TableRow({
           )}
         </td>
         <td className={tableStyles.td}>
-          <div className={styles.actions}>
-            <button
-              type="button"
-              className="button-secondary button-sm"
-              disabled={busy}
-              title={t("row.analyze.title")}
-              onClick={() =>
-                runAction(
-                  "analyze",
-                  {
-                    title: t("row.analyze.confirmTitle", { name: fullName }),
-                    message: t("row.analyze.confirmMessage"),
-                    confirmLabel: t("row.analyze.label"),
-                  },
-                  () => api.analyzeTable(targetId, table.schema_name, table.table_name)
-                )
-              }
-            >
-              {busyVerb === "analyze" ? t("row.analyze.busy") : t("row.analyze.label")}
-            </button>
-            <button
-              type="button"
-              className="button-secondary button-sm"
-              disabled={busy}
-              title={t("row.vacuum.title")}
-              onClick={() =>
-                runAction(
-                  "vacuum",
-                  {
-                    title: t("row.vacuum.confirmTitle", { name: fullName }),
-                    message: t("row.vacuum.confirmMessage"),
-                    confirmLabel: t("row.vacuum.label"),
-                    tone: "danger",
-                  },
-                  () => api.vacuumTable(targetId, table.schema_name, table.table_name, true)
-                )
-              }
-            >
-              {busyVerb === "vacuum" ? t("row.vacuum.busy") : t("row.vacuum.label")}
-            </button>
-            <button
-              type="button"
-              className="button-secondary button-sm"
-              disabled={busy}
-              title={t("row.resetStats.title")}
-              onClick={() =>
-                runAction(
-                  "resetStats",
-                  {
-                    title: t("row.resetStats.confirmTitle", { name: fullName }),
-                    message: t("row.resetStats.confirmMessage"),
-                    confirmLabel: t("row.resetStats.label"),
-                    tone: "danger",
-                  },
-                  () => api.resetTableStats(targetId, table.schema_name, table.table_name)
-                )
-              }
-            >
-              {busyVerb === "resetStats" ? t("row.resetStats.busy") : t("row.resetStats.label")}
-            </button>
-          </div>
+          <Popover
+            align="end"
+            floating
+            ariaLabel={busy ? t(`row.${busyVerb}.busy`) : t("row.actionsAria", { name: fullName })}
+            panelLabel={t("row.actionsAria", { name: fullName })}
+            buttonClassName={`button-secondary button-sm ${styles.actionsTrigger}`}
+            buttonProps={{ disabled: busy }}
+            panelClassName={styles.actionsPanel}
+            label={
+              busy ? (
+                t(`row.${busyVerb}.busy`)
+              ) : (
+                <>
+                  {t("row.actions")}
+                  <ChevronDown size={12} aria-hidden="true" />
+                </>
+              )
+            }
+          >
+            {({ close }) =>
+              ROW_ACTIONS.map(({ verb, tone: actionTone, run }) => (
+                <button
+                  key={verb}
+                  type="button"
+                  className={`${popoverStyles.option} ${styles.actionOption}`}
+                  onClick={() => {
+                    close();
+                    runAction(
+                      verb,
+                      {
+                        title: t(`row.${verb}.confirmTitle`, { name: fullName }),
+                        message: t(`row.${verb}.confirmMessage`),
+                        confirmLabel: t(`row.${verb}.label`),
+                        tone: actionTone,
+                      },
+                      () => run(targetId, table)
+                    );
+                  }}
+                >
+                  <span className={styles.actionLabel}>{t(`row.${verb}.label`)}</span>
+                  <span className={styles.actionDescription}>{t(`row.${verb}.title`)}</span>
+                </button>
+              ))
+            }
+          </Popover>
         </td>
       </tr>
       {actionError && (

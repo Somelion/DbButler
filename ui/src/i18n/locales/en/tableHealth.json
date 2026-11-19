@@ -87,6 +87,9 @@
   },
   "row": {
     "showSuggestions": "Show suggestions for this table",
+    "deadCount": "{{dead}} dead",
+    "actions": "Actions",
+    "actionsAria": "Actions for {{name}}",
     "asOf": "as of {{time}}",
     "pending": "pending",
     "loadingDetails": "Loading details for {{name}}…",

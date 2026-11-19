@@ -76,9 +76,64 @@
   color: var(--text-muted);
 }
 
-.actions {
-  display: flex;
-  gap: var(--space-4);
+/* Narrower cells than the shared table: headers may wrap onto two lines
+   and the horizontal padding is tighter, so more columns fit. */
+.healthTable th,
+.healthTable td {
+  padding-inline: var(--space-8);
+}
+
+.healthTable th {
+  white-space: normal;
+  vertical-align: bottom;
+}
+
+/* The name's "_"-parts each on their own line (TableName in the .jsx). */
+.nameButton {
+  align-items: flex-start;
+}
+
+.nameChevron {
+  margin-top: 1px;
+}
+
+.tableName {
+  display: inline-block;
+  width: min-content;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.dead {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
+.actionsTrigger {
+  white-space: nowrap;
+}
+
+.actionsPanel {
+  width: 300px;
+}
+
+.actionOption {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.actionLabel {
+  font-weight: var(--weight-semibold);
+}
+
+.actionDescription {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
 }
 
 .messageCell {

@@ -87,6 +87,9 @@
   },
   "row": {
     "showSuggestions": "Näita selle tabeli soovitusi",
+    "deadCount": "{{dead}} surnud",
+    "actions": "Toimingud",
+    "actionsAria": "Toimingud: {{name}}",
     "asOf": "mõõdetud {{time}}",
     "pending": "ootel",
     "loadingDetails": "Tabeli {{name}} andmete laadimine…",
